@@ -8,4 +8,5 @@ build/
 *.log
 .DS_Store
 .vercel
+supabase/.temp/
 next-env.d.ts

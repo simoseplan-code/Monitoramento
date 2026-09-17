@@ -13,6 +13,7 @@ Painel interno da equipe para acompanhar ações/obras e a vinculação de contr
 1. No projeto `lqvxsxlemdvedxhfnnwv`, abra o **SQL Editor** e rode, nesta ordem:
    - `supabase/migrations/0001_init.sql`
    - Ative a extensão `pg_cron` em **Database → Extensions**, depois rode `supabase/migrations/0002_pg_cron.sql`.
+   - `supabase/migrations/0003_fix_profiles_rls_recursion.sql` (corrige recursão infinita nas policies de admin de `profiles`).
 2. Em **Authentication → Providers**, confirme que Email está ativo e **Confirm email desligado** (a identidade é validada pela aprovação manual do admin, não por e-mail).
 3. Em **Authentication → Attack Protection**, ligue **Leaked password protection**.
 4. Copie de **Settings → API**: `Project URL`, `anon public key` e `service_role key`.
