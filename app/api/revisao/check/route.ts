@@ -4,6 +4,9 @@ import { createClient } from "@/lib/supabase/server";
 const CAMPOS_VALIDOS = ["kml_anexado", "sem_duplicacao", "trecho_unico", "documentos_obrigatorios"] as const;
 type Campo = (typeof CAMPOS_VALIDOS)[number];
 
+const STATUS_VALIDOS = ["pendente", "confirmado", "aguardando_atualizacao"] as const;
+type Status = (typeof STATUS_VALIDOS)[number];
+
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const {
@@ -11,9 +14,9 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
 
-  const { idAcao, campo, valor } = (await request.json()) as { idAcao?: string; campo?: string; valor?: boolean };
+  const { idAcao, campo, status } = (await request.json()) as { idAcao?: string; campo?: string; status?: string };
 
-  if (!idAcao || !CAMPOS_VALIDOS.includes(campo as Campo) || typeof valor !== "boolean") {
+  if (!idAcao || !CAMPOS_VALIDOS.includes(campo as Campo) || !STATUS_VALIDOS.includes(status as Status)) {
     return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
   }
 
@@ -24,14 +27,14 @@ export async function POST(request: NextRequest) {
     .maybeSingle();
 
   const proximo = {
-    kml_anexado: atual?.kml_anexado ?? false,
-    sem_duplicacao: atual?.sem_duplicacao ?? false,
-    trecho_unico: atual?.trecho_unico ?? false,
-    documentos_obrigatorios: atual?.documentos_obrigatorios ?? false,
-    [campo as Campo]: valor,
+    kml_anexado: atual?.kml_anexado ?? "pendente",
+    sem_duplicacao: atual?.sem_duplicacao ?? "pendente",
+    trecho_unico: atual?.trecho_unico ?? "pendente",
+    documentos_obrigatorios: atual?.documentos_obrigatorios ?? "pendente",
+    [campo as Campo]: status,
   };
 
-  const completo = proximo.kml_anexado && proximo.sem_duplicacao && proximo.trecho_unico && proximo.documentos_obrigatorios;
+  const completo = Object.values(proximo).every((v) => v === "confirmado");
 
   const { error } = await supabase.from("obras_revisao").upsert(
     {

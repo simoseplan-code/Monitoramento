@@ -38,10 +38,16 @@ export default async function NovasAcoesPage() {
 
   const revisaoPorId = new Map((revisoes ?? []).map((r) => [r.id_acao, r]));
 
+  const ehConfirmado = (v: string | undefined) => v === "confirmado";
   const pendentes = (obras ?? []).filter((o) => {
     const r = revisaoPorId.get(o.id_acao);
-    return !r || !r.kml_anexado || !r.sem_duplicacao || !r.trecho_unico || !r.documentos_obrigatorios;
+    return !r || !ehConfirmado(r.kml_anexado) || !ehConfirmado(r.sem_duplicacao) || !ehConfirmado(r.trecho_unico) || !ehConfirmado(r.documentos_obrigatorios);
   });
+  const aguardandoAtualizacao = pendentes.filter((o) => {
+    const r = revisaoPorId.get(o.id_acao);
+    if (!r) return false;
+    return [r.kml_anexado, r.sem_duplicacao, r.trecho_unico, r.documentos_obrigatorios].includes("aguardando_atualizacao");
+  }).length;
 
   return (
     <AppShell
@@ -50,7 +56,7 @@ export default async function NovasAcoesPage() {
       isAdmin={!!profile?.is_admin}
       counts={{ acoes: totalAcoes ?? 0, pendentesAprovacao: pendentesAprovacao ?? 0, novasAcoesPendentes: pendentes.length }}
       titulo="Novas ações"
-      subtitulo={`${pendentes.length} ação(ões) aguardando revisão completa`}
+      subtitulo={`${pendentes.length} ação(ões) aguardando revisão completa${aguardandoAtualizacao > 0 ? ` · ${aguardandoAtualizacao} com pendência no órgão` : ""}`}
     >
       <div className="space-y-3">
         {pendentes.map((o) => {
@@ -73,7 +79,7 @@ export default async function NovasAcoesPage() {
                     idAcao={o.id_acao}
                     campo={c.campo}
                     label={c.label}
-                    marcado={!!r?.[c.campo]}
+                    status={r?.[c.campo] ?? "pendente"}
                   />
                 ))}
               </div>

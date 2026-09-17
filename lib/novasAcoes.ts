@@ -13,9 +13,10 @@ export async function contarNovasAcoesPendentes(supabase: SupabaseClient): Promi
   ]);
 
   const revisaoPorId = new Map((revisoes ?? []).map((r) => [r.id_acao, r]));
+  const confirmado = (v: string | undefined) => v === "confirmado";
 
   return (obras ?? []).filter((o) => {
     const r = revisaoPorId.get(o.id_acao);
-    return !r || !r.kml_anexado || !r.sem_duplicacao || !r.trecho_unico || !r.documentos_obrigatorios;
+    return !r || !confirmado(r.kml_anexado) || !confirmado(r.sem_duplicacao) || !confirmado(r.trecho_unico) || !confirmado(r.documentos_obrigatorios);
   }).length;
 }
