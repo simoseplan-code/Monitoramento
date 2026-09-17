@@ -26,14 +26,14 @@ export function AprovarBotoes({ userId }: { userId: string }) {
       <button
         disabled={carregando}
         onClick={() => agir("aprovar")}
-        className="rounded bg-emerald-600 px-3 py-1 text-sm text-white disabled:opacity-50"
+        className="rounded-lg bg-status-good px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         Aprovar
       </button>
       <button
         disabled={carregando}
         onClick={() => agir("rejeitar")}
-        className="rounded bg-red-600 px-3 py-1 text-sm text-white disabled:opacity-50"
+        className="rounded-lg bg-status-critical px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         Rejeitar
       </button>

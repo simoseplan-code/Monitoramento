@@ -23,11 +23,11 @@ export function SincronizarBotao() {
 
   return (
     <div className="flex items-center gap-3">
-      {msg && <span className="text-sm">{msg}</span>}
+      {msg && <span className="text-xs text-ink-muted">{msg}</span>}
       <button
         disabled={carregando}
         onClick={sincronizar}
-        className="rounded bg-slate-900 px-3 py-2 text-sm text-white disabled:opacity-50"
+        className="rounded-lg bg-series-1 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         {carregando ? "Sincronizando..." : "Sincronizar agora"}
       </button>
