@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { ChecklistItem } from "./ChecklistItem";
+import { DATA_INICIO_REVISAO } from "@/lib/novasAcoes";
 
 const CHECKS = [
   { campo: "kml_anexado" as const, label: "KML anexado" },
@@ -28,6 +29,7 @@ export default async function NovasAcoesPage() {
   const { data: obras } = await supabase
     .from("obras")
     .select("id_acao, nome_acao, orgao, data_criacao")
+    .gte("data_criacao", DATA_INICIO_REVISAO)
     .lte("data_criacao", limite)
     .order("data_criacao", { ascending: false })
     .limit(500);
