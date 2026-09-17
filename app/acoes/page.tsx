@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { FiltrosAcoes } from "./FiltrosAcoes";
+import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 
 type Obra = {
   id_acao: string;
@@ -46,9 +47,10 @@ export default async function AcoesPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: profile }, { count: pendentesAprovacao }] = await Promise.all([
+  const [{ data: profile }, { count: pendentesAprovacao }, novasAcoesPendentes] = await Promise.all([
     supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
+    contarNovasAcoesPendentes(supabase),
   ]);
 
   let query = supabase
@@ -73,7 +75,7 @@ export default async function AcoesPage({
       nome={profile?.nome ?? "Usuário"}
       cargo={profile?.cargo}
       isAdmin={!!profile?.is_admin}
-      counts={{ acoes: obras?.length ?? 0, pendentesAprovacao: pendentesAprovacao ?? 0 }}
+      counts={{ acoes: obras?.length ?? 0, pendentesAprovacao: pendentesAprovacao ?? 0, novasAcoesPendentes }}
       titulo="Ações"
       subtitulo={`${linhas.length} de ${obras?.length ?? 0} ações`}
     >

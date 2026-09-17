@@ -6,6 +6,7 @@ import { HistoricoChart } from "@/components/dashboard/HistoricoChart";
 import { WorkflowColumns } from "@/components/dashboard/WorkflowColumns";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { NotificationsFeed } from "@/components/dashboard/NotificationsFeed";
+import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { ClipboardList, Building2, Link2, Clock3, AlertTriangle } from "lucide-react";
 
 type ObraResumo = {
@@ -43,7 +44,7 @@ export default async function DashboardPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: profile }, { data: obras }, { data: historico }, { data: syncLogs }, { count: pendentesAprovacao }] =
+  const [{ data: profile }, { data: obras }, { data: historico }, { data: syncLogs }, { count: pendentesAprovacao }, novasAcoesPendentes] =
     await Promise.all([
       supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
       supabase.from("obras").select("numero_automatico, numero_siafe, orgao"),
@@ -54,6 +55,7 @@ export default async function DashboardPage() {
         .limit(30),
       supabase.from("sync_log").select("id, sucesso, linhas_processadas, mensagem, executado_em").order("executado_em", { ascending: false }).limit(5),
       supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
+      contarNovasAcoesPendentes(supabase),
     ]);
 
   const linhas = obras ?? [];
@@ -83,7 +85,7 @@ export default async function DashboardPage() {
       nome={profile?.nome ?? "Usuário"}
       cargo={profile?.cargo}
       isAdmin={!!profile?.is_admin}
-      counts={{ acoes: total, pendentesAprovacao: pendentesAprovacao ?? 0 }}
+      counts={{ acoes: total, pendentesAprovacao: pendentesAprovacao ?? 0, novasAcoesPendentes }}
       titulo="Dashboard"
       subtitulo="Visão geral do monitoramento de obras"
       notificacoesCount={eventos.filter((e) => e.tipo === "sync_erro").length}

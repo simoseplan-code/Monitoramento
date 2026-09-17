@@ -14,7 +14,7 @@ export function AppShell({
   nome: string;
   cargo?: string | null;
   isAdmin: boolean;
-  counts: { acoes: number; pendentesAprovacao: number };
+  counts: { acoes: number; pendentesAprovacao: number; novasAcoesPendentes: number };
   titulo: string;
   subtitulo?: string;
   notificacoesCount?: number;

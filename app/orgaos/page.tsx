@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import Link from "next/link";
+import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 
 type Obra = { orgao: string | null; numero_automatico: string | null; numero_siafe: string | null };
 
@@ -16,10 +17,11 @@ export default async function OrgaosPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: profile }, { data: obras }, { count: pendentesAprovacao }] = await Promise.all([
+  const [{ data: profile }, { data: obras }, { count: pendentesAprovacao }, novasAcoesPendentes] = await Promise.all([
     supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
     supabase.from("obras").select("orgao, numero_automatico, numero_siafe"),
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
+    contarNovasAcoesPendentes(supabase),
   ]);
 
   const linhas = obras ?? [];
@@ -42,7 +44,7 @@ export default async function OrgaosPage() {
       nome={profile?.nome ?? "Usuário"}
       cargo={profile?.cargo}
       isAdmin={!!profile?.is_admin}
-      counts={{ acoes: linhas.length, pendentesAprovacao: pendentesAprovacao ?? 0 }}
+      counts={{ acoes: linhas.length, pendentesAprovacao: pendentesAprovacao ?? 0, novasAcoesPendentes }}
       titulo="Órgãos"
       subtitulo={`${linhasOrdenadas.length} órgãos com ações cadastradas`}
     >

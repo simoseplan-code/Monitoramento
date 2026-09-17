@@ -3,6 +3,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { AprovarBotoes } from "./AprovarBotoes";
 import { SincronizarBotao } from "./SincronizarBotao";
 import { CheckCircle2, XCircle } from "lucide-react";
+import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 
 export default async function AdminPage() {
   const supabase = await createClient();
@@ -10,23 +11,25 @@ export default async function AdminPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: profile }, { data: pendentes }, { data: ultimosSyncs }, { count: totalAcoes }] = await Promise.all([
-    supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
-    supabase.from("profiles").select("id, nome, email, created_at").eq("status", "pendente").order("created_at"),
-    supabase
-      .from("sync_log")
-      .select("id, executado_em, sucesso, linhas_processadas, mensagem")
-      .order("executado_em", { ascending: false })
-      .limit(6),
-    supabase.from("obras").select("id_acao", { count: "exact", head: true }),
-  ]);
+  const [{ data: profile }, { data: pendentes }, { data: ultimosSyncs }, { count: totalAcoes }, novasAcoesPendentes] =
+    await Promise.all([
+      supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
+      supabase.from("profiles").select("id, nome, email, created_at").eq("status", "pendente").order("created_at"),
+      supabase
+        .from("sync_log")
+        .select("id, executado_em, sucesso, linhas_processadas, mensagem")
+        .order("executado_em", { ascending: false })
+        .limit(6),
+      supabase.from("obras").select("id_acao", { count: "exact", head: true }),
+      contarNovasAcoesPendentes(supabase),
+    ]);
 
   return (
     <AppShell
       nome={profile?.nome ?? "Usuário"}
       cargo={profile?.cargo}
       isAdmin={!!profile?.is_admin}
-      counts={{ acoes: totalAcoes ?? 0, pendentesAprovacao: pendentes?.length ?? 0 }}
+      counts={{ acoes: totalAcoes ?? 0, pendentesAprovacao: pendentes?.length ?? 0, novasAcoesPendentes }}
       titulo="Administração"
       subtitulo="Sincronização, cadastros e auditoria"
     >
