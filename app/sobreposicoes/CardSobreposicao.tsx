@@ -1,0 +1,168 @@
+"use client";
+
+import { useRouter } from "next/navigation";
+import { useState } from "react";
+import { CheckCircle2, AlertTriangle, Undo2, MapPin } from "lucide-react";
+import type { ObraNoLocal } from "@/lib/sobreposicoes/parseCsv";
+
+type StatusRevisao = "pendente" | "ok" | "problema";
+
+export function CardSobreposicao({
+  chaveLocal,
+  obras,
+  extensaoM,
+  toleranciaM,
+  qtdSegmentos,
+  latInicio,
+  lonInicio,
+  latFim,
+  lonFim,
+  statusInicial,
+  observacaoInicial,
+}: {
+  chaveLocal: string;
+  obras: ObraNoLocal[];
+  extensaoM: number | null;
+  toleranciaM: number | null;
+  qtdSegmentos: number | null;
+  latInicio: number | null;
+  lonInicio: number | null;
+  latFim: number | null;
+  lonFim: number | null;
+  statusInicial: StatusRevisao;
+  observacaoInicial: string | null;
+}) {
+  const router = useRouter();
+  const [status, setStatus] = useState(statusInicial);
+  const [etapa, setEtapa] = useState<"fechado" | "escrevendo_problema">("fechado");
+  const [observacao, setObservacao] = useState(observacaoInicial ?? "");
+  const [salvando, setSalvando] = useState(false);
+
+  async function salvar(novoStatus: StatusRevisao, obs?: string) {
+    setSalvando(true);
+    try {
+      await fetch("/api/sobreposicoes/status", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chaveLocal, status: novoStatus, observacao: obs ?? "" }),
+      });
+      setStatus(novoStatus);
+      setEtapa("fechado");
+      router.refresh();
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  const linkMapa =
+    latInicio != null && lonInicio != null ? `https://www.google.com/maps?q=${latInicio},${lonInicio}` : null;
+
+  return (
+    <div
+      className={`rounded-xl border p-4 shadow-card transition-colors ${
+        status === "ok"
+          ? "border-status-good/20 bg-status-good-bg"
+          : status === "problema"
+            ? "border-status-warning/20 bg-status-warning-bg"
+            : "border-black/5 bg-surface"
+      }`}
+    >
+      <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
+        <div>
+          <p className="text-sm font-semibold text-ink-primary">
+            {obras.length} obras envolvidas · {extensaoM != null ? `${Math.round(extensaoM)} m` : "—"} sobrepostos
+          </p>
+          <p className="text-xs text-ink-muted">
+            Tolerância {toleranciaM ?? "—"} m · {qtdSegmentos ?? "—"} segmento(s)
+            {linkMapa && (
+              <>
+                {" · "}
+                <a href={linkMapa} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-series-1 hover:underline">
+                  <MapPin size={12} /> Ver início no mapa
+                </a>
+              </>
+            )}
+          </p>
+        </div>
+
+        {status !== "pendente" && (
+          <button
+            onClick={() => salvar("pendente")}
+            disabled={salvando}
+            className="flex shrink-0 items-center gap-1.5 rounded-full bg-white/60 px-3 py-1.5 text-xs font-medium text-ink-secondary hover:bg-white disabled:opacity-50"
+            title="Reabrir revisão"
+          >
+            <Undo2 size={13} />
+            Reabrir
+          </button>
+        )}
+      </div>
+
+      <ul className="mb-3 space-y-1.5">
+        {obras.map((o, i) => (
+          <li key={i} className="rounded-lg bg-plane px-3 py-2 text-xs">
+            <p className="font-medium text-ink-primary">{o.nome}</p>
+            <p className="text-ink-muted">
+              {o.id ? `ID ${o.id}` : "Sem ID"} · {o.orgao || "Sem órgão"} · {o.status || "Sem status"}
+              {o.contrato ? ` · Contrato ${o.contrato}` : ""}
+            </p>
+          </li>
+        ))}
+      </ul>
+
+      {status === "problema" && observacaoInicial && etapa === "fechado" && (
+        <p className="mb-3 rounded-lg border border-status-warning/20 bg-white/60 px-3 py-2 text-xs text-ink-secondary">
+          <strong className="text-status-warning">Observação:</strong> {observacaoInicial}
+        </p>
+      )}
+
+      {status === "pendente" && etapa === "fechado" && (
+        <div className="flex gap-2">
+          <button
+            onClick={() => salvar("ok")}
+            disabled={salvando}
+            className="flex items-center gap-1.5 rounded-full bg-status-good px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+          >
+            <CheckCircle2 size={13} />
+            Sem problema
+          </button>
+          <button
+            onClick={() => setEtapa("escrevendo_problema")}
+            disabled={salvando}
+            className="flex items-center gap-1.5 rounded-full bg-status-warning px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+          >
+            <AlertTriangle size={13} />
+            Tem problema
+          </button>
+        </div>
+      )}
+
+      {etapa === "escrevendo_problema" && (
+        <div className="space-y-2">
+          <textarea
+            value={observacao}
+            onChange={(e) => setObservacao(e.target.value)}
+            placeholder="O que está errado aqui? (opcional)"
+            rows={2}
+            className="w-full rounded-lg border border-black/10 bg-plane px-3 py-2 text-xs text-ink-primary placeholder:text-ink-muted focus:border-series-1 focus:outline-none"
+          />
+          <div className="flex gap-2">
+            <button
+              onClick={() => salvar("problema", observacao)}
+              disabled={salvando}
+              className="rounded-full bg-status-warning px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {salvando ? "Salvando..." : "Confirmar problema"}
+            </button>
+            <button
+              onClick={() => setEtapa("fechado")}
+              className="rounded-full px-3 py-1.5 text-xs font-medium text-ink-muted hover:text-ink-primary"
+            >
+              Cancelar
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}

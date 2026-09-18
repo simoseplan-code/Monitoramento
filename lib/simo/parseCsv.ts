@@ -39,7 +39,9 @@ export type ObraRow = {
 };
 
 // Parser de CSV simples com separador ";" que respeita aspas.
-function parseCsvLinhas(texto: string): string[][] {
+// Exportado porque outros importadores (ex.: lib/sobreposicoes/parseCsv.ts)
+// usam o mesmo formato de CSV e não precisam reimplementar isso.
+export function parseCsvLinhas(texto: string): string[][] {
   const linhas: string[][] = [];
   let linhaAtual: string[] = [];
   let campoAtual = "";
