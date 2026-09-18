@@ -1,17 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
-import { ChecklistItem } from "./ChecklistItem";
-import { ConcluirBotao } from "./ConcluirBotao";
+import { CardNovaAcao } from "./CardNovaAcao";
 import { FiltrosNovasAcoes } from "./FiltrosNovasAcoes";
 import { PaginacaoNovasAcoes } from "./PaginacaoNovasAcoes";
 import { DATA_INICIO_REVISAO, contarNovasAcoesPendentes } from "@/lib/novasAcoes";
-
-const CHECKS = [
-  { campo: "kml_anexado" as const, label: "KML anexado" },
-  { campo: "sem_duplicacao" as const, label: "Sem duplicação" },
-  { campo: "trecho_unico" as const, label: "Trecho único" },
-  { campo: "documentos_obrigatorios" as const, label: "Documentos obrigatórios inseridos" },
-];
 
 const PAGE_SIZE = 50;
 
@@ -92,38 +84,22 @@ export default async function NovasAcoesPage({
       </div>
 
       <div className="space-y-3">
-        {linhas.map((o) => {
-          const tudoConfirmado =
-            o.kml_anexado === "confirmado" &&
-            o.sem_duplicacao === "confirmado" &&
-            o.trecho_unico === "confirmado" &&
-            o.documentos_obrigatorios === "confirmado";
-
-          return (
-            <div
-              key={o.id_acao}
-              className={`rounded-xl border p-4 shadow-card transition-colors ${
-                o.concluido ? "border-status-good/20 bg-status-good-bg" : "border-black/5 bg-surface"
-              }`}
-            >
-              <div className="mb-3 flex items-start justify-between gap-4">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-semibold text-ink-primary">{o.nome_acao}</p>
-                  <p className="text-xs text-ink-muted">
-                    {o.id_acao} · {o.orgao ?? "Sem órgão"} · criada em{" "}
-                    {o.data_criacao ? new Date(o.data_criacao + "T00:00:00").toLocaleDateString("pt-BR") : "—"}
-                  </p>
-                </div>
-                {(tudoConfirmado || o.concluido) && <ConcluirBotao idAcao={o.id_acao} concluido={o.concluido} />}
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {CHECKS.map((c) => (
-                  <ChecklistItem key={c.campo} idAcao={o.id_acao} campo={c.campo} label={c.label} status={o[c.campo]} />
-                ))}
-              </div>
-            </div>
-          );
-        })}
+        {linhas.map((o) => (
+          <CardNovaAcao
+            key={o.id_acao}
+            idAcao={o.id_acao}
+            nomeAcao={o.nome_acao}
+            orgao={o.orgao}
+            dataCriacao={o.data_criacao}
+            concluido={o.concluido}
+            statusInicial={{
+              kml_anexado: o.kml_anexado,
+              sem_duplicacao: o.sem_duplicacao,
+              trecho_unico: o.trecho_unico,
+              documentos_obrigatorios: o.documentos_obrigatorios,
+            }}
+          />
+        ))}
 
         {linhas.length === 0 && (
           <div className="rounded-xl border border-black/5 bg-surface p-10 text-center shadow-card">

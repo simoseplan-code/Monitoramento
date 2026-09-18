@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Check, AlertTriangle } from "lucide-react";
 
@@ -14,31 +13,35 @@ export function ChecklistItem({
   campo,
   label,
   status,
+  onSalvo,
 }: {
   idAcao: string;
   campo: Campo;
   label: string;
   status: Status;
+  onSalvo: (novoStatus: Status) => void;
 }) {
-  const router = useRouter();
   // "fechado" = pill normal | "escolhendo" = mostra as opções | "confirmando_x" = pede a segunda confirmação
   const [etapa, setEtapa] = useState<"fechado" | "escolhendo" | "confirmando_confirmado" | "confirmando_aguardando">(
     "fechado"
   );
   const [salvando, setSalvando] = useState(false);
 
+  // Atualiza a tela na hora (sem esperar o servidor re-renderizar a
+  // página inteira) e só then salva de verdade — se a chamada falhar,
+  // o próprio card volta a ficar coerente na próxima ação do usuário.
   async function salvar(novoStatus: Status) {
     setSalvando(true);
+    onSalvo(novoStatus);
+    setEtapa("fechado");
     try {
       await fetch("/api/revisao/check", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ idAcao, campo, status: novoStatus }),
       });
-      router.refresh();
     } finally {
       setSalvando(false);
-      setEtapa("fechado");
     }
   }
 
@@ -47,7 +50,7 @@ export function ChecklistItem({
       <span className={`${PILL_BASE} bg-status-good-bg text-status-good`}>
         Confirma &quot;{label}&quot;?
         <button onClick={() => salvar("confirmado")} disabled={salvando} className="rounded-full bg-status-good px-2 py-0.5 text-white disabled:opacity-50">
-          {salvando ? "..." : "Sim"}
+          Sim
         </button>
         <button onClick={() => setEtapa("fechado")} className="rounded-full px-1.5 text-ink-muted hover:text-ink-primary">
           Não
@@ -61,7 +64,7 @@ export function ChecklistItem({
       <span className={`${PILL_BASE} bg-status-warning-bg text-status-warning`}>
         Marcar &quot;{label}&quot; como aguardando atualização?
         <button onClick={() => salvar("aguardando_atualizacao")} disabled={salvando} className="rounded-full bg-status-warning px-2 py-0.5 text-white disabled:opacity-50">
-          {salvando ? "..." : "Sim"}
+          Sim
         </button>
         <button onClick={() => setEtapa("fechado")} className="rounded-full px-1.5 text-ink-muted hover:text-ink-primary">
           Não
@@ -86,7 +89,7 @@ export function ChecklistItem({
         )}
         {status !== "pendente" && (
           <button onClick={() => salvar("pendente")} disabled={salvando} className="rounded-full bg-ink-muted px-2 py-0.5 text-white disabled:opacity-50">
-            {salvando ? "..." : "Desmarcar"}
+            Desmarcar
           </button>
         )}
         <button onClick={() => setEtapa("fechado")} className="rounded-full px-1.5 text-ink-muted hover:text-ink-primary">
