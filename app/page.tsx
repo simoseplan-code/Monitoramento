@@ -7,11 +7,19 @@ import { QuickActions } from "@/components/dashboard/QuickActions";
 import { NotificationsFeed } from "@/components/dashboard/NotificationsFeed";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { ClipboardList, Building2, Link2, Clock3, AlertTriangle } from "lucide-react";
-import type { SupabaseClient } from "@supabase/supabase-js";
-
-async function topOrgaos(supabase: SupabaseClient, bucket: string): Promise<string[]> {
-  const { data } = await supabase.rpc("obras_top_orgaos", { bucket, limite: 3 });
-  return (data ?? []).map((r: { orgao: string }) => r.orgao);
+function agruparTopOrgaos(linhas: { bucket: string; orgao: string }[] | null) {
+  const porBucket = new Map<string, string[]>();
+  for (const l of linhas ?? []) {
+    const lista = porBucket.get(l.bucket) ?? [];
+    lista.push(l.orgao);
+    porBucket.set(l.bucket, lista);
+  }
+  return {
+    sem_numero: porBucket.get("sem_numero") ?? [],
+    pendente: porBucket.get("pendente") ?? [],
+    dado_incorreto: porBucket.get("dado_incorreto") ?? [],
+    vinculada: porBucket.get("vinculada") ?? [],
+  };
 }
 
 export default async function DashboardPage() {
@@ -28,10 +36,7 @@ export default async function DashboardPage() {
     { data: syncLogs },
     { count: pendentesAprovacao },
     novasAcoesPendentes,
-    topSemNumero,
-    topPendente,
-    topDadoIncorreto,
-    topVinculada,
+    { data: topOrgaosRpc },
   ] = await Promise.all([
     supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
     // Uma única função SQL soma tudo no banco — nada de baixar as 13k+
@@ -45,11 +50,11 @@ export default async function DashboardPage() {
     supabase.from("sync_log").select("id, sucesso, linhas_processadas, mensagem, executado_em").order("executado_em", { ascending: false }).limit(5),
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
     contarNovasAcoesPendentes(supabase),
-    topOrgaos(supabase, "sem_numero"),
-    topOrgaos(supabase, "pendente"),
-    topOrgaos(supabase, "dado_incorreto"),
-    topOrgaos(supabase, "vinculada"),
+    // Os 4 baldes de "top órgãos" vêm numa chamada só (era uma pra cada).
+    supabase.rpc("obras_top_orgaos_todos", { limite: 3 }),
   ]);
+
+  const topOrgaos = agruparTopOrgaos(topOrgaosRpc);
 
   const resumo = resumoLista?.[0] ?? {
     total: 0,
@@ -110,7 +115,7 @@ export default async function DashboardPage() {
               total: resumo.total,
               cor: "var(--status-neutral)",
               corFundo: "var(--status-neutral-bg)",
-              topOrgaos: topSemNumero,
+              topOrgaos: topOrgaos.sem_numero,
             },
             {
               chave: "pendente",
@@ -119,7 +124,7 @@ export default async function DashboardPage() {
               total: resumo.total,
               cor: "var(--status-warning)",
               corFundo: "var(--status-warning-bg)",
-              topOrgaos: topPendente,
+              topOrgaos: topOrgaos.pendente,
             },
             {
               chave: "dado_incorreto",
@@ -128,7 +133,7 @@ export default async function DashboardPage() {
               total: resumo.total,
               cor: "var(--status-critical)",
               corFundo: "var(--status-critical-bg)",
-              topOrgaos: topDadoIncorreto,
+              topOrgaos: topOrgaos.dado_incorreto,
             },
             {
               chave: "vinculada",
@@ -137,7 +142,7 @@ export default async function DashboardPage() {
               total: resumo.total,
               cor: "var(--status-good)",
               corFundo: "var(--status-good-bg)",
-              topOrgaos: topVinculada,
+              topOrgaos: topOrgaos.vinculada,
             },
           ]}
         />
