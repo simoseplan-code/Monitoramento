@@ -2,10 +2,21 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { CheckCircle2, AlertTriangle, Undo2, MapPin } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Undo2, MapPin, Star } from "lucide-react";
 import type { ObraNoLocal } from "@/lib/sobreposicoes/parseCsv";
 
 type StatusRevisao = "pendente" | "ok" | "problema";
+
+// A ação com o menor ID é a mais antiga no SIMO — normalmente a
+// "original", que as outras do mesmo local estão duplicando. Vai
+// primeiro na lista, marcada como Principal, pra saber qual olhar antes.
+function ordenarComPrincipalPrimeiro(obras: ObraNoLocal[]): ObraNoLocal[] {
+  return [...obras].sort((a, b) => {
+    const idA = a.id ? parseInt(a.id, 10) : Infinity;
+    const idB = b.id ? parseInt(b.id, 10) : Infinity;
+    return (isNaN(idA) ? Infinity : idA) - (isNaN(idB) ? Infinity : idB);
+  });
+}
 
 export function CardSobreposicao({
   chaveLocal,
@@ -99,11 +110,25 @@ export function CardSobreposicao({
       </div>
 
       <ul className="mb-3 space-y-1.5">
-        {obras.map((o, i) => (
-          <li key={i} className="rounded-lg bg-plane px-3 py-2 text-xs">
-            <p className="font-medium text-ink-primary">{o.nome}</p>
+        {ordenarComPrincipalPrimeiro(obras).map((o, i) => (
+          <li
+            key={i}
+            className={`rounded-lg px-3 py-2 text-xs ${i === 0 ? "border border-series-1/30 bg-series-1/5" : "bg-plane"}`}
+          >
+            <div className="mb-1 flex flex-wrap items-center gap-2">
+              {i === 0 && (
+                <span className="flex items-center gap-1 rounded-full bg-series-1 px-2 py-0.5 text-[11px] font-semibold text-white">
+                  <Star size={10} strokeWidth={3} />
+                  Principal
+                </span>
+              )}
+              <span className="rounded-full bg-series-1/10 px-2 py-0.5 text-[11px] font-semibold text-series-1">
+                {o.orgao || "Sem órgão"}
+              </span>
+              <p className="font-medium text-ink-primary">{o.nome}</p>
+            </div>
             <p className="text-ink-muted">
-              {o.id ? `ID ${o.id}` : "Sem ID"} · {o.orgao || "Sem órgão"} · {o.status || "Sem status"}
+              {o.id ? `ID ${o.id}` : "Sem ID"} · {o.status || "Sem status"}
               {o.contrato ? ` · Contrato ${o.contrato}` : ""}
             </p>
           </li>

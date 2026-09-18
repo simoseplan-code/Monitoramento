@@ -28,9 +28,9 @@ type LinhaSobreposicao = {
 export default async function SobreposicoesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ revisadas?: string; pagina?: string }>;
+  searchParams: Promise<{ revisadas?: string; orgao?: string; pagina?: string }>;
 }) {
-  const { revisadas, pagina } = await searchParams;
+  const { revisadas, orgao, pagina } = await searchParams;
   const mostrarRevisadas = revisadas === "1";
   const paginaAtual = Math.max(1, parseInt(pagina ?? "1", 10) || 1);
   const de = (paginaAtual - 1) * PAGE_SIZE;
@@ -50,16 +50,27 @@ export default async function SobreposicoesPage({
     .order("extensao_m", { ascending: false, nullsFirst: false })
     .range(de, ate);
   consulta = mostrarRevisadas ? consulta.neq("status", "pendente") : consulta.eq("status", "pendente");
+  if (orgao) consulta = consulta.contains("obras", [{ orgao }]);
 
-  const [{ data: profile }, { count: totalAcoes }, { count: pendentesAprovacao }, novasAcoesPendentes, { count: totalPendentes }, { data: linhas, count: totalFiltrado }] =
-    await Promise.all([
-      supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
-      supabase.from("obras").select("id_acao", { count: "exact", head: true }),
-      supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
-      contarNovasAcoesPendentes(supabase),
-      supabase.from("sobreposicoes").select("chave_local", { count: "exact", head: true }).eq("status", "pendente"),
-      consulta,
-    ]);
+  const [
+    { data: profile },
+    { count: totalAcoes },
+    { count: pendentesAprovacao },
+    novasAcoesPendentes,
+    { count: totalPendentes },
+    { data: linhas, count: totalFiltrado },
+    { data: orgaosRpc },
+  ] = await Promise.all([
+    supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
+    supabase.from("obras").select("id_acao", { count: "exact", head: true }),
+    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
+    contarNovasAcoesPendentes(supabase),
+    supabase.from("sobreposicoes").select("chave_local", { count: "exact", head: true }).eq("status", "pendente"),
+    consulta,
+    supabase.rpc("sobreposicoes_orgaos"),
+  ]);
+
+  const orgaosDisponiveis = (orgaosRpc ?? []).map((r: { orgao: string }) => r.orgao);
 
   const totalPaginas = Math.max(1, Math.ceil((totalFiltrado ?? 0) / PAGE_SIZE));
 
@@ -82,7 +93,7 @@ export default async function SobreposicoesPage({
       </div>
 
       <div className="mb-4">
-        <FiltrosSobreposicoes mostrarRevisadas={mostrarRevisadas} />
+        <FiltrosSobreposicoes mostrarRevisadas={mostrarRevisadas} orgaoAtual={orgao ?? ""} orgaos={orgaosDisponiveis} />
       </div>
 
       <div className="space-y-3">
@@ -111,7 +122,7 @@ export default async function SobreposicoesPage({
           </div>
         )}
 
-        <PaginacaoSobreposicoes paginaAtual={paginaAtual} totalPaginas={totalPaginas} revisadas={mostrarRevisadas} />
+        <PaginacaoSobreposicoes paginaAtual={paginaAtual} totalPaginas={totalPaginas} revisadas={mostrarRevisadas} orgao={orgao ?? ""} />
       </div>
     </AppShell>
   );
