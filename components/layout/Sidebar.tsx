@@ -13,6 +13,7 @@ import {
   ChevronRight,
   RefreshCw,
   ClipboardCheck,
+  History,
   type LucideIcon,
 } from "lucide-react";
 import { SobrePainel } from "./SobrePainel";
@@ -40,10 +41,11 @@ export function Sidebar({
   const [colapsada, setColapsada] = useState(false);
 
   const itens: NavItem[] = [
-    { href: "/", label: "Dashboard", icon: LayoutGrid },
+    { href: "/", label: "Dashboard Gestão", icon: LayoutGrid },
     { href: "/acoes", label: "Ações", icon: ClipboardList, count: counts.acoes },
     { href: "/novas-acoes", label: "Novas Ações", icon: ClipboardCheck, count: counts.novasAcoesPendentes || undefined },
     { href: "/orgaos", label: "Órgãos", icon: Building2 },
+    { href: "/historico", label: "Histórico", icon: History },
     { href: "/admin", label: "Equipe", icon: Users, count: counts.pendentesAprovacao || undefined, adminOnly: true },
     { href: "/admin", label: "Administração", icon: ShieldCheck, adminOnly: true },
   ];
