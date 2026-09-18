@@ -1,8 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { StatCard } from "@/components/dashboard/StatCard";
-import { VinculacaoDonut } from "@/components/dashboard/VinculacaoDonut";
-import { HistoricoChart } from "@/components/dashboard/HistoricoChart";
+import { DashboardCharts } from "@/components/dashboard/DashboardCharts";
 import { WorkflowColumns } from "@/components/dashboard/WorkflowColumns";
 import { QuickActions } from "@/components/dashboard/QuickActions";
 import { NotificationsFeed } from "@/components/dashboard/NotificationsFeed";
@@ -94,14 +93,12 @@ export default async function DashboardPage() {
         <StatCard icon={AlertTriangle} label="Dado incorreto" value={resumo.dado_incorreto} tint="critical" />
       </section>
 
-      <section className="mb-6 grid grid-cols-1 gap-4 lg:grid-cols-3">
-        <div className="lg:col-span-1">
-          <VinculacaoDonut vinculadas={resumo.vinculadas} pendentes={resumo.pendentes} semNumero={resumo.sem_numero} />
-        </div>
-        <div className="lg:col-span-2">
-          <HistoricoChart pontos={pontosHistorico} />
-        </div>
-      </section>
+      <DashboardCharts
+        vinculadas={resumo.vinculadas}
+        pendentes={resumo.pendentes}
+        semNumero={resumo.sem_numero}
+        pontosHistorico={pontosHistorico}
+      />
 
       <section className="mb-6">
         <WorkflowColumns
