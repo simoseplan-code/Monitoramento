@@ -49,9 +49,16 @@ export default async function NovasAcoesPage({
   const { data: obrasBrutas } = await query;
   const candidatas = (obrasBrutas ?? []).filter((o) => !ehConveniada(o.acao_conveniada));
 
-  const { data: revisoes } = await supabase
-    .from("obras_revisao")
-    .select("id_acao, kml_anexado, sem_duplicacao, trecho_unico, documentos_obrigatorios, concluido");
+  // Só busca revisão das ações que realmente estão na tela — evita
+  // trazer a tabela obras_revisao inteira conforme ela for crescendo.
+  const idsCandidatas = candidatas.map((o) => o.id_acao);
+  const { data: revisoes } =
+    idsCandidatas.length > 0
+      ? await supabase
+          .from("obras_revisao")
+          .select("id_acao, kml_anexado, sem_duplicacao, trecho_unico, documentos_obrigatorios, concluido")
+          .in("id_acao", idsCandidatas)
+      : { data: [] };
 
   const revisaoPorId = new Map((revisoes ?? []).map((r) => [r.id_acao, r]));
 
