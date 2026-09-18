@@ -1,7 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { FiltrosAcoes } from "./FiltrosAcoes";
+import { Paginacao } from "./Paginacao";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
+
+const PAGE_SIZE = 100;
 
 type Obra = {
   id_acao: string;
@@ -38,46 +41,58 @@ const LABELS: Record<string, string> = {
 export default async function AcoesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ busca?: string; filtro?: string }>;
+  searchParams: Promise<{ busca?: string; filtro?: string; pagina?: string }>;
 }) {
-  const { busca, filtro } = await searchParams;
+  const { busca, filtro, pagina } = await searchParams;
+  const paginaAtual = Math.max(1, parseInt(pagina ?? "1", 10) || 1);
   const supabase = await createClient();
 
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: profile }, { count: pendentesAprovacao }, novasAcoesPendentes] = await Promise.all([
+  const [{ data: profile }, { count: pendentesAprovacao }, { count: totalGeral }, novasAcoesPendentes] = await Promise.all([
     supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
+    supabase.from("obras").select("id_acao", { count: "exact", head: true }),
     contarNovasAcoesPendentes(supabase),
   ]);
 
+  // Filtro e classificação viram condição SQL — o Postgres já devolve só
+  // a página pedida, em vez de trazer as 13 mil linhas pro Next.js
+  // filtrar em memória a cada troca de página.
   let query = supabase
     .from("obras")
-    .select("id_acao, nome_acao, numero_automatico, numero_siafe, orgao, status, estagio_atual")
-    .order("nome_acao");
+    .select("id_acao, nome_acao, numero_automatico, numero_siafe, orgao, status, estagio_atual", { count: "exact" });
 
   if (busca) {
     query = query.or(`nome_acao.ilike.%${busca}%,id_acao.ilike.%${busca}%,orgao.ilike.%${busca}%`);
   }
 
-  const { data: obras } = await query;
-  let linhas = obras ?? [];
+  if (filtro === "vinculada") {
+    query = query.not("numero_automatico", "is", null);
+  } else if (filtro === "pendente") {
+    query = query.is("numero_automatico", null).not("numero_siafe", "is", null);
+  } else if (filtro === "sem_numero") {
+    query = query.is("numero_automatico", null).is("numero_siafe", null);
+  } else if (filtro === "dado_incorreto") {
+    query = query.not("numero_siafe", "is", null).not("numero_siafe", "match", "^[0-9]{8}$");
+  }
 
-  if (filtro === "pendente") linhas = linhas.filter((r) => classificar(r) === "pendente");
-  else if (filtro === "vinculada") linhas = linhas.filter((r) => classificar(r) === "vinculada");
-  else if (filtro === "sem_numero") linhas = linhas.filter((r) => classificar(r) === "sem_numero");
-  else if (filtro === "dado_incorreto") linhas = linhas.filter((r) => r.numero_siafe && !siafeValido(r.numero_siafe));
+  const de = (paginaAtual - 1) * PAGE_SIZE;
+  const { data: obras, count: totalFiltrado } = await query.order("nome_acao").range(de, de + PAGE_SIZE - 1);
+
+  const linhas = obras ?? [];
+  const totalPaginas = Math.max(1, Math.ceil((totalFiltrado ?? 0) / PAGE_SIZE));
 
   return (
     <AppShell
       nome={profile?.nome ?? "Usuário"}
       cargo={profile?.cargo}
       isAdmin={!!profile?.is_admin}
-      counts={{ acoes: obras?.length ?? 0, pendentesAprovacao: pendentesAprovacao ?? 0, novasAcoesPendentes }}
+      counts={{ acoes: totalGeral ?? 0, pendentesAprovacao: pendentesAprovacao ?? 0, novasAcoesPendentes }}
       titulo="Ações"
-      subtitulo={`${linhas.length} de ${obras?.length ?? 0} ações`}
+      subtitulo={`${totalFiltrado ?? 0} ação(ões) encontradas · página ${paginaAtual} de ${totalPaginas}`}
     >
       <div className="rounded-xl border border-black/5 bg-surface shadow-card">
         <FiltrosAcoes buscaAtual={busca ?? ""} filtroAtual={filtro ?? ""} />
@@ -122,6 +137,8 @@ export default async function AcoesPage({
             </tbody>
           </table>
         </div>
+
+        <Paginacao paginaAtual={paginaAtual} totalPaginas={totalPaginas} busca={busca ?? ""} filtro={filtro ?? ""} />
       </div>
     </AppShell>
   );

@@ -12,29 +12,14 @@ export function ehConveniada(valor: string | null | undefined): boolean {
   return v === "FEDERAL" || v === "ESTADUAL";
 }
 
+// Conta direto no Postgres (função contar_novas_acoes_pendentes) em vez
+// de trazer as linhas pro Next.js — essa contagem roda em toda página
+// (badge do menu lateral), então precisa ser barata mesmo com a base
+// crescendo.
 export async function contarNovasAcoesPendentes(supabase: SupabaseClient): Promise<number> {
-  const ontem = new Date();
-  ontem.setDate(ontem.getDate() - 1);
-  const limite = ontem.toISOString().slice(0, 10);
-
-  const [{ data: obrasBrutas }, { data: revisoes }] = await Promise.all([
-    supabase
-      .from("obras")
-      .select("id_acao, acao_conveniada")
-      .gte("data_criacao", DATA_INICIO_REVISAO)
-      .lte("data_criacao", limite)
-      .limit(5000),
-    supabase
-      .from("obras_revisao")
-      .select("id_acao, kml_anexado, sem_duplicacao, trecho_unico, documentos_obrigatorios"),
-  ]);
-
-  const obras = (obrasBrutas ?? []).filter((o) => !ehConveniada(o.acao_conveniada));
-  const revisaoPorId = new Map((revisoes ?? []).map((r) => [r.id_acao, r]));
-  const confirmado = (v: string | undefined) => v === "confirmado";
-
-  return obras.filter((o) => {
-    const r = revisaoPorId.get(o.id_acao);
-    return !r || !confirmado(r.kml_anexado) || !confirmado(r.sem_duplicacao) || !confirmado(r.trecho_unico) || !confirmado(r.documentos_obrigatorios);
-  }).length;
+  const { data, error } = await supabase.rpc("contar_novas_acoes_pendentes", {
+    data_inicio: DATA_INICIO_REVISAO,
+  });
+  if (error) return 0;
+  return data ?? 0;
 }
