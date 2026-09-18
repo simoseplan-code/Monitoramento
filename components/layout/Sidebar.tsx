@@ -15,6 +15,7 @@ import {
   ClipboardCheck,
   type LucideIcon,
 } from "lucide-react";
+import { SobrePainel } from "./SobrePainel";
 
 type NavItem = {
   href: string;
@@ -65,11 +66,12 @@ export function Sidebar({
           <RefreshCw size={18} strokeWidth={2.25} />
         </div>
         {!colapsada && (
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <p className="truncate text-sm font-semibold text-ink-primary">Monitoramento</p>
             <p className="truncate text-xs text-ink-muted">de Obras</p>
           </div>
         )}
+        <SobrePainel />
       </div>
 
       {!colapsada && (

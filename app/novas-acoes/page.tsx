@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { ChecklistItem } from "./ChecklistItem";
-import { DATA_INICIO_REVISAO } from "@/lib/novasAcoes";
+import { DATA_INICIO_REVISAO, ehConveniada } from "@/lib/novasAcoes";
 
 const CHECKS = [
   { campo: "kml_anexado" as const, label: "KML anexado" },
@@ -26,13 +26,15 @@ export default async function NovasAcoesPage() {
   ontem.setDate(ontem.getDate() - 1);
   const limite = ontem.toISOString().slice(0, 10);
 
-  const { data: obras } = await supabase
+  const { data: obrasBrutas } = await supabase
     .from("obras")
-    .select("id_acao, nome_acao, orgao, data_criacao")
+    .select("id_acao, nome_acao, orgao, data_criacao, acao_conveniada")
     .gte("data_criacao", DATA_INICIO_REVISAO)
     .lte("data_criacao", limite)
     .order("data_criacao", { ascending: false })
     .limit(500);
+
+  const obras = (obrasBrutas ?? []).filter((o) => !ehConveniada(o.acao_conveniada));
 
   const { data: revisoes } = await supabase
     .from("obras_revisao")
