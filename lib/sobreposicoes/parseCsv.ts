@@ -97,8 +97,15 @@ export function csvParaSobreposicoes(csvText: string): SobreposicaoImportada[] {
       porChave.set(chave, grupo);
     }
 
+    const idAcao = linha[idx.idAcao]?.trim() || null;
+    // Defesa contra CSV com linha duplicada pra mesma obra no mesmo local (ex.: uma
+    // exportação antiga do mapa, de antes da chave do local incluir a coordenada) —
+    // sem isso a mesma obra aparecia repetida várias vezes dentro de um único card.
+    const jaTem = grupo.obras.some((o) => (idAcao ? o.id === idAcao : o.nome === nomeAcao));
+    if (jaTem) continue;
+
     grupo.obras.push({
-      id: linha[idx.idAcao]?.trim() || null,
+      id: idAcao,
       nome: nomeAcao,
       orgao: linha[idx.orgao]?.trim() || null,
       status: linha[idx.status]?.trim() || null,
