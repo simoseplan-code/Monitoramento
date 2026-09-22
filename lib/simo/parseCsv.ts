@@ -21,6 +21,10 @@ export const HEADER_MAP_OPCIONAL: Record<string, string[]> = {
   percentual_execucao: ["PERCENTUAL DE EXECUÇÃO DA AÇÃO", "PERCENTUAL DE EXECUCAO DA ACAO"],
   acao_conveniada: ["AÇÃO CONVENIADA", "ACAO CONVENIADA"],
   tipo_outros_documentos: ["TIPO OUTROS DOCUMENTOS", "TIPO OUTROS DOCUMENTO"],
+  tipologia: ["TIPOLOGIA"],
+  unidade_medida: ["UNIDADE DE MEDIDA"],
+  quantidade: ["QUANTIDADE", "QUANTITATIVO"],
+  descricao_acao: ["DESCRIÇÃO DA AÇÃO", "DESCRICAO DA AÇÃO", "DESCRIÇÃO"],
 };
 
 export type ObraRow = {
@@ -35,6 +39,10 @@ export type ObraRow = {
   percentual_execucao: number | null;
   acao_conveniada: string | null;
   tipo_outros_documentos: string | null;
+  tipologia: string | null;
+  unidade_medida: string | null;
+  quantidade: number | null;
+  descricao_acao: string | null;
   extra: Record<string, string>;
 };
 
@@ -93,11 +101,20 @@ function contarBatidas(linha: string[]): number {
 }
 
 function pctParaFracao(raw: string | undefined): number | null {
-  if (!raw) return null;
-  const s = raw.trim().replace(",", ".").replace("%", "");
+  const n = paraNumeroBR(raw?.replace("%", ""));
+  return n === null ? null : n / 100;
+}
+
+// "1.732,32" (formato BR, texto) -> 1732.32 (número JS de verdade).
+// Compartilhada com o motor de sugestão de Unidade/Quantidade
+// (lib/unidadeQuantidade/sugestao.ts), que reenvia número nesse mesmo
+// formato de volta pro SIMO.
+export function paraNumeroBR(raw: string | null | undefined): number | null {
+  const s = (raw ?? "").trim();
   if (s === "") return null;
-  const n = parseFloat(s);
-  return isNaN(n) ? null : n / 100;
+  const limpo = s.replace(/\./g, "").replace(",", ".");
+  const n = parseFloat(limpo);
+  return isNaN(n) ? null : n;
 }
 
 function dataParaISO(raw: string | undefined): string | null {
@@ -187,6 +204,10 @@ export function csvParaObras(csvText: string): ObraRow[] {
       percentual_execucao: pctParaFracao(get("percentual_execucao")),
       acao_conveniada: get("acao_conveniada")?.trim() || null,
       tipo_outros_documentos: get("tipo_outros_documentos")?.trim() || null,
+      tipologia: get("tipologia")?.trim() || null,
+      unidade_medida: vazio(get("unidade_medida")) ? null : get("unidade_medida").trim(),
+      quantidade: paraNumeroBR(get("quantidade")),
+      descricao_acao: get("descricao_acao")?.trim() || null,
       extra,
     });
   }

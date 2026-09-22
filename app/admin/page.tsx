@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { AprovarBotoes } from "./AprovarBotoes";
 import { SincronizarBotao } from "./SincronizarBotao";
+import { AplicarUnidadeBotao } from "./AplicarUnidadeBotao";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 
@@ -11,18 +12,25 @@ export default async function AdminPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: profile }, { data: pendentes }, { data: ultimosSyncs }, { count: totalAcoes }, novasAcoesPendentes] =
-    await Promise.all([
-      supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
-      supabase.from("profiles").select("id, nome, email, created_at").eq("status", "pendente").order("created_at"),
-      supabase
-        .from("sync_log")
-        .select("id, executado_em, sucesso, linhas_processadas, mensagem")
-        .order("executado_em", { ascending: false })
-        .limit(6),
-      supabase.from("obras").select("id_acao", { count: "exact", head: true }),
-      contarNovasAcoesPendentes(supabase),
-    ]);
+  const [
+    { data: profile },
+    { data: pendentes },
+    { data: ultimosSyncs },
+    { count: totalAcoes },
+    novasAcoesPendentes,
+    { count: sugestoesUnidadeAprovadas },
+  ] = await Promise.all([
+    supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
+    supabase.from("profiles").select("id, nome, email, created_at").eq("status", "pendente").order("created_at"),
+    supabase
+      .from("sync_log")
+      .select("id, executado_em, sucesso, linhas_processadas, mensagem")
+      .order("executado_em", { ascending: false })
+      .limit(6),
+    supabase.from("obras").select("id_acao", { count: "exact", head: true }),
+    contarNovasAcoesPendentes(supabase),
+    supabase.from("obras_unidade_sugestao").select("id_acao", { count: "exact", head: true }).eq("aprovado", true).is("aplicado_em", null),
+  ]);
 
   return (
     <AppShell
@@ -59,6 +67,18 @@ export default async function AdminPage() {
               <li className="text-sm text-ink-muted">Nenhuma sincronização registrada ainda.</li>
             )}
           </ul>
+        </section>
+
+        <section className="rounded-xl border border-black/5 bg-surface p-5 shadow-card">
+          <h2 className="mb-3 text-sm font-semibold text-ink-primary">Unidade/Quantidade — gravação no SIMO</h2>
+          <p className="mb-3 text-xs text-ink-muted">
+            Sugestões aprovadas em{" "}
+            <a href="/unidade-quantidade" className="text-series-1 hover:underline">
+              Unidade/Quantidade
+            </a>{" "}
+            ficam aqui aguardando gravação real no SIMO.
+          </p>
+          <AplicarUnidadeBotao pendentes={sugestoesUnidadeAprovadas ?? 0} />
         </section>
 
         <section className="rounded-xl border border-black/5 bg-surface p-5 shadow-card">
