@@ -19,6 +19,8 @@ export default async function AdminPage() {
     { count: totalAcoes },
     novasAcoesPendentes,
     { count: sugestoesUnidadeAprovadas },
+    { data: unidadeLogRecente },
+    { data: unidadeProdutividade },
   ] = await Promise.all([
     supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
     supabase.from("profiles").select("id, nome, email, created_at").eq("status", "pendente").order("created_at"),
@@ -30,6 +32,12 @@ export default async function AdminPage() {
     supabase.from("obras").select("id_acao", { count: "exact", head: true }),
     contarNovasAcoesPendentes(supabase),
     supabase.from("obras_unidade_sugestao").select("id_acao", { count: "exact", head: true }).eq("aprovado", true).is("aplicado_em", null),
+    supabase
+      .from("obras_unidade_log")
+      .select("id, id_acao, nome_acao, unidade_antiga, unidade_nova, resultado, executado_em, profiles(nome)")
+      .order("executado_em", { ascending: false })
+      .limit(20),
+    supabase.rpc("unidade_log_produtividade"),
   ]);
 
   return (
@@ -104,6 +112,67 @@ export default async function AdminPage() {
               <p className="text-sm text-ink-muted">Nenhum cadastro pendente.</p>
             )}
           </div>
+        </section>
+      </div>
+
+      <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <section className="rounded-xl border border-black/5 bg-surface p-5 shadow-card">
+          <h2 className="mb-3 text-sm font-semibold text-ink-primary">Produtividade — gravação no SIMO</h2>
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="text-left text-xs text-ink-muted">
+                <th className="pb-2 font-medium">Pessoa</th>
+                <th className="pb-2 font-medium">Gravações</th>
+                <th className="pb-2 font-medium">Sucesso</th>
+                <th className="pb-2 font-medium">Última</th>
+              </tr>
+            </thead>
+            <tbody>
+              {(unidadeProdutividade ?? []).map(
+                (p: { executado_por: string; nome: string; total: number; sucessos: number; ultima_gravacao: string }) => (
+                  <tr key={p.executado_por ?? "desconhecido"} className="border-t border-black/5">
+                    <td className="py-1.5 text-ink-primary">{p.nome}</td>
+                    <td className="py-1.5 text-ink-secondary">{p.total}</td>
+                    <td className="py-1.5 text-ink-secondary">{p.sucessos}</td>
+                    <td className="py-1.5 text-xs text-ink-muted">{new Date(p.ultima_gravacao).toLocaleString("pt-BR")}</td>
+                  </tr>
+                )
+              )}
+            </tbody>
+          </table>
+          {(!unidadeProdutividade || unidadeProdutividade.length === 0) && (
+            <p className="text-sm text-ink-muted">Nenhuma gravação registrada ainda.</p>
+          )}
+        </section>
+
+        <section className="rounded-xl border border-black/5 bg-surface p-5 shadow-card">
+          <h2 className="mb-3 text-sm font-semibold text-ink-primary">Histórico recente de gravação</h2>
+          <ul className="max-h-80 space-y-2 overflow-y-auto">
+            {(unidadeLogRecente ?? []).map((l) => {
+              const sucesso = /^Sucesso/.test(l.resultado);
+              const nomeExecutor = (l as unknown as { profiles: { nome: string } | null }).profiles?.nome ?? "Desconhecido";
+              return (
+                <li key={l.id} className="flex items-start gap-2 text-sm">
+                  {sucesso ? (
+                    <CheckCircle2 size={16} className="mt-0.5 shrink-0 text-status-good" />
+                  ) : (
+                    <XCircle size={16} className="mt-0.5 shrink-0 text-status-critical" />
+                  )}
+                  <div className="min-w-0">
+                    <p className="truncate text-ink-secondary">
+                      {l.id_acao} · {l.nome_acao} — {l.unidade_antiga || "vazio"} → {l.unidade_nova}
+                    </p>
+                    <p className="text-xs text-ink-muted">
+                      {nomeExecutor} · {new Date(l.executado_em).toLocaleString("pt-BR")}
+                    </p>
+                  </div>
+                </li>
+              );
+            })}
+            {(!unidadeLogRecente || unidadeLogRecente.length === 0) && (
+              <li className="text-sm text-ink-muted">Nenhuma gravação registrada ainda.</li>
+            )}
+          </ul>
         </section>
       </div>
     </AppShell>
