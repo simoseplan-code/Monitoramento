@@ -154,10 +154,17 @@ export async function executarVinculacaoLote(executadoPor: string): Promise<Resu
 }
 
 // Retry individual — disparado do card na tela, depois de alguém
-// corrigir algo manualmente no SIMO. Ignora o erro guardado (é
-// justamente o que essa ação serve pra sobrescrever) e tenta de novo
-// com o Número do Contrato no SIAFE atual.
-export async function executarVinculacaoUnica(idAcao: string, executadoPor: string): Promise<{ resultado: string; sucesso: boolean }> {
+// corrigir algo (no SIMO ou digitando o número certo aqui mesmo).
+// Ignora o erro guardado (é justamente o que essa ação serve pra
+// sobrescrever). Se `numeroSiafeOverride` vier diferente do que está
+// salvo, grava esse número em obras.numero_siafe antes de tentar —
+// assim a pessoa não precisa abrir o SIMO só pra corrigir um dígito
+// antes de poder tentar de novo pelo app.
+export async function executarVinculacaoUnica(
+  idAcao: string,
+  executadoPor: string,
+  numeroSiafeOverride?: string
+): Promise<{ resultado: string; sucesso: boolean }> {
   const admin = createAdminClient();
   const { data: obra, error } = await admin
     .from("obras")
@@ -165,10 +172,17 @@ export async function executarVinculacaoUnica(idAcao: string, executadoPor: stri
     .eq("id_acao", idAcao)
     .single();
   if (error || !obra) throw new Error("Ação não encontrada.");
-  if (!obra.numero_siafe || !/^\d{8}$/.test(obra.numero_siafe.trim())) {
+
+  const numeroFinal = (numeroSiafeOverride ?? obra.numero_siafe ?? "").trim();
+  if (!/^\d{8}$/.test(numeroFinal)) {
     throw new Error("Número do Contrato no SIAFE precisa ter 8 dígitos pra tentar vincular.");
   }
 
+  if (numeroFinal !== (obra.numero_siafe ?? "").trim()) {
+    const { error: erroUpdate } = await admin.from("obras").update({ numero_siafe: numeroFinal }).eq("id_acao", idAcao);
+    if (erroUpdate) throw new Error(`Falha ao salvar o número corrigido: ${erroUpdate.message}`);
+  }
+
   const cookie = await loginSimo();
-  return tentarVincular(admin, cookie, obra, executadoPor);
+  return tentarVincular(admin, cookie, { ...obra, numero_siafe: numeroFinal }, executadoPor);
 }

@@ -4,6 +4,7 @@ import { CardPendenteVinculacao } from "./CardPendenteVinculacao";
 import { FiltrosVinculacao } from "./FiltrosVinculacao";
 import { PaginacaoVinculacao } from "./PaginacaoVinculacao";
 import { VincularBotao } from "@/components/vinculacao/VincularBotao";
+import { SincronizarBotao } from "@/components/admin/SincronizarBotao";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { contarSugestoesUnidadePendentes } from "@/lib/unidadeQuantidade";
 import { contarVinculacaoPendentes } from "@/lib/vinculacao";
@@ -84,9 +85,13 @@ export default async function VinculacaoPage({
     >
       {isAdmin && (
         <div className="mb-4 rounded-xl border border-black/5 bg-surface p-4 shadow-card">
-          <h2 className="mb-1 text-sm font-semibold text-ink-primary">Vinculação no SIMO</h2>
+          <div className="mb-1 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-ink-primary">Vinculação no SIMO</h2>
+            <SincronizarBotao />
+          </div>
           <p className="mb-2 text-xs text-ink-muted">
             Vincula de uma vez todas as ações com Número do Contrato no SIAFE válido (8 dígitos). As com situação abaixo precisam de correção manual antes.
+            Sincronize antes se a base estiver desatualizada (o cron também roda automático todo dia).
           </p>
           <VincularBotao pendentes={vinculacaoPendentes} />
         </div>

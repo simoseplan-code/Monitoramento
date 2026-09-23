@@ -27,14 +27,13 @@ export function CardPendenteVinculacao({
 }) {
   const router = useRouter();
   const pronta = !situacao;
-  // Retry individual só faz sentido quando o número tem o formato certo
-  // (senão não há o que reenviar pro SIMO) — cobre tanto "pronta" quanto
-  // "falhou antes com esse número" (a pessoa corrigiu algo no SIMO e
-  // quer tentar de novo sem esperar o lote).
-  const podeTentar = /^\d{8}$/.test(numeroSiafe.trim());
 
+  const [numero, setNumero] = useState(numeroSiafe);
   const [tentando, setTentando] = useState(false);
   const [resultado, setResultado] = useState<{ sucesso: boolean; texto: string } | null>(null);
+
+  const numeroValido = /^\d{8}$/.test(numero.trim());
+  const numeroMudou = numero.trim() !== numeroSiafe.trim();
 
   async function tentar() {
     setTentando(true);
@@ -43,7 +42,7 @@ export function CardPendenteVinculacao({
       const resp = await fetch("/api/admin/vincular-uma", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idAcao }),
+        body: JSON.stringify({ idAcao, numeroSiafe: numero.trim() }),
       });
       const data = await resp.json();
       if (!resp.ok) {
@@ -75,25 +74,34 @@ export function CardPendenteVinculacao({
           {pronta ? "Pronta pra vincular" : "Precisa de correção"}
         </span>
       </div>
-      <p className="mt-2 text-sm text-ink-secondary">
-        Número do Contrato no SIAFE: <strong className="text-ink-primary">{numeroSiafe || "—"}</strong>
-      </p>
+
       {situacao && (
-        <p className="mt-1 text-xs text-status-critical">
+        <p className="mt-2 text-xs text-status-critical">
           ⚠️ {situacao}
           {falhouAntes && " — não entra automaticamente em \"Vincular todas\" até o número mudar ou alguém tentar de novo aqui."}
         </p>
       )}
 
-      {isAdmin && podeTentar && (
-        <div className="mt-3 flex items-center gap-2">
+      {isAdmin ? (
+        <div className="mt-3 flex flex-wrap items-end gap-2">
+          <div>
+            <label className="mb-1 block text-[11px] uppercase tracking-wide text-ink-muted">Número do Contrato no SIAFE</label>
+            <input
+              value={numero}
+              onChange={(e) => setNumero(e.target.value)}
+              maxLength={8}
+              placeholder="8 dígitos"
+              className="w-36 rounded-lg border border-black/10 bg-surface px-2.5 py-1.5 text-sm text-ink-primary"
+            />
+          </div>
           <button
             onClick={tentar}
-            disabled={tentando}
+            disabled={tentando || !numeroValido}
             className="flex items-center gap-1.5 rounded-lg border border-black/10 bg-surface px-3 py-1.5 text-xs font-medium text-ink-secondary hover:bg-plane disabled:opacity-50"
+            title={!numeroValido ? "Precisa ter exatamente 8 dígitos" : undefined}
           >
             <RefreshCw size={13} className={tentando ? "animate-spin" : ""} />
-            {tentando ? "Tentando..." : "Tentar vincular agora"}
+            {tentando ? "Tentando..." : numeroMudou ? "Salvar e tentar vincular" : "Tentar vincular agora"}
           </button>
           {resultado && (
             <span className={`text-xs ${resultado.sucesso ? "text-status-good" : "text-status-critical"}`}>
@@ -103,6 +111,10 @@ export function CardPendenteVinculacao({
             </span>
           )}
         </div>
+      ) : (
+        <p className="mt-2 text-sm text-ink-secondary">
+          Número do Contrato no SIAFE: <strong className="text-ink-primary">{numeroSiafe || "—"}</strong>
+        </p>
       )}
     </div>
   );

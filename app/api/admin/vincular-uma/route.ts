@@ -21,11 +21,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 
-  const { idAcao } = (await request.json()) as { idAcao?: string };
+  const { idAcao, numeroSiafe } = (await request.json()) as { idAcao?: string; numeroSiafe?: string };
   if (!idAcao) return NextResponse.json({ error: "idAcao é obrigatório." }, { status: 400 });
 
   try {
-    const resultado = await executarVinculacaoUnica(idAcao, user.id);
+    const resultado = await executarVinculacaoUnica(idAcao, user.id, numeroSiafe);
     return NextResponse.json({ ok: true, ...resultado });
   } catch (e) {
     const mensagem = e instanceof Error ? e.message : "Erro desconhecido.";
