@@ -42,23 +42,23 @@ export async function executarSyncSimo(): Promise<{ linhas: number }> {
     const erroLote = resultados.find((r) => r.error);
     if (erroLote?.error) throw new Error(`Falha ao gravar lote no Supabase: ${erroLote.error.message}`);
 
-    // Ações que existiam antes desse carimbo e não foram tocadas nesta
-    // execução saíram do relatório do SIMO (encerradas/excluídas lá).
-    const { error: erroDelete } = await admin.from("obras").delete().lt("atualizado_em", syncIniciadoEm);
-    if (erroDelete) throw new Error(`Falha ao remover ações obsoletas: ${erroDelete.message}`);
-
-    await calcularSugestoesUnidade(admin, obras, syncIniciadoEm);
-
     const vinculadas = obras.filter((o) => !!o.numero_automatico).length;
     const pendentes = obras.filter((o) => !o.numero_automatico && !!o.numero_siafe).length;
     const dadoIncorreto = obras.filter((o) => o.numero_siafe && !/^\d{8}$/.test(o.numero_siafe)).length;
 
-    await admin.from("obras_historico").insert({
-      total: obras.length,
-      vinculadas,
-      pendentes,
-      dado_incorreto: dadoIncorreto,
-    });
+    // As três operações abaixo são independentes entre si (só dependem
+    // do upsert de obras já ter terminado) — rodar em paralelo em vez
+    // de sequencial é o que mantém o sync inteiro dentro do limite de
+    // 60s da rota (Vercel Hobby) mesmo com a fila de Unidade/Quantidade
+    // bem maior agora que ela para de descartar ação sem sugestão.
+    const [resDelete] = await Promise.all([
+      // Ações que existiam antes desse carimbo e não foram tocadas
+      // nesta execução saíram do relatório do SIMO (encerradas/excluídas lá).
+      admin.from("obras").delete().lt("atualizado_em", syncIniciadoEm),
+      calcularSugestoesUnidade(admin, obras, syncIniciadoEm),
+      admin.from("obras_historico").insert({ total: obras.length, vinculadas, pendentes, dado_incorreto: dadoIncorreto }),
+    ]);
+    if (resDelete.error) throw new Error(`Falha ao remover ações obsoletas: ${resDelete.error.message}`);
 
     await admin.from("sync_log").insert({
       sucesso: true,
@@ -125,15 +125,18 @@ async function calcularSugestoesUnidade(admin: SupabaseClient, obras: ObraRow[],
   // (equivalente ao "aprovadosAntes" da planilha, que preserva revisão
   // já feita ao regenerar a aba).
   const idsComSugestao = precisamSugestao.map((p) => p.obra.id_acao);
+  const lotesIds: string[][] = [];
+  for (let i = 0; i < idsComSugestao.length; i += TAMANHO_LOTE) lotesIds.push(idsComSugestao.slice(i, i + TAMANHO_LOTE));
+  const resultadosLeitura = await Promise.all(
+    lotesIds.map((lote) =>
+      admin
+        .from("obras_unidade_sugestao")
+        .select("id_acao, unidade_sugerida, quantidade_sugerida, unidade_final, quantidade_final, aprovado, aprovado_por, aprovado_em, aplicado_em, aplicado_com_sucesso")
+        .in("id_acao", lote)
+    )
+  );
   const existentesPorId = new Map<string, SugestaoExistente>();
-  for (let i = 0; i < idsComSugestao.length; i += TAMANHO_LOTE) {
-    const lote = idsComSugestao.slice(i, i + TAMANHO_LOTE);
-    const { data } = await admin
-      .from("obras_unidade_sugestao")
-      .select("id_acao, unidade_sugerida, quantidade_sugerida, unidade_final, quantidade_final, aprovado, aprovado_por, aprovado_em, aplicado_em, aplicado_com_sucesso")
-      .in("id_acao", lote);
-    (data ?? []).forEach((row) => existentesPorId.set(row.id_acao, row as SugestaoExistente));
-  }
+  resultadosLeitura.forEach(({ data }) => (data ?? []).forEach((row) => existentesPorId.set(row.id_acao, row as SugestaoExistente)));
 
   const linhas = precisamSugestao.map(({ obra, unidadeAtualVazia, sugestao }) => {
     const quantidadeSugerida = sugestao?.quantidadeSugerida || null;
@@ -164,11 +167,13 @@ async function calcularSugestoesUnidade(admin: SupabaseClient, obras: ObraRow[],
     };
   });
 
-  for (let i = 0; i < linhas.length; i += TAMANHO_LOTE) {
-    const lote = linhas.slice(i, i + TAMANHO_LOTE);
-    const { error } = await admin.from("obras_unidade_sugestao").upsert(lote, { onConflict: "id_acao" });
-    if (error) throw new Error(`Falha ao gravar sugestões de unidade: ${error.message}`);
-  }
+  const lotesLinhas: (typeof linhas)[] = [];
+  for (let i = 0; i < linhas.length; i += TAMANHO_LOTE) lotesLinhas.push(linhas.slice(i, i + TAMANHO_LOTE));
+  const resultadosEscrita = await Promise.all(
+    lotesLinhas.map((lote) => admin.from("obras_unidade_sugestao").upsert(lote, { onConflict: "id_acao" }))
+  );
+  const erroEscrita = resultadosEscrita.find((r) => r.error);
+  if (erroEscrita?.error) throw new Error(`Falha ao gravar sugestões de unidade: ${erroEscrita.error.message}`);
 
   // Ações que tinham sugestão antes e não precisam mais (Unidade foi
   // corrigida no SIMO, texto mudou, etc.) — mesmo truque de carimbo de
