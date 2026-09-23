@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 
-function montarHref(pagina: number, busca: string, orgao: string, confianca: string, todas: boolean) {
+function montarHref(pagina: number, busca: string, orgao: string, confianca: string, aplicadas: boolean) {
   const params = new URLSearchParams();
   if (busca) params.set("busca", busca);
   if (orgao) params.set("orgao", orgao);
   if (confianca) params.set("confianca", confianca);
-  if (todas) params.set("todas", "1");
+  if (aplicadas) params.set("aplicadas", "1");
   if (pagina > 1) params.set("pagina", String(pagina));
   const qs = params.toString();
   return `/unidade-quantidade${qs ? `?${qs}` : ""}`;
@@ -18,21 +18,21 @@ export function PaginacaoUnidadeQuantidade({
   busca,
   orgao,
   confianca,
-  todas,
+  aplicadas,
 }: {
   paginaAtual: number;
   totalPaginas: number;
   busca: string;
   orgao: string;
   confianca: string;
-  todas: boolean;
+  aplicadas: boolean;
 }) {
   if (totalPaginas <= 1) return null;
 
   return (
     <div className="flex items-center justify-between rounded-xl border border-black/5 bg-surface px-4 py-3 shadow-card">
       <Link
-        href={montarHref(Math.max(1, paginaAtual - 1), busca, orgao, confianca, todas)}
+        href={montarHref(Math.max(1, paginaAtual - 1), busca, orgao, confianca, aplicadas)}
         aria-disabled={paginaAtual === 1}
         className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium ${
           paginaAtual === 1 ? "pointer-events-none text-ink-muted opacity-50" : "text-ink-secondary hover:bg-plane"
@@ -46,7 +46,7 @@ export function PaginacaoUnidadeQuantidade({
       </span>
 
       <Link
-        href={montarHref(Math.min(totalPaginas, paginaAtual + 1), busca, orgao, confianca, todas)}
+        href={montarHref(Math.min(totalPaginas, paginaAtual + 1), busca, orgao, confianca, aplicadas)}
         aria-disabled={paginaAtual === totalPaginas}
         className={`flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium ${
           paginaAtual === totalPaginas ? "pointer-events-none text-ink-muted opacity-50" : "text-ink-secondary hover:bg-plane"

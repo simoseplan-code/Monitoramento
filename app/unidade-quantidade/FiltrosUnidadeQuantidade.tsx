@@ -9,27 +9,27 @@ export function FiltrosUnidadeQuantidade({
   orgaoAtual,
   confiancaAtual,
   orgaos,
-  mostrarTodas,
+  mostrarAplicadas,
 }: {
   buscaAtual: string;
   orgaoAtual: string;
   confiancaAtual: string;
   orgaos: string[];
-  mostrarTodas: boolean;
+  mostrarAplicadas: boolean;
 }) {
   const router = useRouter();
   const [busca, setBusca] = useState(buscaAtual);
 
-  function aplicar(overrides: { busca?: string; orgao?: string; confianca?: string; todas?: boolean }) {
+  function aplicar(overrides: { busca?: string; orgao?: string; confianca?: string; aplicadas?: boolean }) {
     const params = new URLSearchParams();
     const buscaValor = overrides.busca ?? busca;
     const orgaoValor = overrides.orgao ?? orgaoAtual;
     const confiancaValor = overrides.confianca ?? confiancaAtual;
-    const todasValor = overrides.todas ?? mostrarTodas;
+    const aplicadasValor = overrides.aplicadas ?? mostrarAplicadas;
     if (buscaValor) params.set("busca", buscaValor);
     if (orgaoValor) params.set("orgao", orgaoValor);
     if (confiancaValor) params.set("confianca", confiancaValor);
-    if (todasValor) params.set("todas", "1");
+    if (aplicadasValor) params.set("aplicadas", "1");
     router.push(`/unidade-quantidade${params.toString() ? `?${params.toString()}` : ""}`);
   }
 
@@ -73,11 +73,11 @@ export function FiltrosUnidadeQuantidade({
       <label className="flex shrink-0 items-center gap-2 text-sm text-ink-secondary">
         <input
           type="checkbox"
-          checked={mostrarTodas}
-          onChange={(e) => aplicar({ todas: e.target.checked })}
+          checked={mostrarAplicadas}
+          onChange={(e) => aplicar({ aplicadas: e.target.checked })}
           className="h-4 w-4 rounded border-black/20 accent-series-1"
         />
-        Mostrar aprovadas/aplicadas
+        Mostrar já aplicadas no SIMO
       </label>
     </div>
   );

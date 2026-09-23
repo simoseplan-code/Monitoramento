@@ -78,6 +78,8 @@ type SugestaoExistente = {
   id_acao: string;
   unidade_sugerida: string;
   quantidade_sugerida: string | null;
+  unidade_final: string | null;
+  quantidade_final: string | null;
   aprovado: boolean;
   aprovado_por: string | null;
   aprovado_em: string | null;
@@ -116,7 +118,7 @@ async function calcularSugestoesUnidade(admin: SupabaseClient, obras: ObraRow[],
     const lote = idsComSugestao.slice(i, i + TAMANHO_LOTE);
     const { data } = await admin
       .from("obras_unidade_sugestao")
-      .select("id_acao, unidade_sugerida, quantidade_sugerida, aprovado, aprovado_por, aprovado_em, aplicado_em, aplicado_com_sucesso")
+      .select("id_acao, unidade_sugerida, quantidade_sugerida, unidade_final, quantidade_final, aprovado, aprovado_por, aprovado_em, aplicado_em, aplicado_com_sucesso")
       .in("id_acao", lote);
     (data ?? []).forEach((row) => existentesPorId.set(row.id_acao, row as SugestaoExistente));
   }
@@ -140,6 +142,8 @@ async function calcularSugestoesUnidade(admin: SupabaseClient, obras: ObraRow[],
       confianca: sugestao.confianca,
       aviso_tipologia: !!sugestao.avisoTipologia,
       motivo: sugestao.motivo,
+      unidade_final: mudou ? null : existente!.unidade_final,
+      quantidade_final: mudou ? null : existente!.quantidade_final,
       aprovado: mudou ? false : existente!.aprovado,
       aprovado_por: mudou ? null : existente!.aprovado_por,
       aprovado_em: mudou ? null : existente!.aprovado_em,

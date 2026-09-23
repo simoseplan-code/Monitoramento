@@ -16,7 +16,7 @@ export type ResultadoAplicacao = {
   sucesso: number;
   falha: number;
   restantes: number;
-  detalhes: { idAcao: string; resultado: string }[];
+  detalhes: { idAcao: string; nomeAcao: string; unidade: string; quantidade: string; resultado: string }[];
 };
 
 export async function executarAplicacaoUnidade(executadoPor: string): Promise<ResultadoAplicacao> {
@@ -25,7 +25,7 @@ export async function executarAplicacaoUnidade(executadoPor: string): Promise<Re
 
   const { data: aprovadas, error } = await admin
     .from("obras_unidade_sugestao")
-    .select("id_acao, unidade_atual, quantidade_atual, unidade_sugerida, quantidade_sugerida, sem_quantidade, obras(nome_acao)")
+    .select("id_acao, unidade_atual, quantidade_atual, unidade_sugerida, quantidade_sugerida, unidade_final, quantidade_final, sem_quantidade, obras(nome_acao)")
     .eq("aprovado", true)
     .is("aplicado_em", null);
   if (error) throw new Error(`Falha ao buscar sugestões aprovadas: ${error.message}`);
@@ -41,7 +41,7 @@ export async function executarAplicacaoUnidade(executadoPor: string): Promise<Re
 
   let sucesso = 0;
   let falha = 0;
-  const detalhes: { idAcao: string; resultado: string }[] = [];
+  const detalhes: ResultadoAplicacao["detalhes"] = [];
   let processadas = 0;
 
   for (const linha of aprovadas) {
@@ -49,7 +49,11 @@ export async function executarAplicacaoUnidade(executadoPor: string): Promise<Re
     processadas++;
 
     const nomeAcao = (linha as unknown as { obras: { nome_acao: string } | null }).obras?.nome_acao ?? "";
-    const quantidadeNova = linha.sem_quantidade ? "" : (linha.quantidade_sugerida ?? "");
+    // O valor FINAL é o que a equipe aprovou de verdade — pode ter sido
+    // editado na tela em cima da sugestão original (unidade_sugerida é
+    // só a proposta do motor, nunca o que vai pro SIMO).
+    const unidadeNova = linha.unidade_final || linha.unidade_sugerida;
+    const quantidadeNova = linha.quantidade_final || (linha.sem_quantidade ? "" : (linha.quantidade_sugerida ?? ""));
 
     let httpCode: number | null = null;
     let textoResp = "";
@@ -57,7 +61,7 @@ export async function executarAplicacaoUnidade(executadoPor: string): Promise<Re
     let aplicadoComSucesso = false;
 
     try {
-      const r = await salvarUnidadeQuantidade(cookie, linha.id_acao, linha.unidade_sugerida, quantidadeNova, UNIDADES_VALIDAS, renovarLogin);
+      const r = await salvarUnidadeQuantidade(cookie, linha.id_acao, unidadeNova, quantidadeNova, UNIDADES_VALIDAS, renovarLogin);
       httpCode = r.httpCode;
       textoResp = r.texto;
       // O endpoint de edição do SIMO não devolve um JSON claro de
@@ -88,7 +92,7 @@ export async function executarAplicacaoUnidade(executadoPor: string): Promise<Re
       id_acao: linha.id_acao,
       nome_acao: nomeAcao,
       unidade_antiga: linha.unidade_atual,
-      unidade_nova: linha.unidade_sugerida,
+      unidade_nova: unidadeNova,
       quantidade_antiga: linha.quantidade_atual,
       quantidade_nova: quantidadeNova || null,
       http_code: httpCode,
@@ -104,7 +108,7 @@ export async function executarAplicacaoUnidade(executadoPor: string): Promise<Re
         .eq("id_acao", linha.id_acao);
     }
 
-    detalhes.push({ idAcao: linha.id_acao, resultado });
+    detalhes.push({ idAcao: linha.id_acao, nomeAcao, unidade: unidadeNova, quantidade: quantidadeNova, resultado });
 
     if (processadas < aprovadas.length) await new Promise((r) => setTimeout(r, PAUSA_MS));
   }

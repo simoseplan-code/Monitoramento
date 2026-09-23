@@ -3,6 +3,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { CardSugestaoUnidade } from "./CardSugestaoUnidade";
 import { FiltrosUnidadeQuantidade } from "./FiltrosUnidadeQuantidade";
 import { PaginacaoUnidadeQuantidade } from "./PaginacaoUnidadeQuantidade";
+import { AplicarUnidadeBotao } from "@/components/unidadeQuantidade/AplicarUnidadeBotao";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { contarSugestoesUnidadePendentes } from "@/lib/unidadeQuantidade";
 
@@ -18,6 +19,8 @@ type LinhaSugestao = {
   unidade_sugerida: string;
   quantidade_sugerida: string | null;
   sem_quantidade: boolean;
+  unidade_final: string | null;
+  quantidade_final: string | null;
   confianca: "alta" | "baixa";
   aviso_tipologia: boolean;
   motivo: string;
@@ -29,10 +32,10 @@ type LinhaSugestao = {
 export default async function UnidadeQuantidadePage({
   searchParams,
 }: {
-  searchParams: Promise<{ busca?: string; orgao?: string; confianca?: string; todas?: string; pagina?: string }>;
+  searchParams: Promise<{ busca?: string; orgao?: string; confianca?: string; aplicadas?: string; pagina?: string }>;
 }) {
-  const { busca, orgao, confianca, todas, pagina } = await searchParams;
-  const mostrarTodas = todas === "1";
+  const { busca, orgao, confianca, aplicadas, pagina } = await searchParams;
+  const mostrarAplicadas = aplicadas === "1";
   const paginaAtual = Math.max(1, parseInt(pagina ?? "1", 10) || 1);
   const supabase = await createClient();
   const {
@@ -45,6 +48,7 @@ export default async function UnidadeQuantidadePage({
     { count: pendentesAprovacao },
     novasAcoesPendentes,
     sugestoesUnidadePendentes,
+    { count: sugestoesUnidadeAprovadas },
     { data: linhasRpc },
     { data: orgaosRpc },
   ] = await Promise.all([
@@ -53,11 +57,12 @@ export default async function UnidadeQuantidadePage({
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
     contarNovasAcoesPendentes(supabase),
     contarSugestoesUnidadePendentes(supabase),
+    supabase.from("obras_unidade_sugestao").select("id_acao", { count: "exact", head: true }).eq("aprovado", true).is("aplicado_em", null),
     supabase.rpc("unidade_sugestao_lista", {
       busca: busca || null,
       orgao_filtro: orgao || null,
       confianca_filtro: confianca || null,
-      so_pendentes_aprovacao: !mostrarTodas,
+      mostrar_aplicadas: mostrarAplicadas,
       pagina: paginaAtual,
       tamanho: PAGE_SIZE,
     }),
@@ -68,12 +73,13 @@ export default async function UnidadeQuantidadePage({
   const totalGeral = linhas[0]?.total_geral ?? 0;
   const totalPaginas = Math.max(1, Math.ceil(totalGeral / PAGE_SIZE));
   const orgaosDisponiveis = (orgaosRpc ?? []).map((r: { orgao: string }) => r.orgao);
+  const isAdmin = !!profile?.is_admin;
 
   return (
     <AppShell
       nome={profile?.nome ?? "Usuário"}
       cargo={profile?.cargo}
-      isAdmin={!!profile?.is_admin}
+      isAdmin={isAdmin}
       counts={{
         acoes: totalAcoes ?? 0,
         pendentesAprovacao: pendentesAprovacao ?? 0,
@@ -81,15 +87,27 @@ export default async function UnidadeQuantidadePage({
         sugestoesUnidadePendentes,
       }}
       titulo="Unidade / Quantidade"
-      subtitulo={`${totalGeral} ação(ões)${mostrarTodas ? "" : " aguardando revisão"} com Unidade de Medida vazia ou divergente da sugestão`}
+      subtitulo={`${totalGeral} ação(ões) com Unidade de Medida vazia ou divergente da sugestão`}
     >
+      {isAdmin && (
+        <div className="mb-4 rounded-xl border border-black/5 bg-surface p-4 shadow-card">
+          <div className="mb-1 flex items-center justify-between">
+            <h2 className="text-sm font-semibold text-ink-primary">Gravação no SIMO</h2>
+          </div>
+          <p className="mb-2 text-xs text-ink-muted">
+            Aprove abaixo o que precisa ir pro SIMO e depois grave em lote aqui.
+          </p>
+          <AplicarUnidadeBotao pendentes={sugestoesUnidadeAprovadas ?? 0} />
+        </div>
+      )}
+
       <div className="mb-4">
         <FiltrosUnidadeQuantidade
           buscaAtual={busca ?? ""}
           orgaoAtual={orgao ?? ""}
           confiancaAtual={confianca ?? ""}
           orgaos={orgaosDisponiveis}
-          mostrarTodas={mostrarTodas}
+          mostrarAplicadas={mostrarAplicadas}
         />
       </div>
 
@@ -106,6 +124,8 @@ export default async function UnidadeQuantidadePage({
             unidadeSugerida={s.unidade_sugerida}
             quantidadeSugerida={s.quantidade_sugerida}
             semQuantidade={s.sem_quantidade}
+            unidadeFinal={s.unidade_final}
+            quantidadeFinal={s.quantidade_final}
             confianca={s.confianca}
             avisoTipologia={s.aviso_tipologia}
             motivo={s.motivo}
@@ -126,7 +146,7 @@ export default async function UnidadeQuantidadePage({
           busca={busca ?? ""}
           orgao={orgao ?? ""}
           confianca={confianca ?? ""}
-          todas={mostrarTodas}
+          aplicadas={mostrarAplicadas}
         />
       </div>
     </AppShell>

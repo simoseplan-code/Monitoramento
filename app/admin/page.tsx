@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { AprovarBotoes } from "./AprovarBotoes";
 import { SincronizarBotao } from "./SincronizarBotao";
-import { AplicarUnidadeBotao } from "./AplicarUnidadeBotao";
+import { AplicarUnidadeBotao } from "@/components/unidadeQuantidade/AplicarUnidadeBotao";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 
