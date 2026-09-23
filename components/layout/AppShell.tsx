@@ -20,6 +20,7 @@ export function AppShell({
     novasAcoesPendentes: number;
     sobreposicoesPendentes?: number;
     sugestoesUnidadePendentes?: number;
+    vinculacaoPendentes?: number;
   };
   titulo: string;
   subtitulo?: string;

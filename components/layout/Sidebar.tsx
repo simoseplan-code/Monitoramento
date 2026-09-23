@@ -16,6 +16,7 @@ import {
   History,
   Layers,
   Ruler,
+  Link2,
   type LucideIcon,
 } from "lucide-react";
 import { SobrePainel } from "./SobrePainel";
@@ -43,6 +44,7 @@ export function Sidebar({
     novasAcoesPendentes: number;
     sobreposicoesPendentes?: number;
     sugestoesUnidadePendentes?: number;
+    vinculacaoPendentes?: number;
   };
 }) {
   const pathname = usePathname();
@@ -52,6 +54,7 @@ export function Sidebar({
     { href: "/", label: "Dashboard Gestão", icon: LayoutGrid },
     { href: "/acoes", label: "Ações", icon: ClipboardList, count: counts.acoes },
     { href: "/novas-acoes", label: "Novas Ações", icon: ClipboardCheck, count: counts.novasAcoesPendentes || undefined },
+    { href: "/vinculacao", label: "Vinculação SIAFE", icon: Link2, count: counts.vinculacaoPendentes || undefined },
     { href: "/sobreposicoes", label: "Sobreposições", icon: Layers, count: counts.sobreposicoesPendentes || undefined },
     { href: "/unidade-quantidade", label: "Unidade/Quantidade", icon: Ruler, count: counts.sugestoesUnidadePendentes || undefined },
     { href: "/orgaos", label: "Órgãos", icon: Building2 },
