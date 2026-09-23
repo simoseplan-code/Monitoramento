@@ -25,7 +25,11 @@ $$;
 -- Troca so_pendentes_aprovacao (escondia tudo que já tinha sido
 -- aprovado) por mostrar_aplicadas (só esconde o que já foi gravado no
 -- SIMO — aprovado-mas-não-aplicado continua na lista, já que o trabalho
--- ainda não terminou) e devolve unidade_final/quantidade_final.
+-- ainda não terminou) e devolve unidade_final/quantidade_final. Precisa
+-- de DROP antes: mudar as colunas de retorno não é permitido via
+-- CREATE OR REPLACE (só troca de corpo/nome de parâmetro é).
+drop function if exists public.unidade_sugestao_lista(text, text, text, boolean, int, int);
+
 create or replace function public.unidade_sugestao_lista(
   busca text default null,
   orgao_filtro text default null,
