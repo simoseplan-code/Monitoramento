@@ -7,8 +7,8 @@
 --    aparecer também na própria tela (não só em /admin).
 
 alter table public.obras_unidade_sugestao
-  add column unidade_final text,
-  add column quantidade_final text;
+  add column if not exists unidade_final text,
+  add column if not exists quantidade_final text;
 
 create or replace function public.contar_sugestoes_unidade_aprovadas()
 returns integer
