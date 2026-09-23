@@ -4,6 +4,7 @@ import { CardSugestaoUnidade } from "./CardSugestaoUnidade";
 import { FiltrosUnidadeQuantidade } from "./FiltrosUnidadeQuantidade";
 import { Paginacao } from "@/components/Paginacao";
 import { AplicarUnidadeBotao } from "@/components/unidadeQuantidade/AplicarUnidadeBotao";
+import { SincronizarBotao } from "@/components/admin/SincronizarBotao";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { contarSugestoesUnidadePendentes } from "@/lib/unidadeQuantidade";
 
@@ -35,10 +36,10 @@ type LinhaSugestao = {
 export default async function UnidadeQuantidadePage({
   searchParams,
 }: {
-  searchParams: Promise<{ busca?: string; orgao?: string; confianca?: string; aplicadas?: string; anoMin?: string; pagina?: string }>;
+  searchParams: Promise<{ busca?: string; orgao?: string; confianca?: string; status?: string; anoMin?: string; pagina?: string }>;
 }) {
-  const { busca, orgao, confianca, aplicadas, anoMin, pagina } = await searchParams;
-  const mostrarAplicadas = aplicadas === "1";
+  const { busca, orgao, confianca, status, anoMin, pagina } = await searchParams;
+  const statusAtual = status || "pendentes";
   // anoMin=todos -> sem filtro; ausente -> padrão 2023; qualquer outro valor -> esse ano.
   const anoMinAtual = anoMin ?? ANO_MINIMO_PADRAO;
   const anoMinimoFiltro = anoMinAtual === "todos" ? null : parseInt(anoMinAtual, 10) || null;
@@ -69,7 +70,7 @@ export default async function UnidadeQuantidadePage({
       busca: busca || null,
       orgao_filtro: orgao || null,
       confianca_filtro: confianca || null,
-      mostrar_aplicadas: mostrarAplicadas,
+      filtro_status: statusAtual,
       ano_minimo: anoMinimoFiltro,
       pagina: paginaAtual,
       tamanho: PAGE_SIZE,
@@ -97,15 +98,20 @@ export default async function UnidadeQuantidadePage({
         sugestoesUnidadePendentes,
       }}
       titulo="Unidade / Quantidade"
-      subtitulo={`${totalGeral} ação(ões) com Unidade de Medida vazia ou divergente da sugestão`}
+      subtitulo={`${totalGeral} ação(ões) — ${
+        { pendentes: "aguardando revisão", aprovadas: "aprovadas, aguardando gravação", aplicadas: "já aplicadas no SIMO", todas: "no total" }[
+          statusAtual
+        ] ?? "aguardando revisão"
+      }`}
     >
       {isAdmin && (
         <div className="mb-4 rounded-xl border border-black/5 bg-surface p-4 shadow-card">
           <div className="mb-1 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-ink-primary">Gravação no SIMO</h2>
+            <SincronizarBotao />
           </div>
           <p className="mb-2 text-xs text-ink-muted">
-            Aprove abaixo o que precisa ir pro SIMO e depois grave em lote aqui.
+            Aprove abaixo o que precisa ir pro SIMO e depois grave em lote aqui. Sincronize antes se a base estiver desatualizada (o cron também roda automático todo dia).
           </p>
           <AplicarUnidadeBotao pendentes={sugestoesUnidadeAprovadas ?? 0} />
         </div>
@@ -117,7 +123,7 @@ export default async function UnidadeQuantidadePage({
           orgaoAtual={orgao ?? ""}
           confiancaAtual={confianca ?? ""}
           orgaos={orgaosDisponiveis}
-          mostrarAplicadas={mostrarAplicadas}
+          statusAtual={statusAtual}
           anoMinAtual={anoMinAtual}
           anos={anosDisponiveis}
         />
@@ -156,7 +162,13 @@ export default async function UnidadeQuantidadePage({
           paginaAtual={paginaAtual}
           totalPaginas={totalPaginas}
           baseHref="/unidade-quantidade"
-          params={{ busca, orgao, confianca, aplicadas: mostrarAplicadas ? "1" : undefined, anoMin: anoMinAtual !== ANO_MINIMO_PADRAO ? anoMinAtual : undefined }}
+          params={{
+            busca,
+            orgao,
+            confianca,
+            status: statusAtual !== "pendentes" ? statusAtual : undefined,
+            anoMin: anoMinAtual !== ANO_MINIMO_PADRAO ? anoMinAtual : undefined,
+          }}
         />
       </div>
     </AppShell>
