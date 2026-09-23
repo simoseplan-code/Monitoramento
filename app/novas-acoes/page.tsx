@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { CardNovaAcao } from "./CardNovaAcao";
 import { FiltrosNovasAcoes } from "./FiltrosNovasAcoes";
-import { PaginacaoNovasAcoes } from "./PaginacaoNovasAcoes";
+import { Paginacao } from "@/components/Paginacao";
 import { DATA_INICIO_REVISAO, contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 
 const PAGE_SIZE = 50;
@@ -107,12 +107,11 @@ export default async function NovasAcoesPage({
           </div>
         )}
 
-        <PaginacaoNovasAcoes
+        <Paginacao
           paginaAtual={paginaAtual}
           totalPaginas={totalPaginas}
-          busca={busca ?? ""}
-          orgao={orgao ?? ""}
-          concluidos={mostrarConcluidos}
+          baseHref="/novas-acoes"
+          params={{ busca, orgao, concluidos: mostrarConcluidos ? "1" : undefined }}
         />
       </div>
     </AppShell>

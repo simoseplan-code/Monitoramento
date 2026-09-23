@@ -4,7 +4,7 @@ import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { UploadCsvSobreposicoes } from "./UploadCsvSobreposicoes";
 import { CardSobreposicao } from "./CardSobreposicao";
 import { FiltrosSobreposicoes } from "./FiltrosSobreposicoes";
-import { PaginacaoSobreposicoes } from "./PaginacaoSobreposicoes";
+import { Paginacao } from "@/components/Paginacao";
 import type { ObraNoLocal } from "@/lib/sobreposicoes/parseCsv";
 
 const PAGE_SIZE = 30;
@@ -128,12 +128,11 @@ export default async function SobreposicoesPage({
           </div>
         )}
 
-        <PaginacaoSobreposicoes
+        <Paginacao
           paginaAtual={paginaAtual}
           totalPaginas={totalPaginas}
-          revisadas={mostrarRevisadas}
-          orgao={orgao ?? ""}
-          ano={ano ?? ""}
+          baseHref="/sobreposicoes"
+          params={{ revisadas: mostrarRevisadas ? "1" : undefined, orgao, ano }}
         />
       </div>
     </AppShell>

@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { FiltrosAcoes } from "./FiltrosAcoes";
-import { Paginacao } from "./Paginacao";
+import { Paginacao } from "@/components/Paginacao";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 
 const PAGE_SIZE = 100;
@@ -138,7 +138,7 @@ export default async function AcoesPage({
           </table>
         </div>
 
-        <Paginacao paginaAtual={paginaAtual} totalPaginas={totalPaginas} busca={busca ?? ""} filtro={filtro ?? ""} />
+        <Paginacao paginaAtual={paginaAtual} totalPaginas={totalPaginas} baseHref="/acoes" params={{ busca, filtro }} />
       </div>
     </AppShell>
   );

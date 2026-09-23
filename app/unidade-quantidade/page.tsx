@@ -2,12 +2,15 @@ import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { CardSugestaoUnidade } from "./CardSugestaoUnidade";
 import { FiltrosUnidadeQuantidade } from "./FiltrosUnidadeQuantidade";
-import { PaginacaoUnidadeQuantidade } from "./PaginacaoUnidadeQuantidade";
+import { Paginacao } from "@/components/Paginacao";
 import { AplicarUnidadeBotao } from "@/components/unidadeQuantidade/AplicarUnidadeBotao";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { contarSugestoesUnidadePendentes } from "@/lib/unidadeQuantidade";
 
 const PAGE_SIZE = 50;
+// Padrão pedido pelo usuário: ver só ações criadas de 2023 em diante,
+// a não ser que ele escolha "todos os anos" no filtro.
+const ANO_MINIMO_PADRAO = "2023";
 
 type LinhaSugestao = {
   id_acao: string;
@@ -32,10 +35,13 @@ type LinhaSugestao = {
 export default async function UnidadeQuantidadePage({
   searchParams,
 }: {
-  searchParams: Promise<{ busca?: string; orgao?: string; confianca?: string; aplicadas?: string; pagina?: string }>;
+  searchParams: Promise<{ busca?: string; orgao?: string; confianca?: string; aplicadas?: string; anoMin?: string; pagina?: string }>;
 }) {
-  const { busca, orgao, confianca, aplicadas, pagina } = await searchParams;
+  const { busca, orgao, confianca, aplicadas, anoMin, pagina } = await searchParams;
   const mostrarAplicadas = aplicadas === "1";
+  // anoMin=todos -> sem filtro; ausente -> padrão 2023; qualquer outro valor -> esse ano.
+  const anoMinAtual = anoMin ?? ANO_MINIMO_PADRAO;
+  const anoMinimoFiltro = anoMinAtual === "todos" ? null : parseInt(anoMinAtual, 10) || null;
   const paginaAtual = Math.max(1, parseInt(pagina ?? "1", 10) || 1);
   const supabase = await createClient();
   const {
@@ -51,6 +57,7 @@ export default async function UnidadeQuantidadePage({
     { count: sugestoesUnidadeAprovadas },
     { data: linhasRpc },
     { data: orgaosRpc },
+    { data: anosRpc },
   ] = await Promise.all([
     supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
     supabase.from("obras").select("id_acao", { count: "exact", head: true }),
@@ -63,16 +70,19 @@ export default async function UnidadeQuantidadePage({
       orgao_filtro: orgao || null,
       confianca_filtro: confianca || null,
       mostrar_aplicadas: mostrarAplicadas,
+      ano_minimo: anoMinimoFiltro,
       pagina: paginaAtual,
       tamanho: PAGE_SIZE,
     }),
     supabase.rpc("unidade_sugestao_orgaos"),
+    supabase.rpc("unidade_sugestao_anos"),
   ]);
 
   const linhas = (linhasRpc ?? []) as LinhaSugestao[];
   const totalGeral = linhas[0]?.total_geral ?? 0;
   const totalPaginas = Math.max(1, Math.ceil(totalGeral / PAGE_SIZE));
   const orgaosDisponiveis = (orgaosRpc ?? []).map((r: { orgao: string }) => r.orgao);
+  const anosDisponiveis = (anosRpc ?? []).map((r: { ano: number }) => r.ano);
   const isAdmin = !!profile?.is_admin;
 
   return (
@@ -108,6 +118,8 @@ export default async function UnidadeQuantidadePage({
           confiancaAtual={confianca ?? ""}
           orgaos={orgaosDisponiveis}
           mostrarAplicadas={mostrarAplicadas}
+          anoMinAtual={anoMinAtual}
+          anos={anosDisponiveis}
         />
       </div>
 
@@ -140,13 +152,11 @@ export default async function UnidadeQuantidadePage({
           </div>
         )}
 
-        <PaginacaoUnidadeQuantidade
+        <Paginacao
           paginaAtual={paginaAtual}
           totalPaginas={totalPaginas}
-          busca={busca ?? ""}
-          orgao={orgao ?? ""}
-          confianca={confianca ?? ""}
-          aplicadas={mostrarAplicadas}
+          baseHref="/unidade-quantidade"
+          params={{ busca, orgao, confianca, aplicadas: mostrarAplicadas ? "1" : undefined, anoMin: anoMinAtual !== ANO_MINIMO_PADRAO ? anoMinAtual : undefined }}
         />
       </div>
     </AppShell>

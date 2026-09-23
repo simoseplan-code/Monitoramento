@@ -28,7 +28,11 @@ export function UploadCsvSobreposicoes() {
       } else {
         setResultado({
           tipo: "ok",
-          texto: `${dados.total} local(is) no arquivo — ${dados.novos} novo(s), ${dados.jaExistiam} já estavam cadastrados (decisão preservada).`,
+          texto:
+            `${dados.total} local(is) no arquivo — ${dados.novos} novo(s), ${dados.jaExistiam} já estavam cadastrados (decisão preservada)` +
+            (dados.carregadosAutomaticamente > 0
+              ? `, ${dados.carregadosAutomaticamente} reconhecido(s) como já revisado(s) antes (mesma combinação de obras, chave diferente).`
+              : "."),
         });
         router.refresh();
       }

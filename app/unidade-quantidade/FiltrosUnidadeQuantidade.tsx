@@ -4,32 +4,40 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Search } from "lucide-react";
 
+const ANO_MINIMO_PADRAO = "2023";
+
 export function FiltrosUnidadeQuantidade({
   buscaAtual,
   orgaoAtual,
   confiancaAtual,
   orgaos,
   mostrarAplicadas,
+  anoMinAtual,
+  anos,
 }: {
   buscaAtual: string;
   orgaoAtual: string;
   confiancaAtual: string;
   orgaos: string[];
   mostrarAplicadas: boolean;
+  anoMinAtual: string;
+  anos: number[];
 }) {
   const router = useRouter();
   const [busca, setBusca] = useState(buscaAtual);
 
-  function aplicar(overrides: { busca?: string; orgao?: string; confianca?: string; aplicadas?: boolean }) {
+  function aplicar(overrides: { busca?: string; orgao?: string; confianca?: string; aplicadas?: boolean; anoMin?: string }) {
     const params = new URLSearchParams();
     const buscaValor = overrides.busca ?? busca;
     const orgaoValor = overrides.orgao ?? orgaoAtual;
     const confiancaValor = overrides.confianca ?? confiancaAtual;
     const aplicadasValor = overrides.aplicadas ?? mostrarAplicadas;
+    const anoMinValor = overrides.anoMin ?? anoMinAtual;
     if (buscaValor) params.set("busca", buscaValor);
     if (orgaoValor) params.set("orgao", orgaoValor);
     if (confiancaValor) params.set("confianca", confiancaValor);
     if (aplicadasValor) params.set("aplicadas", "1");
+    if (anoMinValor !== ANO_MINIMO_PADRAO) params.set("anoMin", anoMinValor);
     router.push(`/unidade-quantidade${params.toString() ? `?${params.toString()}` : ""}`);
   }
 
@@ -67,6 +75,20 @@ export function FiltrosUnidadeQuantidade({
           <option value="">Qualquer confiança</option>
           <option value="alta">Confiança alta</option>
           <option value="baixa">Confiança baixa</option>
+        </select>
+
+        <select
+          value={anoMinAtual}
+          onChange={(e) => aplicar({ anoMin: e.target.value })}
+          className="rounded-lg border border-black/10 bg-plane px-3 py-2 text-sm text-ink-secondary focus:border-series-1 focus:outline-none"
+          title="Só ações criadas a partir desse ano — escolha 'Todos os anos' pra ver o histórico completo"
+        >
+          <option value="todos">Todos os anos</option>
+          {anos.map((a) => (
+            <option key={a} value={a}>
+              De {a} em diante
+            </option>
+          ))}
         </select>
       </div>
 

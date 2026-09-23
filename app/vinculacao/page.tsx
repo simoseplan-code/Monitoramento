@@ -2,7 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { CardPendenteVinculacao } from "./CardPendenteVinculacao";
 import { FiltrosVinculacao } from "./FiltrosVinculacao";
-import { PaginacaoVinculacao } from "./PaginacaoVinculacao";
+import { Paginacao } from "@/components/Paginacao";
 import { VincularBotao } from "@/components/vinculacao/VincularBotao";
 import { SincronizarBotao } from "@/components/admin/SincronizarBotao";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
@@ -123,7 +123,7 @@ export default async function VinculacaoPage({
           </div>
         )}
 
-        <PaginacaoVinculacao paginaAtual={paginaAtual} totalPaginas={totalPaginas} busca={busca ?? ""} orgao={orgao ?? ""} />
+        <Paginacao paginaAtual={paginaAtual} totalPaginas={totalPaginas} baseHref="/vinculacao" params={{ busca, orgao }} />
       </div>
 
       {isAdmin && (
