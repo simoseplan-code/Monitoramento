@@ -20,7 +20,7 @@ type LinhaSugestao = {
   tipologia: string | null;
   unidade_atual: string | null;
   quantidade_atual: string | null;
-  unidade_sugerida: string;
+  unidade_sugerida: string | null;
   quantidade_sugerida: string | null;
   sem_quantidade: boolean;
   unidade_final: string | null;

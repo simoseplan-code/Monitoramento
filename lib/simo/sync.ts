@@ -76,7 +76,7 @@ export async function executarSyncSimo(): Promise<{ linhas: number }> {
 
 type SugestaoExistente = {
   id_acao: string;
-  unidade_sugerida: string;
+  unidade_sugerida: string | null;
   quantidade_sugerida: string | null;
   unidade_final: string | null;
   quantidade_final: string | null;
@@ -94,18 +94,30 @@ type SugestaoExistente = {
 // a cada carregamento (mesmo motivo de performance que levou o dashboard
 // e Novas Ações a usarem RPC em vez de baixar tudo pro Next.js).
 async function calcularSugestoesUnidade(admin: SupabaseClient, obras: ObraRow[], syncIniciadoEm: string): Promise<void> {
-  const precisamSugestao: { obra: ObraRow; unidadeAtualVazia: boolean }[] = [];
+  // Guarda a sugestão computada junto (em vez de recalcular depois) —
+  // importante porque agora um item pode entrar na fila mesmo com
+  // sugestao === null (Unidade vazia, mas o motor não achou nem
+  // Tipologia mapeada nem palavra-chave no texto — antes isso sumia da
+  // fila silenciosamente; a equipe via 2658 ações com Unidade vazia na
+  // base mas só 726 apareciam pra revisar).
+  const precisamSugestao: { obra: ObraRow; unidadeAtualVazia: boolean; sugestao: ReturnType<typeof sugerirUnidadeQuantidade> }[] = [];
 
   for (const obra of obras) {
     const sugestao = sugerirUnidadeQuantidade({ nome: obra.nome_acao, descricao: obra.descricao_acao, tipologia: obra.tipologia });
-    if (!sugestao) continue;
-
     const unidadeAtual = (obra.unidade_medida || "").trim();
     const vazio = unidadeAtual === "";
-    const divergente = !vazio && unidadeAtual.toUpperCase() !== sugestao.unidadeSugerida.toUpperCase();
-    if (!vazio && !divergente) continue;
 
-    precisamSugestao.push({ obra, unidadeAtualVazia: vazio });
+    if (sugestao) {
+      const divergente = !vazio && unidadeAtual.toUpperCase() !== sugestao.unidadeSugerida.toUpperCase();
+      if (!vazio && !divergente) continue;
+      precisamSugestao.push({ obra, unidadeAtualVazia: vazio, sugestao });
+    } else if (vazio) {
+      // Sem nenhum indício (nem tipologia mapeada, nem texto) — ainda
+      // assim precisa de revisão manual, só não dá pra sugerir nada.
+      precisamSugestao.push({ obra, unidadeAtualVazia: true, sugestao: null });
+    }
+    // Sem sugestão e com Unidade já preenchida: não dá pra saber se
+    // diverge sem ter com o que comparar — fica de fora, igual antes.
   }
 
   // Busca as sugestões já existentes só pra esse subconjunto, pra
@@ -123,25 +135,24 @@ async function calcularSugestoesUnidade(admin: SupabaseClient, obras: ObraRow[],
     (data ?? []).forEach((row) => existentesPorId.set(row.id_acao, row as SugestaoExistente));
   }
 
-  const linhas = precisamSugestao.map(({ obra, unidadeAtualVazia }) => {
-    const sugestao = sugerirUnidadeQuantidade({ nome: obra.nome_acao, descricao: obra.descricao_acao, tipologia: obra.tipologia })!;
-    const quantidadeSugerida = sugestao.quantidadeSugerida || null;
+  const linhas = precisamSugestao.map(({ obra, unidadeAtualVazia, sugestao }) => {
+    const quantidadeSugerida = sugestao?.quantidadeSugerida || null;
     const existente = existentesPorId.get(obra.id_acao);
     const mudou =
       !existente ||
-      existente.unidade_sugerida.toUpperCase() !== sugestao.unidadeSugerida.toUpperCase() ||
+      (existente.unidade_sugerida ?? "").toUpperCase() !== (sugestao?.unidadeSugerida ?? "").toUpperCase() ||
       (existente.quantidade_sugerida || null) !== quantidadeSugerida;
 
     return {
       id_acao: obra.id_acao,
       unidade_atual: unidadeAtualVazia ? null : obra.unidade_medida,
       quantidade_atual: obra.quantidade === null ? null : paraTextoBR(obra.quantidade),
-      unidade_sugerida: sugestao.unidadeSugerida,
+      unidade_sugerida: sugestao?.unidadeSugerida ?? null,
       quantidade_sugerida: quantidadeSugerida,
       sem_quantidade: !quantidadeSugerida,
-      confianca: sugestao.confianca,
-      aviso_tipologia: !!sugestao.avisoTipologia,
-      motivo: sugestao.motivo,
+      confianca: sugestao?.confianca ?? "baixa",
+      aviso_tipologia: !!sugestao?.avisoTipologia,
+      motivo: sugestao?.motivo ?? "Nenhuma palavra-chave clara no Nome/Descrição e Tipologia não mapeada — revisar manualmente, escolhendo a unidade certa.",
       unidade_final: mudou ? null : existente!.unidade_final,
       quantidade_final: mudou ? null : existente!.quantidade_final,
       aprovado: mudou ? false : existente!.aprovado,

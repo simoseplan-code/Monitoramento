@@ -31,7 +31,7 @@ export function CardSugestaoUnidade({
   tipologia: string | null;
   unidadeAtual: string | null;
   quantidadeAtual: string | null;
-  unidadeSugerida: string;
+  unidadeSugerida: string | null;
   quantidadeSugerida: string | null;
   semQuantidade: boolean;
   unidadeFinal: string | null;
@@ -45,7 +45,7 @@ export function CardSugestaoUnidade({
   const router = useRouter();
   const bloqueado = !!aplicadoEm;
 
-  const [unidade, setUnidade] = useState(unidadeFinal || unidadeSugerida);
+  const [unidade, setUnidade] = useState(unidadeFinal || unidadeSugerida || "");
   const [quantidade, setQuantidade] = useState(quantidadeFinal ?? (semQuantidade ? "" : quantidadeSugerida ?? ""));
   const [salvando, setSalvando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
@@ -116,11 +116,17 @@ export function CardSugestaoUnidade({
         </div>
         <div className="col-span-2 sm:col-span-2">
           <p className="text-[11px] uppercase tracking-wide text-ink-muted">
-            Sugestão do sistema <span className="normal-case text-ink-muted/70">(confiança {confianca})</span>
+            Sugestão do sistema {unidadeSugerida && <span className="normal-case text-ink-muted/70">(confiança {confianca})</span>}
           </p>
           <p className="text-sm font-medium text-ink-primary">
-            {unidadeSugerida}
-            {semQuantidade ? "" : quantidadeSugerida ? ` (${quantidadeSugerida})` : ""}
+            {unidadeSugerida ? (
+              <>
+                {unidadeSugerida}
+                {semQuantidade ? "" : quantidadeSugerida ? ` (${quantidadeSugerida})` : ""}
+              </>
+            ) : (
+              <span className="text-ink-muted">Nenhuma — escolha manualmente abaixo</span>
+            )}
           </p>
         </div>
       </div>
@@ -139,6 +145,7 @@ export function CardSugestaoUnidade({
             disabled={bloqueado}
             className="rounded-lg border border-black/10 bg-surface px-2.5 py-1.5 text-sm text-ink-primary disabled:opacity-60"
           >
+            {!unidade && <option value="">-- selecione --</option>}
             {UNIDADES_VALIDAS.map((u) => (
               <option key={u} value={u}>
                 {u}
@@ -160,7 +167,8 @@ export function CardSugestaoUnidade({
         {!bloqueado && (
           <button
             onClick={() => salvar(true)}
-            disabled={salvando}
+            disabled={salvando || !unidade}
+            title={!unidade ? "Escolha uma unidade antes de aprovar" : undefined}
             className="ml-auto flex items-center gap-1.5 rounded-lg bg-status-good px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
           >
             <Check size={13} />
