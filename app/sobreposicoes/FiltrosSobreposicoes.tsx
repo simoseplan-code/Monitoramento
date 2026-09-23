@@ -6,19 +6,25 @@ export function FiltrosSobreposicoes({
   mostrarRevisadas,
   orgaoAtual,
   orgaos,
+  anoAtual,
+  anos,
 }: {
   mostrarRevisadas: boolean;
   orgaoAtual: string;
   orgaos: string[];
+  anoAtual: string;
+  anos: number[];
 }) {
   const router = useRouter();
 
-  function aplicar(overrides: { revisadas?: boolean; orgao?: string }) {
+  function aplicar(overrides: { revisadas?: boolean; orgao?: string; ano?: string }) {
     const params = new URLSearchParams();
     const revisadasValor = overrides.revisadas ?? mostrarRevisadas;
     const orgaoValor = overrides.orgao ?? orgaoAtual;
+    const anoValor = overrides.ano ?? anoAtual;
     if (revisadasValor) params.set("revisadas", "1");
     if (orgaoValor) params.set("orgao", orgaoValor);
+    if (anoValor) params.set("ano", anoValor);
     router.push(`/sobreposicoes${params.toString() ? `?${params.toString()}` : ""}`);
   }
 
@@ -33,6 +39,20 @@ export function FiltrosSobreposicoes({
         {orgaos.map((o) => (
           <option key={o} value={o}>
             {o}
+          </option>
+        ))}
+      </select>
+
+      <select
+        value={anoAtual}
+        onChange={(e) => aplicar({ ano: e.target.value })}
+        className="rounded-lg border border-black/10 bg-plane px-3 py-2 text-sm text-ink-secondary focus:border-series-1 focus:outline-none"
+        title="Local aparece se pelo menos uma das obras envolvidas foi criada nesse ano"
+      >
+        <option value="">Qualquer ano de criação</option>
+        {anos.map((a) => (
+          <option key={a} value={a}>
+            {a}
           </option>
         ))}
       </select>
