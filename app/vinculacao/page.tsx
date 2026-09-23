@@ -19,6 +19,7 @@ type LinhaPendente = {
   status: string | null;
   numero_siafe: string;
   situacao: string | null;
+  falhou_antes: boolean;
   total_geral: number;
 };
 
@@ -106,6 +107,8 @@ export default async function VinculacaoPage({
             status={l.status}
             numeroSiafe={l.numero_siafe}
             situacao={l.situacao}
+            falhouAntes={l.falhou_antes}
+            isAdmin={isAdmin}
           />
         ))}
 
