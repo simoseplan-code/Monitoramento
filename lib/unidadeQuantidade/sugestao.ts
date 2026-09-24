@@ -22,6 +22,10 @@ export const TIPOLOGIA_UNIDADE_MAP: Record<string, { unidade: string; confianca:
   "PASSAGEM MOLHADA": { unidade: "UNIDADE", confianca: "alta" },
   "PRAÇA": { unidade: "UNIDADE", confianca: "alta" },
   "QUADRA ESPORTIVA": { unidade: "UNIDADE", confianca: "alta" },
+  // ── APRENDIZADOS DA EQUIPE (regras confirmadas na revisão — acrescentar aqui) ──
+  // Praça, quadra etc. cadastradas sob essa tipologia são sempre UNIDADE,
+  // quantidade 1: o "844,90 M²" do texto é o tamanho da estrutura.
+  "ESPAÇO E EQUIPAMENTO DE ESPORTE E LAZER": { unidade: "UNIDADE", confianca: "alta" },
   // ── confiança BAIXA (rascunho por analogia — revisar) ────────────────
   "RODOVIA": { unidade: "KM", confianca: "baixa" },
   "CONTORNO RODOVIÁRIO": { unidade: "KM", confianca: "baixa" },
