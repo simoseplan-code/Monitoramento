@@ -8,11 +8,28 @@ const TAMANHO_LOTE = 1000;
 
 export async function executarSyncSimo(): Promise<{ linhas: number }> {
   const admin = createAdminClient();
+  const inicio = Date.now();
+  const seg = () => ((Date.now() - inicio) / 1000).toFixed(1);
+
+  // Registra o início ANTES de fazer qualquer coisa: se o servidor matar
+  // a execução por tempo (limite da rota), o catch abaixo nunca roda —
+  // essa linha fica no histórico do Admin como "interrompida" e é a
+  // evidência de timeout, em vez de só um "falha ao conectar" no botão.
+  const { data: logRow } = await admin
+    .from("sync_log")
+    .insert({ sucesso: false, mensagem: "Interrompida antes de terminar (provável timeout do servidor) — sem erro registrado." })
+    .select("id")
+    .single();
+  const finalizarLog = async (campos: { sucesso: boolean; linhas_processadas?: number; mensagem: string }) => {
+    if (logRow?.id) await admin.from("sync_log").update(campos).eq("id", logRow.id);
+    else await admin.from("sync_log").insert(campos);
+  };
 
   try {
     const cookie = await loginSimo();
     await prepararRelatorioSimo(cookie);
     const csvText = await baixarCsvSimo(cookie);
+    const tDownload = seg();
     const obras = csvParaObras(csvText);
 
     if (obras.length === 0) {
@@ -41,16 +58,15 @@ export async function executarSyncSimo(): Promise<{ linhas: number }> {
     );
     const erroLote = resultados.find((r) => r.error);
     if (erroLote?.error) throw new Error(`Falha ao gravar lote no Supabase: ${erroLote.error.message}`);
+    const tGravacao = seg();
 
     const vinculadas = obras.filter((o) => !!o.numero_automatico).length;
     const pendentes = obras.filter((o) => !o.numero_automatico && !!o.numero_siafe).length;
-    const dadoIncorreto = obras.filter((o) => o.numero_siafe && !/^\d{8}$/.test(o.numero_siafe)).length;
+    const dadoIncorreto = obras.filter((o) => o.numero_siafe && !/^d{8}$/.test(o.numero_siafe)).length;
 
     // As três operações abaixo são independentes entre si (só dependem
     // do upsert de obras já ter terminado) — rodar em paralelo em vez
-    // de sequencial é o que mantém o sync inteiro dentro do limite de
-    // 60s da rota (Vercel Hobby) mesmo com a fila de Unidade/Quantidade
-    // bem maior agora que ela para de descartar ação sem sugestão.
+    // de sequencial ajuda a caber no limite de tempo da rota.
     const [resDelete] = await Promise.all([
       // Ações que existiam antes desse carimbo e não foram tocadas
       // nesta execução saíram do relatório do SIMO (encerradas/excluídas lá).
@@ -60,16 +76,16 @@ export async function executarSyncSimo(): Promise<{ linhas: number }> {
     ]);
     if (resDelete.error) throw new Error(`Falha ao remover ações obsoletas: ${resDelete.error.message}`);
 
-    await admin.from("sync_log").insert({
+    await finalizarLog({
       sucesso: true,
       linhas_processadas: obras.length,
-      mensagem: `OK: ${obras.length} ações sincronizadas.`,
+      mensagem: `OK: ${obras.length} ações em ${seg()}s (SIMO+download ${tDownload}s, gravação até ${tGravacao}s, sugestões/limpeza até ${seg()}s).`,
     });
 
     return { linhas: obras.length };
   } catch (e) {
     const mensagem = e instanceof Error ? e.message : "Erro desconhecido.";
-    await admin.from("sync_log").insert({ sucesso: false, mensagem });
+    await finalizarLog({ sucesso: false, mensagem: `${mensagem} (após ${seg()}s)` });
     throw new Error(mensagem);
   }
 }

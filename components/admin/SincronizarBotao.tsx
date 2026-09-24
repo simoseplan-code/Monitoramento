@@ -14,11 +14,19 @@ export function SincronizarBotao() {
     setMsg(null);
     try {
       const resp = await fetch("/api/admin/sync-simo", { method: "POST" });
-      const data = await resp.json();
+      // Resposta que não é JSON = o servidor foi cortado antes de responder
+      // (timeout devolve página de erro) — mostra o status em vez de esconder.
+      const bruto = await resp.text();
+      let data: { linhas?: number; error?: string } | null = null;
+      try {
+        data = JSON.parse(bruto);
+      } catch {
+        // não é JSON
+      }
       setMsg(
-        resp.ok
+        data && resp.ok
           ? { tipo: "ok", texto: `✅ ${data.linhas} ações sincronizadas.` }
-          : { tipo: "erro", texto: `❌ ${data.error}` }
+          : { tipo: "erro", texto: `❌ ${data?.error ?? `Servidor respondeu HTTP ${resp.status} sem detalhes (provável timeout — veja o histórico no Admin).`}` }
       );
       router.refresh();
     } catch {

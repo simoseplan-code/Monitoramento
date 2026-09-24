@@ -65,7 +65,7 @@ export default async function AdminPage() {
                 )}
                 <div className="min-w-0">
                   <p className="text-ink-secondary">
-                    {s.sucesso ? `${s.linhas_processadas} ações sincronizadas` : s.mensagem}
+                    {s.mensagem ?? `${s.linhas_processadas} ações sincronizadas`}
                   </p>
                   <p className="text-xs text-ink-muted">{new Date(s.executado_em).toLocaleString("pt-BR")}</p>
                 </div>
