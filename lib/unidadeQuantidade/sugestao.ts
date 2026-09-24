@@ -26,6 +26,10 @@ export const TIPOLOGIA_UNIDADE_MAP: Record<string, { unidade: string; confianca:
   // Praça, quadra etc. cadastradas sob essa tipologia são sempre UNIDADE,
   // quantidade 1: o "844,90 M²" do texto é o tamanho da estrutura.
   "ESPAÇO E EQUIPAMENTO DE ESPORTE E LAZER": { unidade: "UNIDADE", confianca: "alta" },
+  // Sistema de abastecimento d'água e estádio: UNIDADE, quantidade 1, a não ser
+  // que o texto descreva outra quantidade ("02 estádios", "duas ...").
+  "SISTEMA DE ABASTECIMENTO D`ÁGUA": { unidade: "UNIDADE", confianca: "alta" },
+  "ESTÁDIO": { unidade: "UNIDADE", confianca: "alta" },
   // ── confiança BAIXA (rascunho por analogia — revisar) ────────────────
   "RODOVIA": { unidade: "KM", confianca: "baixa" },
   "CONTORNO RODOVIÁRIO": { unidade: "KM", confianca: "baixa" },
@@ -37,7 +41,6 @@ export const TIPOLOGIA_UNIDADE_MAP: Record<string, { unidade: string; confianca:
   "MATADOURO": { unidade: "UNIDADE", confianca: "baixa" },
   "MERCADO PÚBLICO": { unidade: "UNIDADE", confianca: "baixa" },
   "CEMITÉRIO": { unidade: "UNIDADE", confianca: "baixa" },
-  "ESTÁDIO": { unidade: "UNIDADE", confianca: "baixa" },
   "UNIDADE ESCOLAR": { unidade: "UNIDADE", confianca: "baixa" },
   "UBS": { unidade: "UNIDADE", confianca: "baixa" },
   "UPA": { unidade: "UNIDADE", confianca: "baixa" },
@@ -74,7 +77,6 @@ export const TIPOLOGIA_UNIDADE_MAP: Record<string, { unidade: string; confianca:
   "REDE DE DISTRIBUIÇÃO DE AGUA": { unidade: "", confianca: "baixa" },
   "REDE DE ENERGIA ELÉTRICA": { unidade: "", confianca: "baixa" },
   "REDE DE ESGOTO": { unidade: "", confianca: "baixa" },
-  "SISTEMA DE ABASTECIMENTO D`ÁGUA": { unidade: "", confianca: "baixa" },
   "SISTEMA DE ESGOTAMENTO SANITÁRIO": { unidade: "", confianca: "baixa" },
 };
 
@@ -138,6 +140,13 @@ export function paraTextoBR(numero: number): string {
   return String(numero).replace(".", ",");
 }
 
+// Regex que aceita singular e plural de UMA palavra: "passagem" → passagem|passagens
+// (termina em m → ns), demais → + "s" opcional.
+function pluralRegex(palavra: string): string {
+  if (palavra.endsWith("m")) return escapeRegex(palavra.slice(0, -1)) + "(?:m|ns)";
+  return escapeRegex(palavra) + "s?";
+}
+
 function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
@@ -158,24 +167,48 @@ function sugerirUnidadePorTexto(texto: string | null | undefined): { unidade: st
 }
 
 // Conta quantas estruturas o texto menciona (ex: "duas pontes" → 2, "03
-// PONTES" → 3, "3 praças" → 3). Primeiro tenta dígito + o nome da própria
-// Tipologia no plural (funciona pra qualquer tipologia, sem precisar
-// listar palavra por palavra); depois dígito + "unidades/estruturas";
-// depois número por extenso. Sem indício claro, assume 1 — é o caso mais
-// comum (uma estrutura só sendo construída/reformada).
-function contarUnidadesPorTexto(texto: string, tipologia: string | null | undefined): string {
+// PONTES" → 3, "02 passagens molhadas" → 2). Procura, nessa ordem: número
+// (dígito ou por extenso) IMEDIATAMENTE antes do nome da estrutura (aceita
+// plural em cada palavra); dígito + "unidades/estruturas"; e, se não for
+// estrito, qualquer número por extenso solto no texto. Sem indício, assume
+// 1 — o caso mais comum. "estrito" existe porque o número solto pode ser
+// parte de nome de lugar ("Localidade Dois Irmãos" não é 2 estruturas).
+function contarUnidadesPorTexto(texto: string, tipologia: string | null | undefined, estrito = false): string {
+  const palavrasNumero = Object.keys(PALAVRAS_NUMERO_PT).join("|");
   if (tipologia) {
-    const palavra = escapeRegex(tipologia.trim().toLowerCase());
-    if (palavra) {
-      const m = texto.match(new RegExp("\\b0*(\\d+)\\s+" + palavra + "s?\\b", "i"));
-      if (m) return String(parseInt(m[1], 10));
+    // "D`ÁGUA" (grafia da tipologia) aparece como "DE ÁGUA" no texto das ações.
+    const estrutura = tipologia
+      .trim()
+      .toLowerCase()
+      .replace(/d`\s*/g, "de ")
+      .split(/\s+/)
+      .filter(Boolean)
+      .map(pluralRegex)
+      .join("\\s+");
+    if (estrutura) {
+      const mDigito = texto.match(new RegExp("\\b0*(\\d+)\\s+" + estrutura + "\\b", "i"));
+      if (mDigito) return String(parseInt(mDigito[1], 10));
+      const mPalavra = texto.match(new RegExp("\\b(" + palavrasNumero + ")\\s+" + estrutura + "\\b", "i"));
+      if (mPalavra) return String(PALAVRAS_NUMERO_PT[mPalavra[1].toLowerCase()]);
     }
   }
   const mDigito = texto.match(/\b0*(\d+)\s+(unidades?|estruturas?)\b/i);
   if (mDigito) return String(parseInt(mDigito[1], 10));
-  const chave = Object.keys(PALAVRAS_NUMERO_PT).find((p) => new RegExp("\\b" + p + "\\b", "i").test(texto));
-  return chave ? String(PALAVRAS_NUMERO_PT[chave]) : "1";
+  if (!estrito) {
+    const chave = Object.keys(PALAVRAS_NUMERO_PT).find((p) => new RegExp("\\b" + p + "\\b", "i").test(texto));
+    if (chave) return String(PALAVRAS_NUMERO_PT[chave]);
+  }
+  return "1";
 }
+
+// Estruturas reconhecidas pelo NOME quando a Tipologia vem vazia ou não
+// está no mapa (o card aparece sem tipologia). APRENDIZADOS DA EQUIPE —
+// acrescentar aqui. Cuidado com palavras que também aparecem em nome de
+// rua/quadra de bairro: só entra aqui o que a equipe confirmou.
+const ESTRUTURAS_POR_NOME: { re: RegExp; tipologia: string }[] = [
+  // Passagem molhada é UNIDADE, quantidade 1 (a não ser que o texto diga 2+).
+  { re: /\bpassage(?:m|ns)\s+molhadas?\b/i, tipologia: "PASSAGEM MOLHADA" },
+];
 
 export type SugestaoUnidadeInput = {
   nome: string | null | undefined;
@@ -199,7 +232,25 @@ export type SugestaoUnidade = {
 export function sugerirUnidadeQuantidade(row: SugestaoUnidadeInput): SugestaoUnidade | null {
   const nome = row.nome || "";
   const descricao = row.descricao || "";
-  const tipologia = (row.tipologia || "").trim().toUpperCase();
+  let tipologia = (row.tipologia || "").trim().toUpperCase();
+
+  let inferida = "";
+  if (!TIPOLOGIA_UNIDADE_MAP[tipologia]) {
+    const achada = ESTRUTURAS_POR_NOME.find((e) => e.re.test(nome));
+    if (achada) {
+      tipologia = achada.tipologia;
+      inferida = achada.tipologia;
+    }
+  }
+
+  const sugestao = sugerirPorTipologia(nome, descricao, tipologia);
+  if (sugestao && inferida) {
+    sugestao.motivo = `Tipologia vazia ou não mapeada — reconheci "${inferida}" pelo Nome. ` + sugestao.motivo;
+  }
+  return sugestao;
+}
+
+function sugerirPorTipologia(nome: string, descricao: string, tipologia: string): SugestaoUnidade | null {
 
   let porTexto = sugerirUnidadePorTexto(nome);
   let origemTexto = "Nome";
@@ -216,7 +267,7 @@ export function sugerirUnidadeQuantidade(row: SugestaoUnidadeInput): SugestaoUni
   if (porTipologia && porTipologia.unidade === "UNIDADE" && porTexto && porTexto.unidade !== "UNIDADE") {
     return {
       unidadeSugerida: "UNIDADE",
-      quantidadeSugerida: contarUnidadesPorTexto(nome + " " + descricao, tipologia),
+      quantidadeSugerida: contarUnidadesPorTexto(nome + " " + descricao, tipologia, true),
       confianca: porTipologia.confianca,
       motivo:
         'Tipologia "' + tipologia + '" é UNIDADE — "' + porTexto.trecho + '" no ' + origemTexto +
@@ -282,11 +333,16 @@ export function sugerirUnidadeQuantidade(row: SugestaoUnidadeInput): SugestaoUni
   }
 
   if (porTipologia && porTipologia.unidade) {
+    // Tipologia UNIDADE de alta confiança (praça, passagem molhada, quadra...):
+    // quantidade = contagem de estruturas no texto, padrão 1.
+    const contaEstruturas = porTipologia.unidade === "UNIDADE" && porTipologia.confianca === "alta";
     return {
       unidadeSugerida: porTipologia.unidade,
-      quantidadeSugerida: "",
+      quantidadeSugerida: contaEstruturas ? contarUnidadesPorTexto(nome + " " + descricao, tipologia, true) : "",
       confianca: porTipologia.confianca,
-      motivo: 'Nenhuma palavra-chave clara no Nome/Descrição — sugestão baseada só na Tipologia "' + tipologia + '".',
+      motivo: contaEstruturas
+        ? 'Tipologia "' + tipologia + '" é UNIDADE — quantidade = contagem de estruturas no texto (padrão 1 se não especificado).'
+        : 'Nenhuma palavra-chave clara no Nome/Descrição — sugestão baseada só na Tipologia "' + tipologia + '".',
     };
   }
 

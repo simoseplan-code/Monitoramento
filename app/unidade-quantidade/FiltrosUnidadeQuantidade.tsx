@@ -14,6 +14,8 @@ export function FiltrosUnidadeQuantidade({
   statusAtual,
   anoMinAtual,
   anos,
+  tipologiaAtual,
+  tipologias,
 }: {
   buscaAtual: string;
   orgaoAtual: string;
@@ -22,6 +24,8 @@ export function FiltrosUnidadeQuantidade({
   statusAtual: string;
   anoMinAtual: string;
   anos: number[];
+  tipologiaAtual: string;
+  tipologias: string[];
 }) {
   const router = useRouter();
   const [busca, setBusca] = useState(buscaAtual);
@@ -32,14 +36,16 @@ export function FiltrosUnidadeQuantidade({
   const anoAtualNumero = parseInt(anoMinAtual, 10);
   const opcoesAnos = Number.isNaN(anoAtualNumero) || anos.includes(anoAtualNumero) ? anos : [...anos, anoAtualNumero].sort((a, b) => b - a);
 
-  function aplicar(overrides: { busca?: string; orgao?: string; confianca?: string; status?: string; anoMin?: string }) {
+  function aplicar(overrides: { busca?: string; orgao?: string; confianca?: string; status?: string; anoMin?: string; tipologia?: string }) {
     const params = new URLSearchParams();
     const buscaValor = overrides.busca ?? busca;
     const orgaoValor = overrides.orgao ?? orgaoAtual;
     const confiancaValor = overrides.confianca ?? confiancaAtual;
     const statusValor = overrides.status ?? statusAtual;
     const anoMinValor = overrides.anoMin ?? anoMinAtual;
+    const tipologiaValor = overrides.tipologia ?? tipologiaAtual;
     if (buscaValor) params.set("busca", buscaValor);
+    if (tipologiaValor) params.set("tipologia", tipologiaValor);
     if (orgaoValor) params.set("orgao", orgaoValor);
     if (confiancaValor) params.set("confianca", confiancaValor);
     if (statusValor !== "pendentes") params.set("status", statusValor);
@@ -68,6 +74,20 @@ export function FiltrosUnidadeQuantidade({
         {orgaos.map((o) => (
           <option key={o} value={o}>
             {o}
+          </option>
+        ))}
+      </select>
+
+      <select
+        value={tipologiaAtual}
+        onChange={(e) => aplicar({ tipologia: e.target.value })}
+        className="max-w-[16rem] rounded-lg border border-black/10 bg-plane px-3 py-2 text-sm text-ink-secondary focus:border-series-1 focus:outline-none"
+      >
+        <option value="">Todas as tipologias</option>
+        <option value="__sem__">(sem tipologia)</option>
+        {tipologias.map((t) => (
+          <option key={t} value={t}>
+            {t}
           </option>
         ))}
       </select>

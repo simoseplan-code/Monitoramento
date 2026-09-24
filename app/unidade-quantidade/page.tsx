@@ -37,9 +37,9 @@ type LinhaSugestao = {
 export default async function UnidadeQuantidadePage({
   searchParams,
 }: {
-  searchParams: Promise<{ busca?: string; orgao?: string; confianca?: string; status?: string; anoMin?: string; pagina?: string }>;
+  searchParams: Promise<{ busca?: string; orgao?: string; confianca?: string; status?: string; anoMin?: string; tipologia?: string; pagina?: string }>;
 }) {
-  const { busca, orgao, confianca, status, anoMin, pagina } = await searchParams;
+  const { busca, orgao, confianca, status, anoMin, tipologia, pagina } = await searchParams;
   const statusAtual = status || "pendentes";
   // anoMin=todos -> sem filtro; ausente -> padrão 2023; qualquer outro valor -> esse ano.
   const anoMinAtual = anoMin ?? ANO_MINIMO_PADRAO;
@@ -60,6 +60,7 @@ export default async function UnidadeQuantidadePage({
     { data: linhasRpc },
     { data: orgaosRpc },
     { data: anosRpc },
+    { data: tipologiasRpc },
   ] = await Promise.all([
     supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
     supabase.from("obras").select("id_acao", { count: "exact", head: true }),
@@ -73,11 +74,13 @@ export default async function UnidadeQuantidadePage({
       confianca_filtro: confianca || null,
       filtro_status: statusAtual,
       ano_minimo: anoMinimoFiltro,
+      tipologia_filtro: tipologia || null,
       pagina: paginaAtual,
       tamanho: PAGE_SIZE,
     }),
     supabase.rpc("unidade_sugestao_orgaos"),
     supabase.rpc("unidade_sugestao_anos"),
+    supabase.rpc("unidade_sugestao_tipologias"),
   ]);
 
   const linhas = (linhasRpc ?? []) as LinhaSugestao[];
@@ -85,6 +88,7 @@ export default async function UnidadeQuantidadePage({
   const totalPaginas = Math.max(1, Math.ceil(totalGeral / PAGE_SIZE));
   const orgaosDisponiveis = (orgaosRpc ?? []).map((r: { orgao: string }) => r.orgao);
   const anosDisponiveis = (anosRpc ?? []).map((r: { ano: number }) => r.ano);
+  const tipologiasDisponiveis = (tipologiasRpc ?? []).map((r: { tipologia: string }) => r.tipologia);
   const isAdmin = !!profile?.is_admin;
 
   return (
@@ -127,6 +131,8 @@ export default async function UnidadeQuantidadePage({
           statusAtual={statusAtual}
           anoMinAtual={anoMinAtual}
           anos={anosDisponiveis}
+          tipologiaAtual={tipologia ?? ""}
+          tipologias={tipologiasDisponiveis}
         />
       </div>
 
@@ -168,6 +174,7 @@ export default async function UnidadeQuantidadePage({
             busca,
             orgao,
             confianca,
+            tipologia,
             status: statusAtual !== "pendentes" ? statusAtual : undefined,
             anoMin: anoMinAtual !== ANO_MINIMO_PADRAO ? anoMinAtual : undefined,
           }}
