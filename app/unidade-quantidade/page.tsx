@@ -18,6 +18,7 @@ type LinhaSugestao = {
   nome_acao: string;
   orgao: string | null;
   tipologia: string | null;
+  status_acao: string | null;
   unidade_atual: string | null;
   quantidade_atual: string | null;
   unidade_sugerida: string | null;
@@ -137,6 +138,7 @@ export default async function UnidadeQuantidadePage({
             nomeAcao={s.nome_acao}
             orgao={s.orgao}
             tipologia={s.tipologia}
+            statusAcao={s.status_acao}
             unidadeAtual={s.unidade_atual}
             quantidadeAtual={s.quantidade_atual}
             unidadeSugerida={s.unidade_sugerida}

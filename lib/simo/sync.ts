@@ -135,6 +135,11 @@ async function calcularSugestoesUnidade(admin: SupabaseClient, obras: ObraRow[],
         .in("id_acao", lote)
     )
   );
+  // Erro de leitura NÃO pode ser ignorado: sem as sugestões existentes,
+  // toda linha pareceria "mudou" e o upsert zeraria aprovações e o
+  // registro de "aplicado" de todo mundo.
+  const erroLeitura = resultadosLeitura.find((r) => r.error);
+  if (erroLeitura?.error) throw new Error(`Falha ao ler sugestões de unidade existentes: ${erroLeitura.error.message}`);
   const existentesPorId = new Map<string, SugestaoExistente>();
   resultadosLeitura.forEach(({ data }) => (data ?? []).forEach((row) => existentesPorId.set(row.id_acao, row as SugestaoExistente)));
 
@@ -178,6 +183,13 @@ async function calcularSugestoesUnidade(admin: SupabaseClient, obras: ObraRow[],
   // Ações que tinham sugestão antes e não precisam mais (Unidade foi
   // corrigida no SIMO, texto mudou, etc.) — mesmo truque de carimbo de
   // tempo usado pra "obras" em vez de um NOT IN gigante.
-  const { error: erroDelete } = await admin.from("obras_unidade_sugestao").delete().lt("atualizado_em", syncIniciadoEm);
+  // Linhas já aplicadas no SIMO ficam: depois de gravar, a Unidade do
+  // SIMO passa a bater com a sugestão e a ação sai da fila — sem esse
+  // filtro a aba "Já aplicadas" esvaziaria a cada sync.
+  const { error: erroDelete } = await admin
+    .from("obras_unidade_sugestao")
+    .delete()
+    .lt("atualizado_em", syncIniciadoEm)
+    .is("aplicado_em", null);
   if (erroDelete) throw new Error(`Falha ao limpar sugestões de unidade obsoletas: ${erroDelete.message}`);
 }

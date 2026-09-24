@@ -26,6 +26,12 @@ export function FiltrosUnidadeQuantidade({
   const router = useRouter();
   const [busca, setBusca] = useState(buscaAtual);
 
+  // O ano em uso SEMPRE tem que existir como opção — se não existir, o
+  // select cai na primeira ("Todos os anos") e mostra um filtro diferente
+  // do que está realmente aplicado.
+  const anoAtualNumero = parseInt(anoMinAtual, 10);
+  const opcoesAnos = Number.isNaN(anoAtualNumero) || anos.includes(anoAtualNumero) ? anos : [...anos, anoAtualNumero].sort((a, b) => b - a);
+
   function aplicar(overrides: { busca?: string; orgao?: string; confianca?: string; status?: string; anoMin?: string }) {
     const params = new URLSearchParams();
     const buscaValor = overrides.busca ?? busca;
@@ -83,7 +89,7 @@ export function FiltrosUnidadeQuantidade({
         title="Só ações criadas a partir desse ano — escolha 'Todos os anos' pra ver o histórico completo"
       >
         <option value="todos">Todos os anos</option>
-        {anos.map((a) => (
+        {opcoesAnos.map((a) => (
           <option key={a} value={a}>
             De {a} em diante
           </option>

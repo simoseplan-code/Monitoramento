@@ -5,13 +5,14 @@ import { useState } from "react";
 import { AlertTriangle, Check, Undo2 } from "lucide-react";
 import { UNIDADES_VALIDAS } from "@/lib/unidadeQuantidade/sugestao";
 
-const MARCADOR_MANTER_QUANTIDADE = "manter atual (sem quantidade sugerida)";
+const MARCADOR_MANTER_QUANTIDADE = "vazio = manter a atual do SIMO";
 
 export function CardSugestaoUnidade({
   idAcao,
   nomeAcao,
   orgao,
   tipologia,
+  statusAcao,
   unidadeAtual,
   quantidadeAtual,
   unidadeSugerida,
@@ -29,6 +30,7 @@ export function CardSugestaoUnidade({
   nomeAcao: string;
   orgao: string | null;
   tipologia: string | null;
+  statusAcao: string | null;
   unidadeAtual: string | null;
   quantidadeAtual: string | null;
   unidadeSugerida: string | null;
@@ -44,6 +46,9 @@ export function CardSugestaoUnidade({
 }) {
   const router = useRouter();
   const bloqueado = !!aplicadoEm;
+  // Igual à planilha: ação "Concluído" fica listada só de registro — o
+  // SIMO trava a edição dela, então não dá pra aprovar.
+  const concluida = /^conclu[ií]do$/i.test((statusAcao ?? "").trim());
 
   const [unidade, setUnidade] = useState(unidadeFinal || unidadeSugerida || "");
   const [quantidade, setQuantidade] = useState(quantidadeFinal ?? (semQuantidade ? "" : quantidadeSugerida ?? ""));
@@ -57,7 +62,7 @@ export function CardSugestaoUnidade({
       const resp = await fetch("/api/unidade/aprovar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idAcao, aprovado: novoAprovado, unidadeFinal: unidade, quantidadeFinal: quantidade || null }),
+        body: JSON.stringify({ idAcao, aprovado: novoAprovado, unidadeFinal: unidade, quantidadeFinal: quantidade }),
       });
       if (!resp.ok) {
         const data = await resp.json();
@@ -135,6 +140,11 @@ export function CardSugestaoUnidade({
         {avisoTipologia && <AlertTriangle size={13} className="mt-0.5 shrink-0 text-series-1" />}
         {motivo}
       </p>
+      {concluida && !bloqueado && (
+        <p className="mb-3 text-xs font-medium text-status-warning">
+          🔒 Ação concluída — o SIMO trava a edição, fica aqui só de registro (não dá pra aprovar).
+        </p>
+      )}
 
       <div className="flex flex-wrap items-end gap-2 rounded-lg border border-black/10 bg-plane/60 p-3">
         <div>
@@ -167,8 +177,8 @@ export function CardSugestaoUnidade({
         {!bloqueado && (
           <button
             onClick={() => salvar(true)}
-            disabled={salvando || !unidade}
-            title={!unidade ? "Escolha uma unidade antes de aprovar" : undefined}
+            disabled={salvando || !unidade || concluida}
+            title={concluida ? "Ação concluída — o SIMO não permite editar" : !unidade ? "Escolha uma unidade antes de aprovar" : undefined}
             className="ml-auto flex items-center gap-1.5 rounded-lg bg-status-good px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
           >
             <Check size={13} />

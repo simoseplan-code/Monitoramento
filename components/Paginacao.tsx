@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, type FormEvent } from "react";
+import { useEffect, useState, type FormEvent } from "react";
 import { ChevronLeft, ChevronRight, ChevronsLeft, ChevronsRight } from "lucide-react";
 
 const BTN = "flex items-center gap-1 rounded-lg px-2.5 py-1.5 text-xs font-medium";
@@ -27,6 +27,12 @@ export function Paginacao({
 }) {
   const router = useRouter();
   const [valor, setValor] = useState(String(paginaAtual));
+
+  // O componente não desmonta ao trocar de página (mesma rota) — sem isso
+  // o campo ficava mostrando o número da página anterior.
+  useEffect(() => {
+    setValor(String(paginaAtual));
+  }, [paginaAtual]);
 
   if (totalPaginas <= 1) return null;
 

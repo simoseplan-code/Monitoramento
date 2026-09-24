@@ -1,7 +1,18 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loginSimo } from "@/lib/simo/client";
 import { salvarUnidadeQuantidade, SomenteLeituraError } from "@/lib/simo/formulario";
-import { UNIDADES_VALIDAS } from "@/lib/unidadeQuantidade/sugestao";
+import { UNIDADES_VALIDAS, paraTextoBR } from "@/lib/unidadeQuantidade/sugestao";
+import { paraNumeroBR } from "@/lib/simo/parseCsv";
+
+// Mesma conversão do script original: o texto ("1.732,32") vira número
+// e volta como "1732,32" (vírgula decimal, sem separador de milhar) —
+// é o formato que o campo Quantidade do SIMO espera. Vazio = não mexe.
+function normalizarQuantidade(bruta: string): string {
+  const t = bruta.trim();
+  if (t === "") return "";
+  const n = paraNumeroBR(t);
+  return n === null ? t : paraTextoBR(n);
+}
 
 // Pausa entre gravações — mesmo valor da planilha (SIMO_GRAVACAO_PAUSA_MS),
 // pra não sobrecarregar/derrubar a sessão do SIMO num lote grande.
@@ -52,8 +63,13 @@ export async function executarAplicacaoUnidade(executadoPor: string): Promise<Re
     // O valor FINAL é o que a equipe aprovou de verdade — pode ter sido
     // editado na tela em cima da sugestão original (unidade_sugerida é
     // só a proposta do motor, nunca o que vai pro SIMO).
-    const unidadeNova = linha.unidade_final || linha.unidade_sugerida;
-    const quantidadeNova = linha.quantidade_final || (linha.sem_quantidade ? "" : (linha.quantidade_sugerida ?? ""));
+    const unidadeNova = linha.unidade_final || linha.unidade_sugerida || "";
+    // quantidade_final === "" significa "a pessoa apagou de propósito" =
+    // manter a Quantidade que já está no SIMO (o marcador "✓ manter
+    // atual" da planilha). Só cai na sugestão quando nunca foi editada (null).
+    const quantidadeNova = normalizarQuantidade(
+      linha.quantidade_final ?? (linha.sem_quantidade ? "" : linha.quantidade_sugerida ?? "")
+    );
 
     let httpCode: number | null = null;
     let textoResp = "";
