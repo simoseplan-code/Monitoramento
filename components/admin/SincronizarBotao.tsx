@@ -4,7 +4,10 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 
-export function SincronizarBotao() {
+// apenasSugestoes: roda só a etapa 2 (recalcula a fila de Unidade/Quantidade
+// a partir das obras que já estão no banco, sem baixar nada do SIMO) —
+// usado na própria tela de Unidade/Quantidade.
+export function SincronizarBotao({ apenasSugestoes = false }: { apenasSugestoes?: boolean }) {
   const router = useRouter();
   const [carregando, setCarregando] = useState(false);
   const [msg, setMsg] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
@@ -38,6 +41,11 @@ export function SincronizarBotao() {
     setCarregando(true);
     setMsg(null);
     try {
+      if (apenasSugestoes) {
+        const so = await chamar("sugestoes");
+        setMsg(so.ok ? { tipo: "ok", texto: `✅ ${so.texto}.` } : { tipo: "erro", texto: `❌ ${so.texto}` });
+        return;
+      }
       setEtapa("1/2 obras do SIMO");
       const obras = await chamar("obras");
       if (!obras.ok) {
@@ -71,7 +79,7 @@ export function SincronizarBotao() {
         className="flex items-center gap-1.5 rounded-lg bg-series-1 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
       >
         {carregando && <Loader2 size={13} className="animate-spin" />}
-        {carregando ? `Sincronizando ${etapa}...` : "Sincronizar agora"}
+        {carregando ? (apenasSugestoes ? "Recalculando..." : `Sincronizando ${etapa}...`) : apenasSugestoes ? "Recalcular sugestões" : "Sincronizar agora"}
       </button>
     </div>
   );

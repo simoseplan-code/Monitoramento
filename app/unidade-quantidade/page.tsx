@@ -109,10 +109,10 @@ export default async function UnidadeQuantidadePage({
         <div className="mb-4 rounded-xl border border-black/5 bg-surface p-4 shadow-card">
           <div className="mb-1 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-ink-primary">Gravação no SIMO</h2>
-            <SincronizarBotao />
+            <SincronizarBotao apenasSugestoes />
           </div>
           <p className="mb-2 text-xs text-ink-muted">
-            Aprove abaixo o que precisa ir pro SIMO e depois grave em lote aqui. Sincronize antes se a base estiver desatualizada (o cron também roda automático todo dia).
+            Aprove abaixo o que precisa ir pro SIMO e depois grave em lote aqui. "Recalcular sugestões" refaz a fila com as regras atuais, sem baixar do SIMO. Pra trazer dados novos do SIMO use "Sincronizar agora" no Admin (o cron também roda todo dia).
           </p>
           <AplicarUnidadeBotao pendentes={sugestoesUnidadeAprovadas ?? 0} />
         </div>
