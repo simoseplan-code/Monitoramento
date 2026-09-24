@@ -6,26 +6,37 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 const TAMANHO_LOTE = 1000;
 
+// Linha do histórico (sync_log) aberta ANTES do trabalho: se o servidor
+// cortar a execução por tempo o catch nunca roda, e essa linha fica como
+// evidência dizendo em QUE FASE parou — em vez de só "falha ao conectar".
+async function abrirLog(admin: SupabaseClient, rotulo: string) {
+  const { data } = await admin
+    .from("sync_log")
+    .insert({ sucesso: false, mensagem: `${rotulo}: interrompida antes de terminar (provável timeout do servidor).` })
+    .select("id")
+    .single();
+  const id = data?.id as number | undefined;
+  return {
+    fase: async (texto: string) => {
+      if (id) await admin.from("sync_log").update({ mensagem: `${rotulo}: interrompida na fase "${texto}" (provável timeout do servidor).` }).eq("id", id);
+    },
+    fim: async (campos: { sucesso: boolean; linhas_processadas?: number; mensagem: string }) => {
+      if (id) await admin.from("sync_log").update(campos).eq("id", id);
+      else await admin.from("sync_log").insert(campos);
+    },
+  };
+}
+
+// ETAPA 1 — baixa o relatório do SIMO e grava as obras. Separada da
+// etapa 2 porque juntas não cabem nos 60s da rota (Vercel Hobby).
 export async function executarSyncSimo(): Promise<{ linhas: number }> {
   const admin = createAdminClient();
   const inicio = Date.now();
   const seg = () => ((Date.now() - inicio) / 1000).toFixed(1);
-
-  // Registra o início ANTES de fazer qualquer coisa: se o servidor matar
-  // a execução por tempo (limite da rota), o catch abaixo nunca roda —
-  // essa linha fica no histórico do Admin como "interrompida" e é a
-  // evidência de timeout, em vez de só um "falha ao conectar" no botão.
-  const { data: logRow } = await admin
-    .from("sync_log")
-    .insert({ sucesso: false, mensagem: "Interrompida antes de terminar (provável timeout do servidor) — sem erro registrado." })
-    .select("id")
-    .single();
-  const finalizarLog = async (campos: { sucesso: boolean; linhas_processadas?: number; mensagem: string }) => {
-    if (logRow?.id) await admin.from("sync_log").update(campos).eq("id", logRow.id);
-    else await admin.from("sync_log").insert(campos);
-  };
+  const log = await abrirLog(admin, "Sync de obras");
 
   try {
+    await log.fase("baixando relatório do SIMO");
     const cookie = await loginSimo();
     await prepararRelatorioSimo(cookie);
     const csvText = await baixarCsvSimo(cookie);
@@ -43,6 +54,7 @@ export async function executarSyncSimo(): Promise<{ linhas: number }> {
     // com milhares de linhas).
     const syncIniciadoEm = new Date().toISOString();
 
+    await log.fase("gravando obras no banco");
     const lotes: (typeof obras)[] = [];
     for (let i = 0; i < obras.length; i += TAMANHO_LOTE) {
       lotes.push(obras.slice(i, i + TAMANHO_LOTE));
@@ -60,35 +72,67 @@ export async function executarSyncSimo(): Promise<{ linhas: number }> {
     if (erroLote?.error) throw new Error(`Falha ao gravar lote no Supabase: ${erroLote.error.message}`);
     const tGravacao = seg();
 
+    await log.fase("removendo obsoletas e gravando histórico");
     const vinculadas = obras.filter((o) => !!o.numero_automatico).length;
     const pendentes = obras.filter((o) => !o.numero_automatico && !!o.numero_siafe).length;
     const dadoIncorreto = obras.filter((o) => o.numero_siafe && !/^d{8}$/.test(o.numero_siafe)).length;
 
-    // As três operações abaixo são independentes entre si (só dependem
-    // do upsert de obras já ter terminado) — rodar em paralelo em vez
-    // de sequencial ajuda a caber no limite de tempo da rota.
     const [resDelete] = await Promise.all([
       // Ações que existiam antes desse carimbo e não foram tocadas
       // nesta execução saíram do relatório do SIMO (encerradas/excluídas lá).
       admin.from("obras").delete().lt("atualizado_em", syncIniciadoEm),
-      calcularSugestoesUnidade(admin, obras, syncIniciadoEm),
       admin.from("obras_historico").insert({ total: obras.length, vinculadas, pendentes, dado_incorreto: dadoIncorreto }),
     ]);
     if (resDelete.error) throw new Error(`Falha ao remover ações obsoletas: ${resDelete.error.message}`);
 
-    await finalizarLog({
+    await log.fim({
       sucesso: true,
       linhas_processadas: obras.length,
-      mensagem: `OK: ${obras.length} ações em ${seg()}s (SIMO+download ${tDownload}s, gravação até ${tGravacao}s, sugestões/limpeza até ${seg()}s).`,
+      mensagem: `OK obras: ${obras.length} ações em ${seg()}s (SIMO+download ${tDownload}s, gravação até ${tGravacao}s).`,
     });
 
     return { linhas: obras.length };
   } catch (e) {
     const mensagem = e instanceof Error ? e.message : "Erro desconhecido.";
-    await finalizarLog({ sucesso: false, mensagem: `${mensagem} (após ${seg()}s)` });
+    await log.fim({ sucesso: false, mensagem: `Sync de obras: ${mensagem} (após ${seg()}s)` });
     throw new Error(mensagem);
   }
 }
+
+// ETAPA 2 — recalcula a fila de Unidade/Quantidade a partir das obras já
+// gravadas no banco (não baixa nada do SIMO).
+export async function executarSyncSugestoes(): Promise<{ naFila: number }> {
+  const admin = createAdminClient();
+  const inicio = Date.now();
+  const seg = () => ((Date.now() - inicio) / 1000).toFixed(1);
+  const log = await abrirLog(admin, "Sugestões de unidade");
+
+  try {
+    await log.fase("lendo obras do banco");
+    const { data, error } = await admin
+      .from("obras")
+      .select("id_acao, nome_acao, descricao_acao, tipologia, unidade_medida, quantidade");
+    if (error) throw new Error(`Falha ao ler obras: ${error.message}`);
+    const obras = (data ?? []) as ObraParaSugestao[];
+    if (obras.length === 0) throw new Error("Nenhuma obra no banco — rode o sync de obras primeiro.");
+    const tLeitura = seg();
+
+    const naFila = await calcularSugestoesUnidade(admin, obras, new Date().toISOString(), log.fase);
+
+    await log.fim({
+      sucesso: true,
+      linhas_processadas: naFila,
+      mensagem: `OK sugestões: ${naFila} na fila de Unidade/Quantidade em ${seg()}s (leitura ${tLeitura}s).`,
+    });
+    return { naFila };
+  } catch (e) {
+    const mensagem = e instanceof Error ? e.message : "Erro desconhecido.";
+    await log.fim({ sucesso: false, mensagem: `Sugestões de unidade: ${mensagem} (após ${seg()}s)` });
+    throw new Error(mensagem);
+  }
+}
+
+type ObraParaSugestao = Pick<ObraRow, "id_acao" | "nome_acao" | "descricao_acao" | "tipologia" | "unidade_medida" | "quantidade">;
 
 type SugestaoExistente = {
   id_acao: string;
@@ -109,14 +153,20 @@ type SugestaoExistente = {
 // SELECT paginado nessa tabela, nunca recalcula em cima da base inteira
 // a cada carregamento (mesmo motivo de performance que levou o dashboard
 // e Novas Ações a usarem RPC em vez de baixar tudo pro Next.js).
-async function calcularSugestoesUnidade(admin: SupabaseClient, obras: ObraRow[], syncIniciadoEm: string): Promise<void> {
+async function calcularSugestoesUnidade(
+  admin: SupabaseClient,
+  obras: ObraParaSugestao[],
+  syncIniciadoEm: string,
+  fase: (texto: string) => Promise<void>
+): Promise<number> {
+  await fase("calculando sugestões");
   // Guarda a sugestão computada junto (em vez de recalcular depois) —
   // importante porque agora um item pode entrar na fila mesmo com
   // sugestao === null (Unidade vazia, mas o motor não achou nem
   // Tipologia mapeada nem palavra-chave no texto — antes isso sumia da
   // fila silenciosamente; a equipe via 2658 ações com Unidade vazia na
   // base mas só 726 apareciam pra revisar).
-  const precisamSugestao: { obra: ObraRow; unidadeAtualVazia: boolean; sugestao: ReturnType<typeof sugerirUnidadeQuantidade> }[] = [];
+  const precisamSugestao: { obra: ObraParaSugestao; unidadeAtualVazia: boolean; sugestao: ReturnType<typeof sugerirUnidadeQuantidade> }[] = [];
 
   for (const obra of obras) {
     const sugestao = sugerirUnidadeQuantidade({ nome: obra.nome_acao, descricao: obra.descricao_acao, tipologia: obra.tipologia });
@@ -140,6 +190,7 @@ async function calcularSugestoesUnidade(admin: SupabaseClient, obras: ObraRow[],
   // preservar aprovação/aplicação de quem não mudou desde o último sync
   // (equivalente ao "aprovadosAntes" da planilha, que preserva revisão
   // já feita ao regenerar a aba).
+  await fase("lendo sugestões já existentes");
   const idsComSugestao = precisamSugestao.map((p) => p.obra.id_acao);
   const lotesIds: string[][] = [];
   for (let i = 0; i < idsComSugestao.length; i += TAMANHO_LOTE) lotesIds.push(idsComSugestao.slice(i, i + TAMANHO_LOTE));
@@ -188,6 +239,7 @@ async function calcularSugestoesUnidade(admin: SupabaseClient, obras: ObraRow[],
     };
   });
 
+  await fase("gravando sugestões");
   const lotesLinhas: (typeof linhas)[] = [];
   for (let i = 0; i < linhas.length; i += TAMANHO_LOTE) lotesLinhas.push(linhas.slice(i, i + TAMANHO_LOTE));
   const resultadosEscrita = await Promise.all(
@@ -208,4 +260,5 @@ async function calcularSugestoesUnidade(admin: SupabaseClient, obras: ObraRow[],
     .lt("atualizado_em", syncIniciadoEm)
     .is("aplicado_em", null);
   if (erroDelete) throw new Error(`Falha ao limpar sugestões de unidade obsoletas: ${erroDelete.message}`);
+  return linhas.length;
 }
