@@ -3,6 +3,7 @@ import { loginSimo } from "@/lib/simo/client";
 import { salvarUnidadeQuantidade, SomenteLeituraError } from "@/lib/simo/formulario";
 import { UNIDADES_VALIDAS, paraTextoBR } from "@/lib/unidadeQuantidade/sugestao";
 import { paraNumeroBR } from "@/lib/simo/parseCsv";
+import { registrarAnalise } from "@/lib/analisesLog";
 
 // Mesma conversão do script original: o texto ("1.732,32") vira número
 // e volta como "1732,32" (vírgula decimal, sem separador de milhar) —
@@ -125,6 +126,7 @@ export async function executarAplicacaoUnidade(executadoPor: string): Promise<Re
     }
 
     detalhes.push({ idAcao: linha.id_acao, nomeAcao, unidade: unidadeNova, quantidade: quantidadeNova, resultado });
+    await registrarAnalise(admin, executadoPor, "unidade_quantidade", linha.id_acao, aplicadoComSucesso ? "gravado_no_simo" : "falha_gravacao", resultado);
 
     if (processadas < aprovadas.length) await new Promise((r) => setTimeout(r, PAUSA_MS));
   }

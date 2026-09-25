@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { registrarAnalise } from "@/lib/analisesLog";
 
 const CAMPOS_VALIDOS = ["kml_anexado", "sem_duplicacao", "documentos_obrigatorios"] as const;
 type Campo = (typeof CAMPOS_VALIDOS)[number];
@@ -48,5 +49,6 @@ export async function POST(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: "Falha ao salvar checklist." }, { status: 500 });
 
+  await registrarAnalise(supabase, user.id, "novas_acoes", idAcao, status as string, campo as string);
   return NextResponse.json({ ok: true, completo });
 }

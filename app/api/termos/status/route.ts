@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { registrarAnalise } from "@/lib/analisesLog";
 
 const STATUS_VALIDOS = ["pendente", "corrigido", "problema"] as const;
 type Status = (typeof STATUS_VALIDOS)[number];
@@ -39,5 +40,6 @@ export async function POST(request: NextRequest) {
   if (error) return NextResponse.json({ error: "Falha ao salvar." }, { status: 500 });
   // RLS bloqueando (perfil não aprovado) não dá erro, só não grava nada.
   if (!data || data.length === 0) return NextResponse.json({ error: "Sem permissão para salvar." }, { status: 403 });
+  await registrarAnalise(supabase, user.id, "termos", idAcao, status as string);
   return NextResponse.json({ ok: true });
 }

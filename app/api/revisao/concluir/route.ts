@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { registrarAnalise } from "@/lib/analisesLog";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -41,5 +42,6 @@ export async function POST(request: NextRequest) {
     .eq("id_acao", idAcao);
 
   if (error) return NextResponse.json({ error: "Falha ao salvar." }, { status: 500 });
+  await registrarAnalise(supabase, user.id, "novas_acoes", idAcao, concluido ? "concluido" : "reaberto");
   return NextResponse.json({ ok: true });
 }

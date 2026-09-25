@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { UNIDADES_VALIDAS } from "@/lib/unidadeQuantidade/sugestao";
 import { paraNumeroBR } from "@/lib/simo/parseCsv";
+import { registrarAnalise } from "@/lib/analisesLog";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -63,5 +64,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Sugestão não encontrada (pode ter saído da fila no último sync) ou sem permissão." }, { status: 404 });
   }
 
+  await registrarAnalise(supabase, user.id, "unidade_quantidade", idAcao, aprovado ? "aprovado" : "desaprovado", unidadeFinal ?? null);
   return NextResponse.json({ ok: true });
 }

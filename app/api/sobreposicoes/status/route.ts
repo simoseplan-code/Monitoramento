@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { registrarAnalise } from "@/lib/analisesLog";
 
 const STATUS_VALIDOS = ["pendente", "ok", "problema"] as const;
 type Status = (typeof STATUS_VALIDOS)[number];
@@ -33,5 +34,6 @@ export async function POST(request: NextRequest) {
     .eq("chave_local", chaveLocal);
 
   if (error) return NextResponse.json({ error: "Falha ao salvar." }, { status: 500 });
+  await registrarAnalise(supabase, user.id, "sobreposicoes", chaveLocal, status as string);
   return NextResponse.json({ ok: true });
 }

@@ -12,8 +12,8 @@ export function CardTermo({
   nomeAcao,
   orgao,
   dataCriacao,
-  recebDefinitivo,
-  recebProvisorio,
+  recebimento,
+  tipoRecebimento,
   tipoDocumento,
   numeroAutomatico,
   statusInicial,
@@ -23,8 +23,8 @@ export function CardTermo({
   nomeAcao: string;
   orgao: string | null;
   dataCriacao: string | null;
-  recebDefinitivo: string | null;
-  recebProvisorio: string | null;
+  recebimento: string | null;
+  tipoRecebimento: "definitivo" | "provisorio" | null;
   tipoDocumento: string;
   numeroAutomatico: string | null;
   statusInicial: Status;
@@ -83,8 +83,14 @@ export function CardTermo({
             {numeroAutomatico ? ` · Contrato ${numeroAutomatico}` : ""}
           </p>
           <p className="text-xs text-ink-muted">
-            Receb. definitivo: <strong className="text-ink-secondary">{formatar(recebDefinitivo)}</strong> · Receb. provisório:{" "}
-            <strong className="text-ink-secondary">{formatar(recebProvisorio)}</strong>
+            {recebimento ? (
+              <>
+                Recebimento {tipoRecebimento === "provisorio" ? "provisório" : "definitivo"}:{" "}
+                <strong className="text-ink-secondary">{formatar(recebimento)}</strong>
+              </>
+            ) : (
+              "Sem data de recebimento"
+            )}
           </p>
         </div>
         {status !== "pendente" && (

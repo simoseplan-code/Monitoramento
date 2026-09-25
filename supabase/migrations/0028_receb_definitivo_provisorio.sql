@@ -1,6 +1,7 @@
 -- Duas colunas novas do relatório do SIMO: RECEB. DEFINITIVO e RECEB.
 -- PROVISÓRIO (datas). Na tela de Termos o filtro de datas passa a usar o
--- recebimento definitivo (a data mais próxima da conclusão da ação).
+-- recebimento da ação: vale o DEFINITIVO; o provisório só entra quando
+-- não existe definitivo (coalesce).
 
 alter table public.obras
   add column if not exists data_receb_definitivo date,
@@ -33,8 +34,8 @@ as $$
       or (tipo_filtro = 'rescisao' and o.tipo_outros_documentos ilike 'TERMO DE RESCIS%')
     )
     and (orgao_filtro is null or orgao_filtro = '' or o.orgao = orgao_filtro)
-    and (data_de is null or o.data_receb_definitivo >= data_de)
-    and (data_ate is null or o.data_receb_definitivo <= data_ate)
+    and (data_de is null or coalesce(o.data_receb_definitivo, o.data_receb_provisorio) >= data_de)
+    and (data_ate is null or coalesce(o.data_receb_definitivo, o.data_receb_provisorio) <= data_ate)
     and (busca is null or busca = '' or o.nome_acao ilike '%' || busca || '%' or o.id_acao ilike '%' || busca || '%');
 $$;
 
@@ -55,8 +56,8 @@ returns table (
   nome_acao text,
   orgao text,
   data_criacao date,
-  data_receb_definitivo date,
-  data_receb_provisorio date,
+  data_recebimento date,
+  tipo_recebimento text,
   tipo_documento text,
   numero_automatico text,
   status_revisao text,
@@ -74,8 +75,8 @@ as $$
       o.nome_acao,
       o.orgao,
       o.data_criacao,
-      o.data_receb_definitivo,
-      o.data_receb_provisorio,
+      coalesce(o.data_receb_definitivo, o.data_receb_provisorio) as data_recebimento,
+      case when o.data_receb_definitivo is not null then 'definitivo' when o.data_receb_provisorio is not null then 'provisorio' end as tipo_recebimento,
       o.tipo_outros_documentos as tipo_documento,
       o.numero_automatico,
       coalesce(r.status, 'pendente') as status_revisao,
@@ -91,12 +92,12 @@ as $$
         or (tipo_filtro = 'rescisao' and o.tipo_outros_documentos ilike 'TERMO DE RESCIS%')
       )
       and (orgao_filtro is null or orgao_filtro = '' or o.orgao = orgao_filtro)
-      and (data_de is null or o.data_receb_definitivo >= data_de)
-      and (data_ate is null or o.data_receb_definitivo <= data_ate)
+      and (data_de is null or coalesce(o.data_receb_definitivo, o.data_receb_provisorio) >= data_de)
+      and (data_ate is null or coalesce(o.data_receb_definitivo, o.data_receb_provisorio) <= data_ate)
       and (busca is null or busca = '' or o.nome_acao ilike '%' || busca || '%' or o.id_acao ilike '%' || busca || '%')
   )
   select base.*, count(*) over() as total_geral
   from base
-  order by data_receb_definitivo desc nulls last, case when id_acao ~ '^[0-9]+$' then id_acao::bigint end desc nulls last
+  order by data_recebimento desc nulls last, case when id_acao ~ '^[0-9]+$' then id_acao::bigint end desc nulls last
   limit tamanho offset (pagina - 1) * tamanho;
 $$;

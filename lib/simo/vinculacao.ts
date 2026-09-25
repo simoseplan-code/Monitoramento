@@ -1,6 +1,7 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loginSimo } from "@/lib/simo/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { registrarAnalise } from "@/lib/analisesLog";
 
 // Endpoint que efetivamente cria o vínculo de contrato SIAFE numa ação
 // (o que acontece ao clicar "Vincular Contrato" → colar o código →
@@ -95,6 +96,8 @@ async function tentarVincular(
         : { vinculacao_ultimo_erro: resultado, vinculacao_numero_tentado: obra.numero_siafe, vinculacao_falhou_em: new Date().toISOString() }
     )
     .eq("id_acao", obra.id_acao);
+
+  await registrarAnalise(admin, executadoPor, "vinculacao", obra.id_acao, sucesso ? "vinculado" : "falha_vinculacao", resultado);
 
   return { resultado, sucesso };
 }

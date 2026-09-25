@@ -82,7 +82,7 @@ export function FiltrosTermos({
         </select>
 
         <label className="flex items-center gap-2 text-xs text-ink-muted">
-          Receb. definitivo de
+          Recebimento de
           <input type="date" value={atuais.de} onChange={(e) => aplicar({ de: e.target.value })} className={campo} />
         </label>
         <label className="flex items-center gap-2 text-xs text-ink-muted">
