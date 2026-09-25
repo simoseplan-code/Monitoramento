@@ -81,8 +81,8 @@ export default async function SobreposicoesPage({
   const idsNaPagina = Array.from(new Set(linhasCsv.flatMap((l) => l.obras.map((o) => o.id).filter((id): id is string => !!id))));
   const { data: obrasVivas } =
     idsNaPagina.length > 0
-      ? await supabase.from("obras").select("id_acao, numero_automatico, numero_siafe, status").in("id_acao", idsNaPagina)
-      : { data: [] as { id_acao: string; numero_automatico: string | null; numero_siafe: string | null; status: string | null }[] };
+      ? await supabase.from("obras").select("id_acao, numero_automatico, numero_siafe, status, percentual_execucao, data_receb_definitivo, data_receb_provisorio").in("id_acao", idsNaPagina)
+      : { data: [] as { id_acao: string; numero_automatico: string | null; numero_siafe: string | null; status: string | null; percentual_execucao: number | null; data_receb_definitivo: string | null; data_receb_provisorio: string | null }[] };
   const vivaPorId = new Map((obrasVivas ?? []).map((o) => [o.id_acao, o]));
   const linhas = linhasCsv.map((l) => ({
     ...l,
@@ -94,6 +94,8 @@ export default async function SobreposicoesPage({
         contrato: viva.numero_automatico || null,
         siafe_nao_vinculado: viva.numero_automatico ? null : viva.numero_siafe,
         status: viva.status || o.status,
+        percentual: viva.percentual_execucao,
+        concluido_em: viva.data_receb_definitivo || viva.data_receb_provisorio,
       };
     }),
   }));

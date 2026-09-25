@@ -19,6 +19,23 @@ function ordenarComPrincipalPrimeiro(obras: ObraNoLocal[]): ObraNoLocal[] {
   });
 }
 
+// Texto do status de cada obra: em desenvolvimento mostra o percentual;
+// concluída mostra a data (recebimento definitivo, ou o provisório se
+// ainda não houver definitivo).
+function textoStatus(o: ObraNoLocal): string {
+  const status = o.status || "Sem status";
+  if (/^conclu[ií]do$/i.test(status.trim())) {
+    return o.concluido_em
+      ? `Concluído em ${new Date(o.concluido_em + "T00:00:00").toLocaleDateString("pt-BR")}`
+      : "Concluído (sem data de recebimento)";
+  }
+  if (/^em desenvolvimento$/i.test(status.trim()) && o.percentual != null) {
+    const pct = (o.percentual * 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    return `${status} · ${pct}% executado`;
+  }
+  return status;
+}
+
 export function CardSobreposicao({
   chaveLocal,
   obras,
@@ -132,7 +149,7 @@ export function CardSobreposicao({
               <p className="font-medium text-ink-primary">{o.nome}</p>
             </div>
             <p className="text-ink-muted">
-              {o.id ? <>ID <IdAcaoLink id={o.id} /></> : "Sem ID"} · {o.status || "Sem status"}
+              {o.id ? <>ID <IdAcaoLink id={o.id} /></> : "Sem ID"} · {textoStatus(o)}
               {o.contrato
                 ? ` · Contrato ${o.contrato}`
                 : o.siafe_nao_vinculado

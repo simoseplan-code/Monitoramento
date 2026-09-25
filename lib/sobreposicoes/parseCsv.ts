@@ -15,6 +15,11 @@ export type ObraNoLocal = {
   // Preenchido só na tela (base sincronizada): SIAFE digitado que ainda não
   // virou contrato vinculado (sem número automático).
   siafe_nao_vinculado?: string | null;
+  // Também só na tela (base sincronizada): percentual de execução (0 a 1) e
+  // data em que a ação foi concluída (recebimento definitivo, ou o
+  // provisório quando ainda não há definitivo).
+  percentual?: number | null;
+  concluido_em?: string | null;
 };
 
 export type SobreposicaoImportada = {
