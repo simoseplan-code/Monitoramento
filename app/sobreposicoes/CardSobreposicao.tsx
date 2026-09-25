@@ -133,7 +133,11 @@ export function CardSobreposicao({
             </div>
             <p className="text-ink-muted">
               {o.id ? <>ID <IdAcaoLink id={o.id} /></> : "Sem ID"} · {o.status || "Sem status"}
-              {o.contrato ? ` · Contrato ${o.contrato}` : " · Sem contrato SIAFE"}
+              {o.contrato
+                ? ` · Contrato ${o.contrato}`
+                : o.siafe_nao_vinculado
+                  ? ` · SIAFE ${o.siafe_nao_vinculado} (ainda não vinculado)`
+                  : " · Sem contrato SIAFE"}
             </p>
           </li>
         ))}

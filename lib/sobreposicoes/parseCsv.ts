@@ -12,6 +12,9 @@ export type ObraNoLocal = {
   orgao: string | null;
   status: string | null;
   contrato: string | null;
+  // Preenchido só na tela (base sincronizada): SIAFE digitado que ainda não
+  // virou contrato vinculado (sem número automático).
+  siafe_nao_vinculado?: string | null;
 };
 
 export type SobreposicaoImportada = {

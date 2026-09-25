@@ -75,8 +75,9 @@ export default async function SobreposicoesPage({
 
   // O CSV do Mapa de Obras é uma foto do dia da exportação e só traz o
   // "Número do Contrato no SIAFE" digitado — o contrato de fato vinculado
-  // fica em numero_automatico. Contrato e status vêm da base sincronizada
-  // (atual), com o valor do CSV só como reserva.
+  // fica em numero_automatico (é ele que a tela mostra). Contrato e status
+  // vêm da base sincronizada (atual); o valor do CSV só vale se a ação não
+  // for encontrada na base.
   const idsNaPagina = Array.from(new Set(linhasCsv.flatMap((l) => l.obras.map((o) => o.id).filter((id): id is string => !!id))));
   const { data: obrasVivas } =
     idsNaPagina.length > 0
@@ -88,7 +89,12 @@ export default async function SobreposicoesPage({
     obras: l.obras.map((o) => {
       const viva = o.id ? vivaPorId.get(o.id) : undefined;
       if (!viva) return o;
-      return { ...o, contrato: viva.numero_automatico || viva.numero_siafe || o.contrato, status: viva.status || o.status };
+      return {
+        ...o,
+        contrato: viva.numero_automatico || null,
+        siafe_nao_vinculado: viva.numero_automatico ? null : viva.numero_siafe,
+        status: viva.status || o.status,
+      };
     }),
   }));
   const totalFiltrado = linhas[0]?.total_geral ?? 0;
