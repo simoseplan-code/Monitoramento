@@ -71,7 +71,26 @@ export default async function SobreposicoesPage({
     supabase.rpc("sobreposicoes_anos"),
   ]);
 
-  const linhas = (linhasRpc ?? []) as LinhaSobreposicao[];
+  const linhasCsv = (linhasRpc ?? []) as LinhaSobreposicao[];
+
+  // O CSV do Mapa de Obras é uma foto do dia da exportação e só traz o
+  // "Número do Contrato no SIAFE" digitado — o contrato de fato vinculado
+  // fica em numero_automatico. Contrato e status vêm da base sincronizada
+  // (atual), com o valor do CSV só como reserva.
+  const idsNaPagina = Array.from(new Set(linhasCsv.flatMap((l) => l.obras.map((o) => o.id).filter((id): id is string => !!id))));
+  const { data: obrasVivas } =
+    idsNaPagina.length > 0
+      ? await supabase.from("obras").select("id_acao, numero_automatico, numero_siafe, status").in("id_acao", idsNaPagina)
+      : { data: [] as { id_acao: string; numero_automatico: string | null; numero_siafe: string | null; status: string | null }[] };
+  const vivaPorId = new Map((obrasVivas ?? []).map((o) => [o.id_acao, o]));
+  const linhas = linhasCsv.map((l) => ({
+    ...l,
+    obras: l.obras.map((o) => {
+      const viva = o.id ? vivaPorId.get(o.id) : undefined;
+      if (!viva) return o;
+      return { ...o, contrato: viva.numero_automatico || viva.numero_siafe || o.contrato, status: viva.status || o.status };
+    }),
+  }));
   const totalFiltrado = linhas[0]?.total_geral ?? 0;
   const orgaosDisponiveis = (orgaosRpc ?? []).map((r: { orgao: string }) => r.orgao);
   const anosDisponiveis = (anosRpc ?? []).map((r: { ano: number }) => r.ano);

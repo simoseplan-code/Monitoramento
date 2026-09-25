@@ -133,7 +133,7 @@ export function CardSobreposicao({
             </div>
             <p className="text-ink-muted">
               {o.id ? <>ID <IdAcaoLink id={o.id} /></> : "Sem ID"} · {o.status || "Sem status"}
-              {o.contrato ? ` · Contrato ${o.contrato}` : ""}
+              {o.contrato ? ` · Contrato ${o.contrato}` : " · Sem contrato SIAFE"}
             </p>
           </li>
         ))}
