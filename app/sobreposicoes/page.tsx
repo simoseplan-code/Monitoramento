@@ -47,8 +47,7 @@ export default async function SobreposicoesPage({
     { count: pendentesAprovacao },
     novasAcoesPendentes,
     { count: totalPendentes },
-    { count: totalOk },
-    { count: totalProblema },
+    { data: contagensRpc },
     { data: linhasRpc },
     { data: orgaosRpc },
     { data: anosRpc },
@@ -58,8 +57,8 @@ export default async function SobreposicoesPage({
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
     contarNovasAcoesPendentes(supabase),
     supabase.from("sobreposicoes").select("chave_local", { count: "exact", head: true }).eq("status", "pendente"),
-    supabase.from("sobreposicoes").select("chave_local", { count: "exact", head: true }).eq("status", "ok"),
-    supabase.from("sobreposicoes").select("chave_local", { count: "exact", head: true }).eq("status", "problema"),
+    // Números dos botões de status: seguem os filtros de órgão e ano.
+    supabase.rpc("sobreposicoes_contagens", { orgao_filtro: orgao || null, ano_filtro: anoFiltro }),
     supabase.rpc("sobreposicoes_lista", {
       filtro_status: statusAtual,
       orgao_filtro: orgao || null,
@@ -126,7 +125,7 @@ export default async function SobreposicoesPage({
       <div className="mb-4">
         <FiltrosSobreposicoes
           statusAtual={statusAtual}
-          contagens={{ pendente: totalPendentes ?? 0, ok: totalOk ?? 0, problema: totalProblema ?? 0 }}
+          contagens={{ pendente: Number(contagensRpc?.[0]?.pendente ?? 0), ok: Number(contagensRpc?.[0]?.ok ?? 0), problema: Number(contagensRpc?.[0]?.problema ?? 0) }}
           orgaoAtual={orgao ?? ""}
           orgaos={orgaosDisponiveis}
           anoAtual={ano ?? ""}
