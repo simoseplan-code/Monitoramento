@@ -73,6 +73,12 @@ export default async function TermosPage({
   ]);
 
   const linhas = (linhasRpc ?? []) as LinhaTermo[];
+  // Percentual de execução vem da base sincronizada (a função da lista não o traz).
+  const { data: pctObras } =
+    linhas.length > 0
+      ? await supabase.from("obras").select("id_acao, percentual_execucao").in("id_acao", linhas.map((l) => l.id_acao))
+      : { data: [] as { id_acao: string; percentual_execucao: number | null }[] };
+  const pctPorId = new Map((pctObras ?? []).map((o) => [o.id_acao, o.percentual_execucao]));
   const totalGeral = linhas[0]?.total_geral ?? 0;
   const totalPaginas = Math.max(1, Math.ceil(totalGeral / PAGE_SIZE));
   const c = (contagensRpc?.[0] ?? {}) as { pendente?: number; corrigido?: number; problema?: number };
@@ -107,6 +113,7 @@ export default async function TermosPage({
             dataCriacao={l.data_criacao}
             recebimento={l.data_recebimento}
             tipoRecebimento={l.tipo_recebimento}
+            percentual={pctPorId.get(l.id_acao) ?? null}
             tipoDocumento={l.tipo_documento}
             numeroAutomatico={l.numero_automatico}
             statusInicial={l.status_revisao}

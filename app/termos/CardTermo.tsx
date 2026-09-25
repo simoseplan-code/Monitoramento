@@ -14,6 +14,7 @@ export function CardTermo({
   dataCriacao,
   recebimento,
   tipoRecebimento,
+  percentual,
   tipoDocumento,
   numeroAutomatico,
   statusInicial,
@@ -25,6 +26,7 @@ export function CardTermo({
   dataCriacao: string | null;
   recebimento: string | null;
   tipoRecebimento: "definitivo" | "provisorio" | null;
+  percentual: number | null;
   tipoDocumento: string;
   numeroAutomatico: string | null;
   statusInicial: Status;
@@ -90,6 +92,14 @@ export function CardTermo({
               </>
             ) : (
               "Sem data de recebimento"
+            )}
+            {percentual != null && (
+              <>
+                {" · "}Execução:{" "}
+                <strong className="text-ink-secondary">
+                  {(percentual * 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%
+                </strong>
+              </>
             )}
           </p>
         </div>
