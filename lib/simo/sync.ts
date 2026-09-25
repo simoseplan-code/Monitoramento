@@ -36,16 +36,20 @@ export async function executarSyncBaixar(): Promise<{ kb: number }> {
   const inicio = Date.now();
   const seg = () => ((Date.now() - inicio) / 1000).toFixed(1);
   const log = await abrirLog(admin, "Download do relatório");
+  let tLogin = "-";
+  let tPreparo = "-";
 
   try {
     await log.fase("login no SIMO");
-    const cookie = await loginSimo(15_000);
-    const tLogin = seg();
+    const cookie = await loginSimo(20_000);
+    tLogin = seg();
     await log.fase("preparando o relatório no SIMO");
-    await prepararRelatorioSimo(cookie, 20_000);
-    const tPreparo = seg();
+    await prepararRelatorioSimo(cookie, 60_000);
+    tPreparo = seg();
     await log.fase("exportando o CSV do SIMO (relatório grande)");
-    const csvText = await baixarCsvSimo(cookie, Math.max(10_000, 55_000 - (Date.now() - inicio)));
+    // O relatório com as colunas novas passou de 1 minuto pra baixar; a rota
+    // roda com 300s (maxDuration) e sobra tempo pra guardar o arquivo.
+    const csvText = await baixarCsvSimo(cookie, Math.max(20_000, 270_000 - (Date.now() - inicio)));
     const tExport = seg();
 
     await log.fase("guardando o CSV no banco");
@@ -66,7 +70,7 @@ export async function executarSyncBaixar(): Promise<{ kb: number }> {
     return { kb };
   } catch (e) {
     const mensagem = e instanceof Error ? e.message : "Erro desconhecido.";
-    await log.fim({ sucesso: false, mensagem: `Download do relatório: ${mensagem} (após ${seg()}s)` });
+    await log.fim({ sucesso: false, mensagem: `Download do relatório: ${mensagem} (login ${tLogin}s, preparo até ${tPreparo}s, parou em ${seg()}s)` });
     throw new Error(mensagem);
   }
 }

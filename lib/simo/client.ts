@@ -66,6 +66,7 @@ export async function prepararRelatorioSimo(cookie: string, timeoutMs = 30_000):
 }
 
 export async function baixarCsvSimo(cookie: string, timeoutMs = 50_000): Promise<string> {
+  const t0 = Date.now();
   const resp = await buscar(
     "Exportação do CSV no SIMO",
     SIMO_EXPORT_URL,
@@ -80,7 +81,30 @@ export async function baixarCsvSimo(cookie: string, timeoutMs = 50_000): Promise
   );
   if (!resp.ok) throw new Error(`Falha ao baixar o relatório do SIMO (HTTP ${resp.status}).`);
 
-  let buffer = Buffer.from(await resp.arrayBuffer());
+  const tCabecalho = ((Date.now() - t0) / 1000).toFixed(1);
+
+  // Lê o corpo aos pedaços, contando o que chegou: se estourar o tempo, a
+  // mensagem diz quanto do arquivo já tinha vindo — isso mostra se o SIMO
+  // está lento pra gerar ou pra enviar, e quão grande o relatório ficou.
+  const pedacos: Uint8Array[] = [];
+  let recebidos = 0;
+  try {
+    const leitor = resp.body!.getReader();
+    for (;;) {
+      const { done, value } = await leitor.read();
+      if (done) break;
+      pedacos.push(value);
+      recebidos += value.length;
+    }
+  } catch (e) {
+    if (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError")) {
+      throw new Error(
+        `Exportação do CSV no SIMO: o SIMO respondeu ao pedido em ${tCabecalho}s, mas o arquivo não terminou de baixar em ${Math.round(timeoutMs / 1000)}s (chegaram ${Math.round(recebidos / 1024)} KB).`
+      );
+    }
+    throw e;
+  }
+  let buffer = Buffer.concat(pedacos);
   const ehGzip = buffer.length > 2 && buffer[0] === 0x1f && buffer[1] === 0x8b;
   if (ehGzip) buffer = gunzipSync(buffer);
 

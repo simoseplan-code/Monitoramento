@@ -3,7 +3,9 @@ import { createClient } from "@/lib/supabase/server";
 import { executarSyncBaixar, executarSyncObras, executarSyncSugestoes } from "@/lib/simo/sync";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// 300s (limite do plano com Fluid Compute): o download do relatório do SIMO
+// passa de 1 minuto. As outras camadas terminam bem antes disso.
+export const maxDuration = 300;
 
 // Sync em camadas, uma por requisição (cada uma com os seus 60s):
 //   fase "baixar"    — baixa o relatório do SIMO (a parte lenta) e guarda no banco

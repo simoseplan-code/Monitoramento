@@ -2,7 +2,9 @@ import { NextResponse, type NextRequest } from "next/server";
 import { executarSyncBaixar } from "@/lib/simo/sync";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+// 300s (limite do plano com Fluid Compute): o download do relatório do SIMO
+// passa de 1 minuto. As outras camadas terminam bem antes disso.
+export const maxDuration = 300;
 
 function autorizado(request: NextRequest): boolean {
   const auth = request.headers.get("authorization");

@@ -54,12 +54,12 @@ export function SincronizarBotao({ apenasSugestoes = false }: { apenasSugestoes?
       // Camada 1 com até 3 tentativas: o SIMO às vezes demora demais pra
       // gerar o relatório, e uma nova tentativa costuma passar.
       let baixado = { ok: false, texto: "" };
-      for (let tentativa = 1; tentativa <= 3 && !baixado.ok; tentativa++) {
-        setEtapa(`1/3 baixando o relatório do SIMO (tentativa ${tentativa}/3)`);
+      for (let tentativa = 1; tentativa <= 2 && !baixado.ok; tentativa++) {
+        setEtapa(`1/3 baixando o relatório do SIMO (pode levar alguns minutos${tentativa > 1 ? ", tentativa 2/2" : ""})`);
         baixado = await chamar("baixar");
       }
       if (!baixado.ok) {
-        setMsg({ tipo: "erro", texto: `❌ Etapa 1 (download do SIMO) falhou nas 3 tentativas: ${baixado.texto}` });
+        setMsg({ tipo: "erro", texto: `❌ Etapa 1 (download do SIMO) falhou nas 2 tentativas: ${baixado.texto}` });
         return;
       }
 
