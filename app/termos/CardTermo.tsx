@@ -12,8 +12,6 @@ export function CardTermo({
   nomeAcao,
   orgao,
   dataCriacao,
-  recebimento,
-  tipoRecebimento,
   percentual,
   tipoDocumento,
   numeroAutomatico,
@@ -24,8 +22,6 @@ export function CardTermo({
   nomeAcao: string;
   orgao: string | null;
   dataCriacao: string | null;
-  recebimento: string | null;
-  tipoRecebimento: "definitivo" | "provisorio" | null;
   percentual: number | null;
   tipoDocumento: string;
   numeroAutomatico: string | null;
@@ -85,17 +81,9 @@ export function CardTermo({
             {numeroAutomatico ? ` · Contrato ${numeroAutomatico}` : ""}
           </p>
           <p className="text-xs text-ink-muted">
-            {recebimento ? (
-              <>
-                Recebimento {tipoRecebimento === "provisorio" ? "provisório" : "definitivo"}:{" "}
-                <strong className="text-ink-secondary">{formatar(recebimento)}</strong>
-              </>
-            ) : (
-              "Sem data de recebimento"
-            )}
             {percentual != null && (
               <>
-                {" · "}Execução:{" "}
+                Execução:{" "}
                 <strong className="text-ink-secondary">
                   {(percentual * 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%
                 </strong>

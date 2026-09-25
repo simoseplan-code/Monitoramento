@@ -14,8 +14,6 @@ type LinhaTermo = {
   nome_acao: string;
   orgao: string | null;
   data_criacao: string | null;
-  data_recebimento: string | null;
-  tipo_recebimento: "definitivo" | "provisorio" | null;
   tipo_documento: string;
   numero_automatico: string | null;
   status_revisao: "pendente" | "corrigido" | "problema";
@@ -111,8 +109,6 @@ export default async function TermosPage({
             nomeAcao={l.nome_acao}
             orgao={l.orgao}
             dataCriacao={l.data_criacao}
-            recebimento={l.data_recebimento}
-            tipoRecebimento={l.tipo_recebimento}
             percentual={pctPorId.get(l.id_acao) ?? null}
             tipoDocumento={l.tipo_documento}
             numeroAutomatico={l.numero_automatico}
