@@ -213,11 +213,6 @@ async function calcularSugestoesUnidade(
   const linhas = precisamSugestao.map(({ obra, unidadeAtualVazia, sugestao }) => {
     const quantidadeSugerida = sugestao?.quantidadeSugerida || null;
     const existente = existentesPorId.get(obra.id_acao);
-    const mudou =
-      !existente ||
-      (existente.unidade_sugerida ?? "").toUpperCase() !== (sugestao?.unidadeSugerida ?? "").toUpperCase() ||
-      (existente.quantidade_sugerida || null) !== quantidadeSugerida;
-
     return {
       id_acao: obra.id_acao,
       unidade_atual: unidadeAtualVazia ? null : obra.unidade_medida,
@@ -228,13 +223,18 @@ async function calcularSugestoesUnidade(
       confianca: sugestao?.confianca ?? "baixa",
       aviso_tipologia: !!sugestao?.avisoTipologia,
       motivo: sugestao?.motivo ?? "Nenhuma palavra-chave clara no Nome/Descrição e Tipologia não mapeada — revisar manualmente, escolhendo a unidade certa.",
-      unidade_final: mudou ? null : existente!.unidade_final,
-      quantidade_final: mudou ? null : existente!.quantidade_final,
-      aprovado: mudou ? false : existente!.aprovado,
-      aprovado_por: mudou ? null : existente!.aprovado_por,
-      aprovado_em: mudou ? null : existente!.aprovado_em,
-      aplicado_em: mudou ? null : existente!.aplicado_em,
-      aplicado_com_sucesso: mudou ? null : existente!.aplicado_com_sucesso,
+      // A análise já feita fica FIXA no ID: aprovação, valor escolhido e
+      // "gravado no SIMO" sobrevivem a qualquer novo cálculo — inclusive
+      // quando a sugestão do motor muda (regra nova ensinada pela equipe).
+      // O valor aprovado é o unidade_final/quantidade_final, que a pessoa
+      // escolheu, então não fica velho se a sugestão mudar depois.
+      unidade_final: existente?.unidade_final ?? null,
+      quantidade_final: existente?.quantidade_final ?? null,
+      aprovado: existente?.aprovado ?? false,
+      aprovado_por: existente?.aprovado_por ?? null,
+      aprovado_em: existente?.aprovado_em ?? null,
+      aplicado_em: existente?.aplicado_em ?? null,
+      aplicado_com_sucesso: existente?.aplicado_com_sucesso ?? null,
       atualizado_em: syncIniciadoEm,
     };
   });
