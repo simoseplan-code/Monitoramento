@@ -135,6 +135,24 @@ function vazio(raw: string | undefined): boolean {
   return s === "" || s === "-";
 }
 
+// Nomes de TODAS as colunas do arquivo (linha de cabeçalho detectada do mesmo
+// jeito que csvParaObras) — usado no histórico do sync pra ver se uma coluna
+// esperada realmente veio no relatório exportado.
+export function cabecalhoDoCsv(csvText: string): string[] {
+  const linhas = parseCsvLinhas(csvText);
+  const limite = Math.min(linhas.length, 15);
+  let melhor = -1;
+  let batidas = 0;
+  for (let i = 0; i < limite; i++) {
+    const b = contarBatidas(linhas[i]);
+    if (b > batidas) {
+      batidas = b;
+      melhor = i;
+    }
+  }
+  return melhor === -1 ? [] : linhas[melhor].map((h) => h.trim()).filter(Boolean);
+}
+
 export function csvParaObras(csvText: string): ObraRow[] {
   const linhasCsv = parseCsvLinhas(csvText);
   if (linhasCsv.length === 0) throw new Error("CSV do SIMO veio vazio.");

@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loginSimo, prepararRelatorioSimo, baixarCsvSimo } from "@/lib/simo/client";
-import { csvParaObras, type ObraRow } from "@/lib/simo/parseCsv";
+import { csvParaObras, cabecalhoDoCsv, type ObraRow } from "@/lib/simo/parseCsv";
 import { sugerirUnidadeQuantidade, paraTextoBR } from "@/lib/unidadeQuantidade/sugestao";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { gzipSync, gunzipSync } from "node:zlib";
@@ -113,6 +113,7 @@ export async function executarSyncObras(): Promise<{ linhas: number }> {
 
     const csvText = gunzipSync(Buffer.from(csvRow.csv_gzip_b64, "base64")).toString("utf8");
     const obras = csvParaObras(csvText);
+    const colunasArquivo = cabecalhoDoCsv(csvText);
     const tLeitura = seg();
 
     if (obras.length === 0) {
@@ -160,7 +161,7 @@ export async function executarSyncObras(): Promise<{ linhas: number }> {
     await log.fim({
       sucesso: true,
       linhas_processadas: obras.length,
-      mensagem: `OK obras: ${obras.length} ações em ${seg()}s (leitura ${tLeitura}s, gravação até ${tGravacao}s).${resumoRecebimento(obras)}`,
+      mensagem: `OK obras: ${obras.length} ações em ${seg()}s (leitura ${tLeitura}s, gravação até ${tGravacao}s).${resumoRecebimento(obras)} Colunas no arquivo: ${colunasArquivo.join(", ")}.`,
     });
 
     return { linhas: obras.length };
