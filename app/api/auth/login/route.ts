@@ -63,7 +63,7 @@ export async function POST(request: NextRequest) {
     }
   );
 
-  const { error } = await supabase.auth.signInWithPassword({ email, password: senha });
+  const { data: login, error } = await supabase.auth.signInWithPassword({ email, password: senha });
 
   if (error) {
     if (profile) {
@@ -82,6 +82,12 @@ export async function POST(request: NextRequest) {
 
   if (profile && (profile.failed_login_attempts ?? 0) > 0) {
     await admin.from("profiles").update({ failed_login_attempts: 0, locked_until: null }).eq("id", profile.id);
+  }
+
+  // Uma sessão ativa por conta: entrar aqui derruba as sessões abertas em
+  // outros navegadores/computadores (conta da empresa usada em vários PCs).
+  if (login.session?.access_token) {
+    await admin.auth.admin.signOut(login.session.access_token, "others");
   }
 
   // Sessão criada mesmo se ainda "pendente" — o middleware redireciona

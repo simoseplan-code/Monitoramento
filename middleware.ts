@@ -1,5 +1,6 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
+import { sessaoExpirada } from "@/lib/sessao";
 
 const ROTAS_PUBLICAS = ["/login", "/cadastro", "/pendente"];
 
@@ -42,6 +43,18 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = "/login";
     return NextResponse.redirect(url);
+  }
+
+  // Sessão velha demais: encerra e manda pro login (ver lib/sessao.ts).
+  if (sessaoExpirada(user.last_sign_in_at)) {
+    await supabase.auth.signOut();
+    const url = request.nextUrl.clone();
+    url.pathname = "/login";
+    url.search = "";
+    const redirect = NextResponse.redirect(url);
+    // O signOut limpou os cookies em `response` — leva junto no redirect.
+    response.cookies.getAll().forEach((c) => redirect.cookies.set(c));
+    return redirect;
   }
 
   // Usuário logado: verifica status de aprovação para liberar áreas internas.
