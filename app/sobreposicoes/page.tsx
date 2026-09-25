@@ -29,10 +29,10 @@ type LinhaSobreposicao = {
 export default async function SobreposicoesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ revisadas?: string; orgao?: string; ano?: string; pagina?: string }>;
+  searchParams: Promise<{ status?: string; orgao?: string; ano?: string; pagina?: string }>;
 }) {
-  const { revisadas, orgao, ano, pagina } = await searchParams;
-  const mostrarRevisadas = revisadas === "1";
+  const { status, orgao, ano, pagina } = await searchParams;
+  const statusAtual = status === "ok" || status === "problema" ? status : "pendente";
   const anoFiltro = ano ? parseInt(ano, 10) : null;
   const paginaAtual = Math.max(1, parseInt(pagina ?? "1", 10) || 1);
 
@@ -47,6 +47,8 @@ export default async function SobreposicoesPage({
     { count: pendentesAprovacao },
     novasAcoesPendentes,
     { count: totalPendentes },
+    { count: totalOk },
+    { count: totalProblema },
     { data: linhasRpc },
     { data: orgaosRpc },
     { data: anosRpc },
@@ -56,8 +58,10 @@ export default async function SobreposicoesPage({
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
     contarNovasAcoesPendentes(supabase),
     supabase.from("sobreposicoes").select("chave_local", { count: "exact", head: true }).eq("status", "pendente"),
+    supabase.from("sobreposicoes").select("chave_local", { count: "exact", head: true }).eq("status", "ok"),
+    supabase.from("sobreposicoes").select("chave_local", { count: "exact", head: true }).eq("status", "problema"),
     supabase.rpc("sobreposicoes_lista", {
-      mostrar_revisadas: mostrarRevisadas,
+      filtro_status: statusAtual,
       orgao_filtro: orgao || null,
       ano_filtro: anoFiltro,
       pagina: paginaAtual,
@@ -86,7 +90,7 @@ export default async function SobreposicoesPage({
         sobreposicoesPendentes: totalPendentes ?? 0,
       }}
       titulo="Sobreposições"
-      subtitulo={`${totalFiltrado} local(is)${mostrarRevisadas ? " já revisado(s)" : " aguardando revisão"}`}
+      subtitulo={`${totalFiltrado} local(is) — ${{ pendente: "aguardando revisão", ok: "sem problema", problema: "com problema" }[statusAtual]}`}
     >
       <div className="mb-4">
         <UploadCsvSobreposicoes />
@@ -94,7 +98,8 @@ export default async function SobreposicoesPage({
 
       <div className="mb-4">
         <FiltrosSobreposicoes
-          mostrarRevisadas={mostrarRevisadas}
+          statusAtual={statusAtual}
+          contagens={{ pendente: totalPendentes ?? 0, ok: totalOk ?? 0, problema: totalProblema ?? 0 }}
           orgaoAtual={orgao ?? ""}
           orgaos={orgaosDisponiveis}
           anoAtual={ano ?? ""}
@@ -123,7 +128,7 @@ export default async function SobreposicoesPage({
         {linhas.length === 0 && (
           <div className="rounded-xl border border-black/5 bg-surface p-10 text-center shadow-card">
             <p className="text-sm text-ink-muted">
-              {mostrarRevisadas ? "Nenhum local revisado ainda." : "Nenhuma sobreposição pendente. 🎉"}
+              {statusAtual === "pendente" ? "Nenhuma sobreposição pendente. 🎉" : "Nenhum local nesta lista ainda."}
             </p>
           </div>
         )}
@@ -132,7 +137,7 @@ export default async function SobreposicoesPage({
           paginaAtual={paginaAtual}
           totalPaginas={totalPaginas}
           baseHref="/sobreposicoes"
-          params={{ revisadas: mostrarRevisadas ? "1" : undefined, orgao, ano }}
+          params={{ status: statusAtual !== "pendente" ? statusAtual : undefined, orgao, ano }}
         />
       </div>
     </AppShell>

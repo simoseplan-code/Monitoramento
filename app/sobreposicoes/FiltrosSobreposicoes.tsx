@@ -2,14 +2,22 @@
 
 import { useRouter } from "next/navigation";
 
+const ABAS = [
+  { valor: "pendente", rotulo: "Aguardando revisão", ativa: "bg-series-1 text-white" },
+  { valor: "ok", rotulo: "Sem problema", ativa: "bg-status-good text-white" },
+  { valor: "problema", rotulo: "Com problema", ativa: "bg-status-warning text-white" },
+] as const;
+
 export function FiltrosSobreposicoes({
-  mostrarRevisadas,
+  statusAtual,
+  contagens,
   orgaoAtual,
   orgaos,
   anoAtual,
   anos,
 }: {
-  mostrarRevisadas: boolean;
+  statusAtual: string;
+  contagens: { pendente: number; ok: number; problema: number };
   orgaoAtual: string;
   orgaos: string[];
   anoAtual: string;
@@ -17,12 +25,12 @@ export function FiltrosSobreposicoes({
 }) {
   const router = useRouter();
 
-  function aplicar(overrides: { revisadas?: boolean; orgao?: string; ano?: string }) {
+  function aplicar(overrides: { status?: string; orgao?: string; ano?: string }) {
     const params = new URLSearchParams();
-    const revisadasValor = overrides.revisadas ?? mostrarRevisadas;
+    const statusValor = overrides.status ?? statusAtual;
     const orgaoValor = overrides.orgao ?? orgaoAtual;
     const anoValor = overrides.ano ?? anoAtual;
-    if (revisadasValor) params.set("revisadas", "1");
+    if (statusValor !== "pendente") params.set("status", statusValor);
     if (orgaoValor) params.set("orgao", orgaoValor);
     if (anoValor) params.set("ano", anoValor);
     router.push(`/sobreposicoes${params.toString() ? `?${params.toString()}` : ""}`);
@@ -30,6 +38,23 @@ export function FiltrosSobreposicoes({
 
   return (
     <div className="flex flex-wrap items-center gap-4 rounded-xl border border-black/5 bg-surface p-4 shadow-card">
+      <div className="flex flex-wrap gap-2">
+        {ABAS.map((a) => {
+          const ativa = statusAtual === a.valor;
+          return (
+            <button
+              key={a.valor}
+              onClick={() => aplicar({ status: a.valor })}
+              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+                ativa ? a.ativa : "border border-black/10 text-ink-secondary hover:bg-plane"
+              }`}
+            >
+              {a.rotulo} <span className="tabular opacity-80">({contagens[a.valor]})</span>
+            </button>
+          );
+        })}
+      </div>
+
       <select
         value={orgaoAtual}
         onChange={(e) => aplicar({ orgao: e.target.value })}
@@ -56,16 +81,6 @@ export function FiltrosSobreposicoes({
           </option>
         ))}
       </select>
-
-      <label className="flex items-center gap-2 text-sm text-ink-secondary">
-        <input
-          type="checkbox"
-          checked={mostrarRevisadas}
-          onChange={(e) => aplicar({ revisadas: e.target.checked })}
-          className="h-4 w-4 rounded border-black/20 accent-series-1"
-        />
-        Mostrar locais já revisados
-      </label>
     </div>
   );
 }
