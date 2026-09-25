@@ -10,19 +10,14 @@ import { ClipboardList, Building2, Link2, Clock3, AlertTriangle, Archive } from 
 
 const DATA_CORTE = "2023-01-01";
 
-function agruparTopOrgaos(linhas: { bucket: string; orgao: string }[] | null) {
-  const porBucket = new Map<string, string[]>();
-  for (const l of linhas ?? []) {
-    const lista = porBucket.get(l.bucket) ?? [];
-    lista.push(l.orgao);
-    porBucket.set(l.bucket, lista);
-  }
-  return {
-    sem_numero: porBucket.get("sem_numero") ?? [],
-    pendente: porBucket.get("pendente") ?? [],
-    dado_incorreto: porBucket.get("dado_incorreto") ?? [],
-    vinculada: porBucket.get("vinculada") ?? [],
-  };
+// Cor de cada status do SIMO; o que não é conhecido fica neutro.
+function estiloStatus(status: string) {
+  const s = status.toLowerCase();
+  if (s.startsWith("conclu")) return { cor: "var(--status-good)", corFundo: "var(--status-good-bg)" };
+  if (s.includes("desenvolvimento")) return { cor: "var(--series-1)", corFundo: "rgb(42 120 214 / 0.1)" };
+  if (s.startsWith("cancel")) return { cor: "var(--status-critical)", corFundo: "var(--status-critical-bg)" };
+  if (s.includes("paralis")) return { cor: "var(--status-warning)", corFundo: "var(--status-warning-bg)" };
+  return { cor: "var(--status-neutral)", corFundo: "var(--status-neutral-bg)" };
 }
 
 export default async function DashboardGestaoPage() {
@@ -35,7 +30,7 @@ export default async function DashboardGestaoPage() {
   const [
     { data: profile },
     { data: resumoLista },
-    { data: topOrgaosRpc },
+    { data: statusRpc },
     { data: syncLogs },
     { count: pendentesAprovacao },
     novasAcoesPendentes,
@@ -44,7 +39,7 @@ export default async function DashboardGestaoPage() {
     // Uma função SQL só: separa o que é anterior a 2023 (informativo,
     // fora da análise) do que é 2023 em diante (esse sim é analisado).
     supabase.rpc("dashboard_gestao_resumo", { data_corte: DATA_CORTE }),
-    supabase.rpc("dashboard_gestao_top_orgaos", { data_corte: DATA_CORTE, limite: 3 }),
+    supabase.rpc("dashboard_status_acoes", { data_corte: DATA_CORTE, limite: 3 }),
     supabase.from("sync_log").select("id, sucesso, linhas_processadas, mensagem, executado_em").order("executado_em", { ascending: false }).limit(5),
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
     contarNovasAcoesPendentes(supabase),
@@ -60,7 +55,18 @@ export default async function DashboardGestaoPage() {
     apos_corte_dado_incorreto: 0,
     apos_corte_orgaos_distintos: 0,
   };
-  const topOrgaos = agruparTopOrgaos(topOrgaosRpc);
+  // Status da ação no SIMO (2023 em diante), do maior pro menor.
+  const statusLinhas = (statusRpc ?? []) as { status: string; total: number; top_orgaos: string[] | null }[];
+  const totalStatus = statusLinhas.reduce((acc, l) => acc + Number(l.total), 0);
+  const colunasStatus = statusLinhas.map((l) => ({
+    chave: l.status,
+    titulo: l.status,
+    valor: Number(l.total),
+    total: totalStatus,
+    ...estiloStatus(l.status),
+    topOrgaos: l.top_orgaos ?? [],
+    ajuda: `Ações com o status "${l.status}" no SIMO, criadas de 2023 em diante.`,
+  }));
 
   const eventos = (syncLogs ?? []).map((s) => ({
     id: String(s.id),
@@ -109,50 +115,7 @@ export default async function DashboardGestaoPage() {
       </section>
 
       <section className="mb-6">
-        <WorkflowColumns
-          colunas={[
-            {
-              chave: "sem_numero",
-              titulo: "Sem número",
-              valor: resumo.apos_corte_sem_numero,
-              total: resumo.apos_corte_total,
-              cor: "var(--status-neutral)",
-              corFundo: "var(--status-neutral-bg)",
-              topOrgaos: topOrgaos.sem_numero,
-              ajuda: "Ações sem Número Automático e sem Número do Contrato no SIAFE: nada foi informado ainda.",
-            },
-            {
-              chave: "pendente",
-              titulo: "Pendentes",
-              valor: resumo.apos_corte_pendentes,
-              total: resumo.apos_corte_total,
-              cor: "var(--status-warning)",
-              corFundo: "var(--status-warning-bg)",
-              topOrgaos: topOrgaos.pendente,
-              ajuda: "Já têm o Número do Contrato no SIAFE informado, mas ainda não foram vinculadas no SIMO (sem Número Automático).",
-            },
-            {
-              chave: "dado_incorreto",
-              titulo: "Dado incorreto",
-              valor: resumo.apos_corte_dado_incorreto,
-              total: resumo.apos_corte_total,
-              cor: "var(--status-critical)",
-              corFundo: "var(--status-critical-bg)",
-              topOrgaos: topOrgaos.dado_incorreto,
-              ajuda: "Número do Contrato no SIAFE preenchido, mas sem exatamente 8 dígitos. Precisa de correção manual.",
-            },
-            {
-              chave: "vinculada",
-              titulo: "Vinculadas",
-              valor: resumo.apos_corte_vinculadas,
-              total: resumo.apos_corte_total,
-              cor: "var(--status-good)",
-              corFundo: "var(--status-good-bg)",
-              topOrgaos: topOrgaos.vinculada,
-              ajuda: "Já têm o Número Automático: o contrato do SIAFE está vinculado no SIMO.",
-            },
-          ]}
-        />
+        <WorkflowColumns colunas={colunasStatus} />
       </section>
 
       <section>
