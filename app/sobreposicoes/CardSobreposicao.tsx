@@ -46,7 +46,10 @@ export function CardSobreposicao({
 }) {
   const router = useRouter();
   const [status, setStatus] = useState(statusInicial);
-  const [etapa, setEtapa] = useState<"fechado" | "escrevendo_problema">("fechado");
+  // "escrevendo": campo de comentário aberto para a decisão escolhida
+  // (ok ou problema) — os dois botões passam pelo mesmo campo.
+  const [etapa, setEtapa] = useState<"fechado" | "escrevendo">("fechado");
+  const [decisao, setDecisao] = useState<"ok" | "problema">("problema");
   const [observacao, setObservacao] = useState(observacaoInicial ?? "");
   const [salvando, setSalvando] = useState(false);
 
@@ -136,16 +139,23 @@ export function CardSobreposicao({
         ))}
       </ul>
 
-      {status === "problema" && observacaoInicial && etapa === "fechado" && (
-        <p className="mb-3 rounded-lg border border-status-warning/20 bg-white/60 px-3 py-2 text-xs text-ink-secondary">
-          <strong className="text-status-warning">Observação:</strong> {observacaoInicial}
+      {status !== "pendente" && observacaoInicial && etapa === "fechado" && (
+        <p
+          className={`mb-3 rounded-lg border bg-white/60 px-3 py-2 text-xs text-ink-secondary ${
+            status === "ok" ? "border-status-good/20" : "border-status-warning/20"
+          }`}
+        >
+          <strong className={status === "ok" ? "text-status-good" : "text-status-warning"}>Observação:</strong> {observacaoInicial}
         </p>
       )}
 
       {status === "pendente" && etapa === "fechado" && (
         <div className="flex gap-2">
           <button
-            onClick={() => salvar("ok")}
+            onClick={() => {
+              setDecisao("ok");
+              setEtapa("escrevendo");
+            }}
             disabled={salvando}
             className="flex items-center gap-1.5 rounded-full bg-status-good px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
           >
@@ -153,7 +163,10 @@ export function CardSobreposicao({
             Sem problema
           </button>
           <button
-            onClick={() => setEtapa("escrevendo_problema")}
+            onClick={() => {
+              setDecisao("problema");
+              setEtapa("escrevendo");
+            }}
             disabled={salvando}
             className="flex items-center gap-1.5 rounded-full bg-status-warning px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
           >
@@ -163,22 +176,25 @@ export function CardSobreposicao({
         </div>
       )}
 
-      {etapa === "escrevendo_problema" && (
+      {etapa === "escrevendo" && (
         <div className="space-y-2">
           <textarea
             value={observacao}
             onChange={(e) => setObservacao(e.target.value)}
-            placeholder="O que está errado aqui? (opcional)"
+            placeholder={decisao === "ok" ? "Comentário sobre a análise (opcional)" : "O que está errado aqui? (opcional)"}
             rows={2}
+            autoFocus
             className="w-full rounded-lg border border-black/10 bg-plane px-3 py-2 text-xs text-ink-primary placeholder:text-ink-muted focus:border-series-1 focus:outline-none"
           />
           <div className="flex gap-2">
             <button
-              onClick={() => salvar("problema", observacao)}
+              onClick={() => salvar(decisao, observacao)}
               disabled={salvando}
-              className="rounded-full bg-status-warning px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+              className={`rounded-full px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50 ${
+                decisao === "ok" ? "bg-status-good" : "bg-status-warning"
+              }`}
             >
-              {salvando ? "Salvando..." : "Confirmar problema"}
+              {salvando ? "Salvando..." : decisao === "ok" ? "Confirmar sem problema" : "Confirmar problema"}
             </button>
             <button
               onClick={() => setEtapa("fechado")}
