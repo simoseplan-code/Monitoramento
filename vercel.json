@@ -5,8 +5,8 @@
       "schedule": "0 4 * * *"
     },
     {
-      "path": "/api/cron/sync-sugestoes",
-      "schedule": "10 4 * * *"
+      "path": "/api/cron/sync-processar",
+      "schedule": "15 4 * * *"
     }
   ]
 }

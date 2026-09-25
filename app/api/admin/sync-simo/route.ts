@@ -1,10 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { executarSyncSimo, executarSyncSugestoes } from "@/lib/simo/sync";
+import { executarSyncBaixar, executarSyncObras, executarSyncSugestoes } from "@/lib/simo/sync";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
+// Sync em camadas, uma por requisição (cada uma com os seus 60s):
+//   fase "baixar"    — baixa o relatório do SIMO (a parte lenta) e guarda no banco
+//   fase "obras"     — lê o relatório guardado e grava as obras
+//   fase "sugestoes" — recalcula a fila de Unidade/Quantidade
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const {
@@ -21,16 +25,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 
-  // Duas etapas separadas (cada uma com seus 60s): body { fase: "sugestoes" }
-  // roda só a fila de Unidade/Quantidade; sem fase roda o sync de obras.
   const { fase } = (await request.json().catch(() => ({}))) as { fase?: string };
 
   try {
+    if (fase === "baixar") {
+      const { kb } = await executarSyncBaixar();
+      return NextResponse.json({ ok: true, fase, kb });
+    }
     if (fase === "sugestoes") {
       const { naFila } = await executarSyncSugestoes();
       return NextResponse.json({ ok: true, fase, naFila });
     }
-    const { linhas } = await executarSyncSimo();
+    const { linhas } = await executarSyncObras();
     return NextResponse.json({ ok: true, fase: "obras", linhas });
   } catch (e) {
     const mensagem = e instanceof Error ? e.message : "Erro desconhecido.";

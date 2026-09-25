@@ -4,19 +4,21 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Loader2 } from "lucide-react";
 
-// apenasSugestoes: roda só a etapa 2 (recalcula a fila de Unidade/Quantidade
+type Fase = "baixar" | "obras" | "sugestoes";
+
+// apenasSugestoes: roda só a camada 3 (recalcula a fila de Unidade/Quantidade
 // a partir das obras que já estão no banco, sem baixar nada do SIMO) —
 // usado na própria tela de Unidade/Quantidade.
 export function SincronizarBotao({ apenasSugestoes = false }: { apenasSugestoes?: boolean }) {
   const router = useRouter();
   const [carregando, setCarregando] = useState(false);
   const [msg, setMsg] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
-
   const [etapa, setEtapa] = useState("");
 
-  // Uma etapa por requisição (cada uma tem o seu limite de tempo no
-  // servidor): 1) obras do SIMO, 2) fila de Unidade/Quantidade.
-  async function chamar(fase: "obras" | "sugestoes"): Promise<{ ok: boolean; texto: string }> {
+  // Uma camada por requisição — cada uma tem o seu limite de tempo no
+  // servidor: 1) baixar o relatório do SIMO (a parte lenta), 2) gravar as
+  // obras, 3) recalcular a fila de Unidade/Quantidade.
+  async function chamar(fase: Fase): Promise<{ ok: boolean; texto: string }> {
     const resp = await fetch("/api/admin/sync-simo", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -25,14 +27,16 @@ export function SincronizarBotao({ apenasSugestoes = false }: { apenasSugestoes?
     // Resposta que não é JSON = o servidor foi cortado antes de responder
     // (timeout devolve página de erro) — mostra o status em vez de esconder.
     const bruto = await resp.text();
-    let data: { linhas?: number; naFila?: number; error?: string } | null = null;
+    let data: { linhas?: number; naFila?: number; kb?: number; error?: string } | null = null;
     try {
       data = JSON.parse(bruto);
     } catch {
       // não é JSON
     }
     if (data && resp.ok) {
-      return { ok: true, texto: fase === "obras" ? `${data.linhas} ações` : `${data.naFila} na fila de Unidade/Quantidade` };
+      const texto =
+        fase === "baixar" ? `relatório baixado (${data.kb} KB)` : fase === "obras" ? `${data.linhas} ações` : `${data.naFila} na fila de Unidade/Quantidade`;
+      return { ok: true, texto };
     }
     return { ok: false, texto: data?.error ?? `servidor respondeu HTTP ${resp.status} sem detalhes (provável timeout — veja o histórico abaixo)` };
   }
@@ -46,16 +50,30 @@ export function SincronizarBotao({ apenasSugestoes = false }: { apenasSugestoes?
         setMsg(so.ok ? { tipo: "ok", texto: `✅ ${so.texto}.` } : { tipo: "erro", texto: `❌ ${so.texto}` });
         return;
       }
-      setEtapa("1/2 obras do SIMO");
-      const obras = await chamar("obras");
-      if (!obras.ok) {
-        setMsg({ tipo: "erro", texto: `❌ Etapa 1 (obras): ${obras.texto}` });
+
+      // Camada 1 com até 3 tentativas: o SIMO às vezes demora demais pra
+      // gerar o relatório, e uma nova tentativa costuma passar.
+      let baixado = { ok: false, texto: "" };
+      for (let tentativa = 1; tentativa <= 3 && !baixado.ok; tentativa++) {
+        setEtapa(`1/3 baixando o relatório do SIMO (tentativa ${tentativa}/3)`);
+        baixado = await chamar("baixar");
+      }
+      if (!baixado.ok) {
+        setMsg({ tipo: "erro", texto: `❌ Etapa 1 (download do SIMO) falhou nas 3 tentativas: ${baixado.texto}` });
         return;
       }
-      setEtapa("2/2 fila de Unidade/Quantidade");
+
+      setEtapa("2/3 gravando as obras");
+      const obras = await chamar("obras");
+      if (!obras.ok) {
+        setMsg({ tipo: "erro", texto: `❌ Relatório baixado, mas a etapa 2 (gravar obras) falhou: ${obras.texto}` });
+        return;
+      }
+
+      setEtapa("3/3 fila de Unidade/Quantidade");
       const sugestoes = await chamar("sugestoes");
       if (!sugestoes.ok) {
-        setMsg({ tipo: "erro", texto: `❌ Obras ok (${obras.texto}), mas a etapa 2 falhou: ${sugestoes.texto}` });
+        setMsg({ tipo: "erro", texto: `❌ Obras ok (${obras.texto}), mas a etapa 3 falhou: ${sugestoes.texto}` });
         return;
       }
       setMsg({ tipo: "ok", texto: `✅ ${obras.texto} sincronizadas · ${sugestoes.texto}.` });

@@ -3,6 +3,7 @@ import { loginSimo, prepararRelatorioSimo, baixarCsvSimo } from "@/lib/simo/clie
 import { csvParaObras, type ObraRow } from "@/lib/simo/parseCsv";
 import { sugerirUnidadeQuantidade, paraTextoBR } from "@/lib/unidadeQuantidade/sugestao";
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { gzipSync, gunzipSync } from "node:zlib";
 
 const TAMANHO_LOTE = 1000;
 
@@ -27,17 +28,16 @@ async function abrirLog(admin: SupabaseClient, rotulo: string) {
   };
 }
 
-// ETAPA 1 — baixa o relatório do SIMO e grava as obras. Separada da
-// etapa 2 porque juntas não cabem nos 60s da rota (Vercel Hobby).
-export async function executarSyncSimo(): Promise<{ linhas: number }> {
+// CAMADA 1 — baixa o relatório do SIMO (a parte lenta, às vezes passa de
+// 1 minuto) e guarda o CSV compactado no banco (tabela sync_csv). É a única
+// camada que fala com o SIMO; recebe o tempo inteiro da requisição.
+export async function executarSyncBaixar(): Promise<{ kb: number }> {
   const admin = createAdminClient();
   const inicio = Date.now();
   const seg = () => ((Date.now() - inicio) / 1000).toFixed(1);
-  const log = await abrirLog(admin, "Sync de obras");
+  const log = await abrirLog(admin, "Download do relatório");
 
   try {
-    // Cada passo com o seu limite e o seu nome na fase: se o servidor cortar,
-    // o histórico do Admin mostra em qual deles parou.
     await log.fase("login no SIMO");
     const cookie = await loginSimo(15_000);
     const tLogin = seg();
@@ -45,9 +45,55 @@ export async function executarSyncSimo(): Promise<{ linhas: number }> {
     await prepararRelatorioSimo(cookie, 20_000);
     const tPreparo = seg();
     await log.fase("exportando o CSV do SIMO (relatório grande)");
-    const csvText = await baixarCsvSimo(cookie, Math.max(10_000, 52_000 - (Date.now() - inicio)));
-    const tDownload = seg();
+    const csvText = await baixarCsvSimo(cookie, Math.max(10_000, 55_000 - (Date.now() - inicio)));
+    const tExport = seg();
+
+    await log.fase("guardando o CSV no banco");
+    const comprimido = gzipSync(Buffer.from(csvText, "utf8")).toString("base64");
+    const { data: novo, error } = await admin
+      .from("sync_csv")
+      .insert({ csv_gzip_b64: comprimido, bytes_originais: csvText.length })
+      .select("id")
+      .single();
+    if (error || !novo) throw new Error(`Falha ao guardar o CSV: ${error?.message ?? "sem retorno"}`);
+    await admin.from("sync_csv").delete().lt("id", novo.id);
+
+    const kb = Math.round(csvText.length / 1024);
+    await log.fim({
+      sucesso: true,
+      mensagem: `OK download: ${kb} KB em ${seg()}s (login ${tLogin}s, preparo até ${tPreparo}s, exportação até ${tExport}s).`,
+    });
+    return { kb };
+  } catch (e) {
+    const mensagem = e instanceof Error ? e.message : "Erro desconhecido.";
+    await log.fim({ sucesso: false, mensagem: `Download do relatório: ${mensagem} (após ${seg()}s)` });
+    throw new Error(mensagem);
+  }
+}
+
+// CAMADA 2 — lê o CSV já baixado e grava as obras. Não fala com o SIMO.
+export async function executarSyncObras(): Promise<{ linhas: number }> {
+  const admin = createAdminClient();
+  const inicio = Date.now();
+  const seg = () => ((Date.now() - inicio) / 1000).toFixed(1);
+  const log = await abrirLog(admin, "Sync de obras");
+
+  try {
+    await log.fase("lendo o relatório baixado");
+    const { data: csvRow, error: erroCsv } = await admin
+      .from("sync_csv")
+      .select("criado_em, csv_gzip_b64")
+      .order("id", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (erroCsv) throw new Error(`Falha ao ler o relatório baixado: ${erroCsv.message}`);
+    if (!csvRow) throw new Error("Nenhum relatório baixado ainda — rode a etapa de download primeiro.");
+    const idadeHoras = (Date.now() - new Date(csvRow.criado_em).getTime()) / 3_600_000;
+    if (idadeHoras > 24) throw new Error("O relatório baixado tem mais de 24h — rode a etapa de download de novo.");
+
+    const csvText = gunzipSync(Buffer.from(csvRow.csv_gzip_b64, "base64")).toString("utf8");
     const obras = csvParaObras(csvText);
+    const tLeitura = seg();
 
     if (obras.length === 0) {
       throw new Error("O SIMO retornou 0 linhas — provavelmente algo mudou no relatório. Sync abortado sem apagar dados.");
@@ -81,7 +127,7 @@ export async function executarSyncSimo(): Promise<{ linhas: number }> {
     await log.fase("removendo obsoletas e gravando histórico");
     const vinculadas = obras.filter((o) => !!o.numero_automatico).length;
     const pendentes = obras.filter((o) => !o.numero_automatico && !!o.numero_siafe).length;
-    const dadoIncorreto = obras.filter((o) => o.numero_siafe && !/^d{8}$/.test(o.numero_siafe)).length;
+    const dadoIncorreto = obras.filter((o) => o.numero_siafe && !/^\d{8}$/.test(o.numero_siafe)).length;
 
     const [resDelete] = await Promise.all([
       // Ações que existiam antes desse carimbo e não foram tocadas
@@ -94,7 +140,7 @@ export async function executarSyncSimo(): Promise<{ linhas: number }> {
     await log.fim({
       sucesso: true,
       linhas_processadas: obras.length,
-      mensagem: `OK obras: ${obras.length} ações em ${seg()}s (login ${tLogin}s, preparo até ${tPreparo}s, download até ${tDownload}s, gravação até ${tGravacao}s).`,
+      mensagem: `OK obras: ${obras.length} ações em ${seg()}s (leitura ${tLeitura}s, gravação até ${tGravacao}s).`,
     });
 
     return { linhas: obras.length };
@@ -105,7 +151,7 @@ export async function executarSyncSimo(): Promise<{ linhas: number }> {
   }
 }
 
-// ETAPA 2 — recalcula a fila de Unidade/Quantidade a partir das obras já
+// CAMADA 3 — recalcula a fila de Unidade/Quantidade a partir das obras já
 // gravadas no banco (não baixa nada do SIMO).
 export async function executarSyncSugestoes(): Promise<{ naFila: number }> {
   const admin = createAdminClient();
