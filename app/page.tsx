@@ -56,7 +56,7 @@ export default async function DashboardGestaoPage() {
     apos_corte_orgaos_distintos: 0,
   };
   // Status da ação no SIMO (2023 em diante), do maior pro menor.
-  const statusLinhas = (statusRpc ?? []) as { status: string; total: number; top_orgaos: string[] | null }[];
+  const statusLinhas = (statusRpc ?? []) as { status: string; total: number }[];
   const totalStatus = statusLinhas.reduce((acc, l) => acc + Number(l.total), 0);
   const colunasStatus = statusLinhas.map((l) => ({
     chave: l.status,
@@ -64,7 +64,6 @@ export default async function DashboardGestaoPage() {
     valor: Number(l.total),
     total: totalStatus,
     ...estiloStatus(l.status),
-    topOrgaos: l.top_orgaos ?? [],
     ajuda: `Ações com o status "${l.status}" no SIMO, criadas de 2023 em diante.`,
   }));
 

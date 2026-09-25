@@ -6,7 +6,6 @@ type Coluna = {
   total: number;
   cor: string;
   corFundo: string;
-  topOrgaos: string[];
   ajuda: string;
 };
 
@@ -18,7 +17,7 @@ export function WorkflowColumns({ colunas }: { colunas: Coluna[] }) {
           <h3 className="text-sm font-semibold text-ink-primary">Status das ações</h3>
           <p className="text-xs text-ink-muted">Situação de cada ação no SIMO — só as criadas de 2023 em diante</p>
         </div>
-        <AjudaCard texto="Mostra quantas ações existem em cada status do SIMO (Em desenvolvimento, Concluído, Cancelado, etc.), só as criadas de 2023 em diante, os órgãos com mais ações em cada status e a porcentagem sobre o total." />
+        <AjudaCard texto="Mostra quantas ações existem em cada status do SIMO (Em desenvolvimento, Concluído, Cancelado, etc.), só as criadas de 2023 em diante e a porcentagem sobre o total." />
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -38,15 +37,6 @@ export function WorkflowColumns({ colunas }: { colunas: Coluna[] }) {
               </div>
 
               <p className="tabular mt-3 text-2xl font-semibold text-ink-primary">{c.valor}</p>
-
-              <div className="mt-3 flex flex-wrap gap-1">
-                {c.topOrgaos.length === 0 && <span className="text-xs text-ink-muted">—</span>}
-                {c.topOrgaos.map((o) => (
-                  <span key={o} className="rounded-full bg-plane px-2 py-0.5 text-[11px] text-ink-secondary">
-                    {o}
-                  </span>
-                ))}
-              </div>
 
               <div className="mt-3 flex items-center gap-2">
                 <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-plane">
