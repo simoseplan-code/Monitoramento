@@ -1,3 +1,4 @@
+import { AjudaCard } from "@/components/AjudaCard";
 type Coluna = {
   chave: string;
   titulo: string;
@@ -6,14 +7,18 @@ type Coluna = {
   cor: string;
   corFundo: string;
   topOrgaos: string[];
+  ajuda: string;
 };
 
 export function WorkflowColumns({ colunas }: { colunas: Coluna[] }) {
   return (
     <div className="rounded-xl border border-black/5 bg-surface p-5 shadow-card">
-      <div className="mb-4">
-        <h3 className="text-sm font-semibold text-ink-primary">Status das ações</h3>
-        <p className="text-xs text-ink-muted">Acompanhe o progresso em cada estágio de vinculação</p>
+      <div className="mb-4 flex items-start justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold text-ink-primary">Status das ações</h3>
+          <p className="text-xs text-ink-muted">Acompanhe o progresso em cada estágio de vinculação</p>
+        </div>
+        <AjudaCard texto="Para cada situação de vinculação mostra quantas ações existem (criadas de 2023 em diante), os órgãos com mais ações nela e a porcentagem sobre o total." />
       </div>
 
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
@@ -21,13 +26,16 @@ export function WorkflowColumns({ colunas }: { colunas: Coluna[] }) {
           const pct = c.total > 0 ? Math.round((c.valor / c.total) * 100) : 0;
           return (
             <div key={c.chave} className="rounded-lg border border-black/5 p-4">
-              <span
-                className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium"
-                style={{ backgroundColor: c.corFundo, color: c.cor }}
-              >
-                <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: c.cor }} />
-                {c.titulo}
-              </span>
+              <div className="flex items-start justify-between gap-2">
+                <span
+                  className="inline-flex items-center gap-1.5 rounded-full px-2 py-0.5 text-xs font-medium"
+                  style={{ backgroundColor: c.corFundo, color: c.cor }}
+                >
+                  <span className="h-1.5 w-1.5 rounded-full" style={{ backgroundColor: c.cor }} />
+                  {c.titulo}
+                </span>
+                <AjudaCard texto={c.ajuda} />
+              </div>
 
               <p className="tabular mt-3 text-2xl font-semibold text-ink-primary">{c.valor}</p>
 

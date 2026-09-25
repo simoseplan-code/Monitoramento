@@ -1,6 +1,7 @@
 "use client";
 
 import { Cell, Pie, PieChart, ResponsiveContainer, Tooltip } from "recharts";
+import { AjudaCard } from "@/components/AjudaCard";
 
 type Fatia = { chave: string; nome: string; valor: number; cor: string };
 
@@ -23,9 +24,12 @@ export function VinculacaoDonut({
 
   return (
     <div className="rounded-xl border border-black/5 bg-surface p-5 shadow-card">
-      <div className="mb-1">
-        <h3 className="text-sm font-semibold text-ink-primary">Visão geral da vinculação</h3>
-        <p className="text-xs text-ink-muted">Distribuição das ações por status</p>
+      <div className="mb-1 flex items-start justify-between gap-2">
+        <div>
+          <h3 className="text-sm font-semibold text-ink-primary">Visão geral da vinculação</h3>
+          <p className="text-xs text-ink-muted">Distribuição das ações por status</p>
+        </div>
+        <AjudaCard texto="Mostra como as ações criadas de 2023 em diante se dividem por situação de vinculação: Vinculadas, Pendentes e Sem número. O número no centro é o total dessas ações." />
       </div>
 
       <div className="relative mx-auto h-64 w-64">

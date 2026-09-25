@@ -82,12 +82,12 @@ export default async function DashboardGestaoPage() {
       notificacoesCount={eventos.filter((e) => e.tipo === "sync_erro").length}
     >
       <section className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
-        <StatCard icon={Archive} label="Criadas antes de 2023" value={resumo.antes_corte} tint="neutral" />
-        <StatCard icon={ClipboardList} label="Criadas a partir de 2023" value={resumo.apos_corte_total} tint="series-1" />
-        <StatCard icon={Building2} label="Órgãos (2023+)" value={resumo.apos_corte_orgaos_distintos} tint="neutral" />
-        <StatCard icon={Link2} label="Vinculadas (2023+)" value={resumo.apos_corte_vinculadas} tint="good" />
-        <StatCard icon={Clock3} label="Pendentes (2023+)" value={resumo.apos_corte_pendentes} tint="warning" />
-        <StatCard icon={AlertTriangle} label="Dado incorreto (2023+)" value={resumo.apos_corte_dado_incorreto} tint="critical" />
+        <StatCard icon={Archive} label="Criadas antes de 2023" value={resumo.antes_corte} tint="neutral" ajuda="Ações cadastradas no SIMO antes de 2023. Ficam fora de todos os indicadores desta tela; são contadas aqui só pra você saber quantas são." />
+        <StatCard icon={ClipboardList} label="Criadas a partir de 2023" value={resumo.apos_corte_total} tint="series-1" ajuda="Total de ações cadastradas de 01/01/2023 em diante. É a base de todos os indicadores desta tela." />
+        <StatCard icon={Building2} label="Órgãos (2023+)" value={resumo.apos_corte_orgaos_distintos} tint="neutral" ajuda="Quantos órgãos diferentes têm pelo menos uma ação criada de 2023 em diante." />
+        <StatCard icon={Link2} label="Vinculadas (2023+)" value={resumo.apos_corte_vinculadas} tint="good" ajuda="Ações que já têm o Número Automático, ou seja, o contrato do SIAFE já foi vinculado no SIMO." />
+        <StatCard icon={Clock3} label="Pendentes (2023+)" value={resumo.apos_corte_pendentes} tint="warning" ajuda="Ações que já têm o Número do Contrato no SIAFE informado, mas ainda não foram vinculadas (sem Número Automático). É o trabalho da tela Vinculação SIAFE." />
+        <StatCard icon={AlertTriangle} label="Dado incorreto (2023+)" value={resumo.apos_corte_dado_incorreto} tint="critical" ajuda="Ações com Número do Contrato no SIAFE preenchido, mas sem exatamente 8 dígitos. Precisam de correção manual antes de poderem ser vinculadas." />
       </section>
 
       <p className="mb-6 text-xs text-ink-muted">
@@ -119,6 +119,7 @@ export default async function DashboardGestaoPage() {
               cor: "var(--status-neutral)",
               corFundo: "var(--status-neutral-bg)",
               topOrgaos: topOrgaos.sem_numero,
+              ajuda: "Ações sem Número Automático e sem Número do Contrato no SIAFE: nada foi informado ainda.",
             },
             {
               chave: "pendente",
@@ -128,6 +129,7 @@ export default async function DashboardGestaoPage() {
               cor: "var(--status-warning)",
               corFundo: "var(--status-warning-bg)",
               topOrgaos: topOrgaos.pendente,
+              ajuda: "Já têm o Número do Contrato no SIAFE informado, mas ainda não foram vinculadas no SIMO (sem Número Automático).",
             },
             {
               chave: "dado_incorreto",
@@ -137,6 +139,7 @@ export default async function DashboardGestaoPage() {
               cor: "var(--status-critical)",
               corFundo: "var(--status-critical-bg)",
               topOrgaos: topOrgaos.dado_incorreto,
+              ajuda: "Número do Contrato no SIAFE preenchido, mas sem exatamente 8 dígitos. Precisa de correção manual.",
             },
             {
               chave: "vinculada",
@@ -146,6 +149,7 @@ export default async function DashboardGestaoPage() {
               cor: "var(--status-good)",
               corFundo: "var(--status-good-bg)",
               topOrgaos: topOrgaos.vinculada,
+              ajuda: "Já têm o Número Automático: o contrato do SIAFE está vinculado no SIMO.",
             },
           ]}
         />

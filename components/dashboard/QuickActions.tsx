@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { RefreshCw, UserCheck, ClipboardList, Download } from "lucide-react";
+import { AjudaCard } from "@/components/AjudaCard";
 
 export function QuickActions({ isAdmin, pendentesAprovacao }: { isAdmin: boolean; pendentesAprovacao: number }) {
   const router = useRouter();
@@ -25,7 +26,10 @@ export function QuickActions({ isAdmin, pendentesAprovacao }: { isAdmin: boolean
 
   return (
     <div className="rounded-xl border border-black/5 bg-surface p-5 shadow-card">
-      <h3 className="mb-3 text-sm font-semibold text-ink-primary">Ações rápidas</h3>
+      <div className="mb-3 flex items-center justify-between gap-2">
+        <h3 className="text-sm font-semibold text-ink-primary">Ações rápidas</h3>
+        <AjudaCard texto="Atalhos para as tarefas mais comuns: sincronizar com o SIMO (só administradores), ver as ações pendentes de vinculação, aprovar cadastros novos da equipe e exportar a planilha de ações." />
+      </div>
       <div className="space-y-2">
         {isAdmin && (
           <button
