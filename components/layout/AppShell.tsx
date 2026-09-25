@@ -21,6 +21,7 @@ export function AppShell({
     sobreposicoesPendentes?: number;
     sugestoesUnidadePendentes?: number;
     vinculacaoPendentes?: number;
+    termosPendentes?: number;
   };
   titulo: string;
   subtitulo?: string;
