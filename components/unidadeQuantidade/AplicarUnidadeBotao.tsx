@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CheckCircle2, XCircle } from "lucide-react";
+import { IdAcaoLink } from "@/components/IdAcaoLink";
 
 type Detalhe = { idAcao: string; nomeAcao: string; unidade: string; quantidade: string; resultado: string };
 
@@ -76,7 +77,7 @@ export function AplicarUnidadeBotao({ pendentes }: { pendentes: number }) {
                   )}
                   <div className="min-w-0">
                     <p className="truncate text-ink-primary">
-                      {d.idAcao} · {d.nomeAcao || "—"}
+                      <IdAcaoLink id={d.idAcao} /> · {d.nomeAcao || "—"}
                     </p>
                     <p className="text-ink-muted">
                       → {d.unidade}

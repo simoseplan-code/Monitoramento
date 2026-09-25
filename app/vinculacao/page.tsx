@@ -9,6 +9,7 @@ import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { contarSugestoesUnidadePendentes } from "@/lib/unidadeQuantidade";
 import { contarVinculacaoPendentes } from "@/lib/vinculacao";
 import { CheckCircle2, XCircle } from "lucide-react";
+import { IdAcaoLink } from "@/components/IdAcaoLink";
 
 const PAGE_SIZE = 50;
 
@@ -142,7 +143,7 @@ export default async function VinculacaoPage({
                   )}
                   <div className="min-w-0">
                     <p className="truncate text-ink-secondary">
-                      {l.id_acao} · {l.nome_acao} — SIAFE {l.numero_siafe}
+                      <IdAcaoLink id={l.id_acao} /> · {l.nome_acao} — SIAFE {l.numero_siafe}
                       {sucesso ? "" : `: ${l.resultado}`}
                     </p>
                     <p className="text-xs text-ink-muted">

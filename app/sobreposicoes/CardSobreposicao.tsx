@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CheckCircle2, AlertTriangle, Undo2, MapPin, Star } from "lucide-react";
 import type { ObraNoLocal } from "@/lib/sobreposicoes/parseCsv";
+import { IdAcaoLink } from "@/components/IdAcaoLink";
 
 type StatusRevisao = "pendente" | "ok" | "problema";
 
@@ -128,7 +129,7 @@ export function CardSobreposicao({
               <p className="font-medium text-ink-primary">{o.nome}</p>
             </div>
             <p className="text-ink-muted">
-              {o.id ? `ID ${o.id}` : "Sem ID"} · {o.status || "Sem status"}
+              {o.id ? <>ID <IdAcaoLink id={o.id} /></> : "Sem ID"} · {o.status || "Sem status"}
               {o.contrato ? ` · Contrato ${o.contrato}` : ""}
             </p>
           </li>

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-const CAMPOS_VALIDOS = ["kml_anexado", "sem_duplicacao", "trecho_unico", "documentos_obrigatorios"] as const;
+const CAMPOS_VALIDOS = ["kml_anexado", "sem_duplicacao", "documentos_obrigatorios"] as const;
 type Campo = (typeof CAMPOS_VALIDOS)[number];
 
 const STATUS_VALIDOS = ["pendente", "confirmado", "aguardando_atualizacao"] as const;
@@ -22,14 +22,13 @@ export async function POST(request: NextRequest) {
 
   const { data: atual } = await supabase
     .from("obras_revisao")
-    .select("kml_anexado, sem_duplicacao, trecho_unico, documentos_obrigatorios")
+    .select("kml_anexado, sem_duplicacao, documentos_obrigatorios")
     .eq("id_acao", idAcao)
     .maybeSingle();
 
   const proximo = {
     kml_anexado: atual?.kml_anexado ?? "pendente",
     sem_duplicacao: atual?.sem_duplicacao ?? "pendente",
-    trecho_unico: atual?.trecho_unico ?? "pendente",
     documentos_obrigatorios: atual?.documentos_obrigatorios ?? "pendente",
     [campo as Campo]: status,
   };

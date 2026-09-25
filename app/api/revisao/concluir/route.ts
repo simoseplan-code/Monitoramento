@@ -16,18 +16,17 @@ export async function POST(request: NextRequest) {
   if (concluido) {
     const { data: revisao } = await supabase
       .from("obras_revisao")
-      .select("kml_anexado, sem_duplicacao, trecho_unico, documentos_obrigatorios")
+      .select("kml_anexado, sem_duplicacao, documentos_obrigatorios")
       .eq("id_acao", idAcao)
       .maybeSingle();
 
     const tudoConfirmado =
       revisao?.kml_anexado === "confirmado" &&
       revisao?.sem_duplicacao === "confirmado" &&
-      revisao?.trecho_unico === "confirmado" &&
       revisao?.documentos_obrigatorios === "confirmado";
 
     if (!tudoConfirmado) {
-      return NextResponse.json({ error: "Confirme os 4 itens do checklist antes de concluir." }, { status: 400 });
+      return NextResponse.json({ error: "Confirme os 3 itens do checklist antes de concluir." }, { status: 400 });
     }
   }
 

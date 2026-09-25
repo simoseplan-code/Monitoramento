@@ -14,7 +14,6 @@ type LinhaNovaAcao = {
   data_criacao: string;
   kml_anexado: "pendente" | "confirmado" | "aguardando_atualizacao";
   sem_duplicacao: "pendente" | "confirmado" | "aguardando_atualizacao";
-  trecho_unico: "pendente" | "confirmado" | "aguardando_atualizacao";
   documentos_obrigatorios: "pendente" | "confirmado" | "aguardando_atualizacao";
   concluido: boolean;
   total_geral: number;
@@ -95,7 +94,6 @@ export default async function NovasAcoesPage({
             statusInicial={{
               kml_anexado: o.kml_anexado,
               sem_duplicacao: o.sem_duplicacao,
-              trecho_unico: o.trecho_unico,
               documentos_obrigatorios: o.documentos_obrigatorios,
             }}
           />

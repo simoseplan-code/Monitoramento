@@ -3,13 +3,13 @@
 import { useState } from "react";
 import { ChecklistItem } from "./ChecklistItem";
 import { ConcluirBotao } from "./ConcluirBotao";
+import { IdAcaoLink } from "@/components/IdAcaoLink";
 
 type Status = "pendente" | "confirmado" | "aguardando_atualizacao";
 
 const CHECKS = [
   { campo: "kml_anexado" as const, label: "KML anexado" },
   { campo: "sem_duplicacao" as const, label: "Sem duplicação" },
-  { campo: "trecho_unico" as const, label: "Trecho único" },
   { campo: "documentos_obrigatorios" as const, label: "Documentos obrigatórios inseridos" },
 ];
 
@@ -28,7 +28,6 @@ export function CardNovaAcao({
   statusInicial: {
     kml_anexado: Status;
     sem_duplicacao: Status;
-    trecho_unico: Status;
     documentos_obrigatorios: Status;
   };
   concluido: boolean;
@@ -38,7 +37,7 @@ export function CardNovaAcao({
   // (que numa lista de dezenas de ações ficava perceptivelmente lento).
   const [status, setStatus] = useState(statusInicial);
 
-  const tudoConfirmado = Object.values(status).every((v) => v === "confirmado");
+  const tudoConfirmado = CHECKS.every((c) => status[c.campo] === "confirmado");
 
   return (
     <div
@@ -50,7 +49,7 @@ export function CardNovaAcao({
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-ink-primary">{nomeAcao}</p>
           <p className="text-xs text-ink-muted">
-            {idAcao} · {orgao ?? "Sem órgão"} · criada em{" "}
+            <IdAcaoLink id={idAcao} /> · {orgao ?? "Sem órgão"} · criada em{" "}
             {dataCriacao ? new Date(dataCriacao + "T00:00:00").toLocaleDateString("pt-BR") : "—"}
           </p>
         </div>

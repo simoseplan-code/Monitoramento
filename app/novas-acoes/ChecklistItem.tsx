@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Check, AlertTriangle } from "lucide-react";
 
 type Status = "pendente" | "confirmado" | "aguardando_atualizacao";
-type Campo = "kml_anexado" | "sem_duplicacao" | "trecho_unico" | "documentos_obrigatorios";
+type Campo = "kml_anexado" | "sem_duplicacao" | "documentos_obrigatorios";
 
 const PILL_BASE = "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors";
 

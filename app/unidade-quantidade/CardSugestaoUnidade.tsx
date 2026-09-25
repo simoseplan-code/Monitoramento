@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AlertTriangle, Check, Undo2 } from "lucide-react";
 import { UNIDADES_VALIDAS } from "@/lib/unidadeQuantidade/sugestao";
+import { IdAcaoLink } from "@/components/IdAcaoLink";
 
 const MARCADOR_MANTER_QUANTIDADE = "vazio = manter a atual do SIMO";
 
@@ -89,7 +90,7 @@ export function CardSugestaoUnidade({
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-ink-primary">{nomeAcao}</p>
           <p className="text-xs text-ink-muted">
-            {idAcao} · {orgao ?? "Sem órgão"} {tipologia ? `· ${tipologia}` : ""}
+            <IdAcaoLink id={idAcao} /> · {orgao ?? "Sem órgão"} {tipologia ? `· ${tipologia}` : ""}
           </p>
         </div>
         {bloqueado ? (

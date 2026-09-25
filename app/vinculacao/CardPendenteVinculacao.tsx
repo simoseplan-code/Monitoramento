@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { AlertTriangle, Check, RefreshCw } from "lucide-react";
+import { IdAcaoLink } from "@/components/IdAcaoLink";
 
 export function CardPendenteVinculacao({
   idAcao,
@@ -62,7 +63,7 @@ export function CardPendenteVinculacao({
         <div className="min-w-0">
           <p className="truncate text-sm font-semibold text-ink-primary">{nomeAcao}</p>
           <p className="text-xs text-ink-muted">
-            {idAcao} · {orgao ?? "Sem órgão"} {estagioAtual ? `· ${estagioAtual}` : ""} {status ? `· ${status}` : ""}
+            <IdAcaoLink id={idAcao} /> · {orgao ?? "Sem órgão"} {estagioAtual ? `· ${estagioAtual}` : ""} {status ? `· ${status}` : ""}
           </p>
         </div>
         <span

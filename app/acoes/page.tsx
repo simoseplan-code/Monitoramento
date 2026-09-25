@@ -3,6 +3,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { FiltrosAcoes } from "./FiltrosAcoes";
 import { Paginacao } from "@/components/Paginacao";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
+import { IdAcaoLink } from "@/components/IdAcaoLink";
 
 const PAGE_SIZE = 100;
 
@@ -114,7 +115,7 @@ export default async function AcoesPage({
                 const st = classificar(r);
                 return (
                   <tr key={r.id_acao} className="border-b border-black/5 last:border-0 hover:bg-plane/60">
-                    <td className="tabular px-4 py-3 font-medium text-ink-primary">{r.id_acao}</td>
+                    <td className="tabular px-4 py-3 font-medium text-ink-primary"><IdAcaoLink id={r.id_acao} /></td>
                     <td className="px-4 py-3 text-ink-secondary">{r.nome_acao}</td>
                     <td className="px-4 py-3 text-ink-secondary">{r.orgao}</td>
                     <td className={`px-4 py-3 ${r.numero_siafe && !siafeValido(r.numero_siafe) ? "font-medium text-status-critical" : "text-ink-secondary"}`}>

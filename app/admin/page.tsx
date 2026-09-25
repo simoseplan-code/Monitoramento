@@ -5,6 +5,7 @@ import { SincronizarBotao } from "@/components/admin/SincronizarBotao";
 import { AplicarUnidadeBotao } from "@/components/unidadeQuantidade/AplicarUnidadeBotao";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
+import { IdAcaoLink } from "@/components/IdAcaoLink";
 
 export default async function AdminPage() {
   const supabase = await createClient();
@@ -160,7 +161,7 @@ export default async function AdminPage() {
                   )}
                   <div className="min-w-0">
                     <p className="truncate text-ink-secondary">
-                      {l.id_acao} · {l.nome_acao} — {l.unidade_antiga || "vazio"} → {l.unidade_nova}
+                      <IdAcaoLink id={l.id_acao} /> · {l.nome_acao} — {l.unidade_antiga || "vazio"} → {l.unidade_nova}
                     </p>
                     <p className="text-xs text-ink-muted">
                       {nomeExecutor} · {new Date(l.executado_em).toLocaleString("pt-BR")}
