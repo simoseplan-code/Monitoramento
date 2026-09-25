@@ -21,6 +21,8 @@ export const HEADER_MAP_OPCIONAL: Record<string, string[]> = {
   percentual_execucao: ["PERCENTUAL DE EXECUÇÃO DA AÇÃO", "PERCENTUAL DE EXECUCAO DA ACAO"],
   acao_conveniada: ["AÇÃO CONVENIADA", "ACAO CONVENIADA"],
   tipo_outros_documentos: ["TIPO OUTROS DOCUMENTOS", "TIPO OUTROS DOCUMENTO"],
+  data_receb_definitivo: ["RECEB. DEFINITIVO", "RECEB DEFINITIVO", "RECEBIMENTO DEFINITIVO", "DATA RECEBIMENTO DEFINITIVO"],
+  data_receb_provisorio: ["RECEB. PROVISÓRIO", "RECEB. PROVISORIO", "RECEB PROVISÓRIO", "RECEBIMENTO PROVISÓRIO", "DATA RECEBIMENTO PROVISÓRIO"],
   tipologia: ["TIPOLOGIA"],
   unidade_medida: ["UNIDADE DE MEDIDA"],
   quantidade: ["QUANTIDADE", "QUANTITATIVO"],
@@ -39,6 +41,8 @@ export type ObraRow = {
   percentual_execucao: number | null;
   acao_conveniada: string | null;
   tipo_outros_documentos: string | null;
+  data_receb_definitivo: string | null;
+  data_receb_provisorio: string | null;
   tipologia: string | null;
   unidade_medida: string | null;
   quantidade: number | null;
@@ -204,6 +208,9 @@ export function csvParaObras(csvText: string): ObraRow[] {
       percentual_execucao: pctParaFracao(get("percentual_execucao")),
       acao_conveniada: get("acao_conveniada")?.trim() || null,
       tipo_outros_documentos: get("tipo_outros_documentos")?.trim() || null,
+      // "-" (sem data) não casa com dd/mm/aaaa e vira null.
+      data_receb_definitivo: dataParaISO(get("data_receb_definitivo")),
+      data_receb_provisorio: dataParaISO(get("data_receb_provisorio")),
       tipologia: get("tipologia")?.trim() || null,
       unidade_medida: vazio(get("unidade_medida")) ? null : get("unidade_medida").trim(),
       quantidade: paraNumeroBR(get("quantidade")),

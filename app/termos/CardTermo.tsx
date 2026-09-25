@@ -12,6 +12,8 @@ export function CardTermo({
   nomeAcao,
   orgao,
   dataCriacao,
+  recebDefinitivo,
+  recebProvisorio,
   tipoDocumento,
   numeroAutomatico,
   statusInicial,
@@ -21,6 +23,8 @@ export function CardTermo({
   nomeAcao: string;
   orgao: string | null;
   dataCriacao: string | null;
+  recebDefinitivo: string | null;
+  recebProvisorio: string | null;
   tipoDocumento: string;
   numeroAutomatico: string | null;
   statusInicial: Status;
@@ -55,6 +59,7 @@ export function CardTermo({
   }
 
   const status = statusInicial;
+  const formatar = (d: string | null) => (d ? new Date(d + "T00:00:00").toLocaleDateString("pt-BR") : "—");
   const abrir = (d: "corrigido" | "problema") => {
     setDecisao(d);
     setEtapa("escrevendo");
@@ -74,9 +79,12 @@ export function CardTermo({
         <div className="min-w-0">
           <p className="text-sm font-semibold text-ink-primary">{nomeAcao}</p>
           <p className="text-xs text-ink-muted">
-            <IdAcaoLink id={idAcao} /> · {orgao ?? "Sem órgão"} · criada em{" "}
-            {dataCriacao ? new Date(dataCriacao + "T00:00:00").toLocaleDateString("pt-BR") : "—"}
+            <IdAcaoLink id={idAcao} /> · {orgao ?? "Sem órgão"} · criada em {formatar(dataCriacao)}
             {numeroAutomatico ? ` · Contrato ${numeroAutomatico}` : ""}
+          </p>
+          <p className="text-xs text-ink-muted">
+            Receb. definitivo: <strong className="text-ink-secondary">{formatar(recebDefinitivo)}</strong> · Receb. provisório:{" "}
+            <strong className="text-ink-secondary">{formatar(recebProvisorio)}</strong>
           </p>
         </div>
         {status !== "pendente" && (
