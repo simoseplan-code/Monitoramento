@@ -5,17 +5,35 @@ const SIMO_REPORT_ID = "1740"; // Relatório "AUTOMAÇÃO CONTRATO SIAFE" (pasta
 const SIMO_SHOW_URL = `http://simo.pi.gov.br/cahier/action/projects/report/show/id/${SIMO_REPORT_ID}/`;
 const SIMO_EXPORT_URL = `http://simo.pi.gov.br/cahier/action/projects/report/export-to-csv/id/${SIMO_REPORT_ID}`;
 
-export async function loginSimo(): Promise<string> {
+// fetch com limite de tempo e mensagem que diz QUAL etapa do SIMO demorou —
+// sem isso, a rota era morta pelo servidor e o erro virava só "timeout".
+async function buscar(etapa: string, url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
+  try {
+    return await fetch(url, { ...init, signal: AbortSignal.timeout(timeoutMs) });
+  } catch (e) {
+    if (e instanceof Error && (e.name === "TimeoutError" || e.name === "AbortError")) {
+      throw new Error(`${etapa}: o SIMO não respondeu em ${Math.round(timeoutMs / 1000)}s.`);
+    }
+    throw e;
+  }
+}
+
+export async function loginSimo(timeoutMs = 20_000): Promise<string> {
   const login = process.env.SIMO_LOGIN;
   const senha = process.env.SIMO_SENHA;
   if (!login || !senha) throw new Error("SIMO_LOGIN / SIMO_SENHA não configurados.");
 
-  const resp = await fetch(SIMO_LOGIN_URL, {
-    method: "POST",
-    headers: { "Content-Type": "application/x-www-form-urlencoded" },
-    body: new URLSearchParams({ cahier_login: login, password: senha }),
-    redirect: "manual",
-  });
+  const resp = await buscar(
+    "Login no SIMO",
+    SIMO_LOGIN_URL,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/x-www-form-urlencoded" },
+      body: new URLSearchParams({ cahier_login: login, password: senha }),
+      redirect: "manual",
+    },
+    timeoutMs
+  );
 
   let setCookie = resp.headers.getSetCookie?.() ?? [];
   if (setCookie.length === 0) {
@@ -28,28 +46,38 @@ export async function loginSimo(): Promise<string> {
   return setCookie.map((c) => c.split(";")[0]).join("; ");
 }
 
-export async function prepararRelatorioSimo(cookie: string): Promise<void> {
-  const resp = await fetch(SIMO_SHOW_URL, {
-    method: "POST",
-    headers: {
-      Cookie: cookie,
-      "Content-Type": "application/x-www-form-urlencoded",
-      Referer: "http://simo.pi.gov.br/cahier/action/",
-      "X-Requested-With": "XMLHttpRequest",
+export async function prepararRelatorioSimo(cookie: string, timeoutMs = 30_000): Promise<void> {
+  const resp = await buscar(
+    "Preparo do relatório no SIMO",
+    SIMO_SHOW_URL,
+    {
+      method: "POST",
+      headers: {
+        Cookie: cookie,
+        "Content-Type": "application/x-www-form-urlencoded",
+        Referer: "http://simo.pi.gov.br/cahier/action/",
+        "X-Requested-With": "XMLHttpRequest",
+      },
+      body: new URLSearchParams({ id: SIMO_REPORT_ID }),
     },
-    body: new URLSearchParams({ id: SIMO_REPORT_ID }),
-  });
+    timeoutMs
+  );
   if (!resp.ok) throw new Error(`Falha ao preparar o relatório no SIMO (HTTP ${resp.status}).`);
 }
 
-export async function baixarCsvSimo(cookie: string): Promise<string> {
-  const resp = await fetch(SIMO_EXPORT_URL, {
-    headers: {
-      Cookie: cookie,
-      Referer: "http://simo.pi.gov.br/cahier/action/",
-      "X-Requested-With": "XMLHttpRequest",
+export async function baixarCsvSimo(cookie: string, timeoutMs = 50_000): Promise<string> {
+  const resp = await buscar(
+    "Exportação do CSV no SIMO",
+    SIMO_EXPORT_URL,
+    {
+      headers: {
+        Cookie: cookie,
+        Referer: "http://simo.pi.gov.br/cahier/action/",
+        "X-Requested-With": "XMLHttpRequest",
+      },
     },
-  });
+    timeoutMs
+  );
   if (!resp.ok) throw new Error(`Falha ao baixar o relatório do SIMO (HTTP ${resp.status}).`);
 
   let buffer = Buffer.from(await resp.arrayBuffer());

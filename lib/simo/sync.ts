@@ -36,10 +36,16 @@ export async function executarSyncSimo(): Promise<{ linhas: number }> {
   const log = await abrirLog(admin, "Sync de obras");
 
   try {
-    await log.fase("baixando relatório do SIMO");
-    const cookie = await loginSimo();
-    await prepararRelatorioSimo(cookie);
-    const csvText = await baixarCsvSimo(cookie);
+    // Cada passo com o seu limite e o seu nome na fase: se o servidor cortar,
+    // o histórico do Admin mostra em qual deles parou.
+    await log.fase("login no SIMO");
+    const cookie = await loginSimo(15_000);
+    const tLogin = seg();
+    await log.fase("preparando o relatório no SIMO");
+    await prepararRelatorioSimo(cookie, 20_000);
+    const tPreparo = seg();
+    await log.fase("exportando o CSV do SIMO (relatório grande)");
+    const csvText = await baixarCsvSimo(cookie, Math.max(10_000, 52_000 - (Date.now() - inicio)));
     const tDownload = seg();
     const obras = csvParaObras(csvText);
 
@@ -88,7 +94,7 @@ export async function executarSyncSimo(): Promise<{ linhas: number }> {
     await log.fim({
       sucesso: true,
       linhas_processadas: obras.length,
-      mensagem: `OK obras: ${obras.length} ações em ${seg()}s (SIMO+download ${tDownload}s, gravação até ${tGravacao}s).`,
+      mensagem: `OK obras: ${obras.length} ações em ${seg()}s (login ${tLogin}s, preparo até ${tPreparo}s, download até ${tDownload}s, gravação até ${tGravacao}s).`,
     });
 
     return { linhas: obras.length };
