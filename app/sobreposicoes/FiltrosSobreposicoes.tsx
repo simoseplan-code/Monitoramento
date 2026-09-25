@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 
 const ABAS = [
@@ -25,7 +26,9 @@ export function FiltrosSobreposicoes({
 }) {
   const router = useRouter();
 
-  function aplicar(overrides: { status?: string; orgao?: string; ano?: string }) {
+  // Os botões de status são links de verdade (href) pra o botão direito oferecer
+  // "abrir em nova aba"; os selects continuam navegando por aplicar().
+  function hrefPara(overrides: { status?: string; orgao?: string; ano?: string }): string {
     const params = new URLSearchParams();
     const statusValor = overrides.status ?? statusAtual;
     const orgaoValor = overrides.orgao ?? orgaoAtual;
@@ -33,7 +36,11 @@ export function FiltrosSobreposicoes({
     if (statusValor !== "pendente") params.set("status", statusValor);
     if (orgaoValor) params.set("orgao", orgaoValor);
     if (anoValor) params.set("ano", anoValor);
-    router.push(`/sobreposicoes${params.toString() ? `?${params.toString()}` : ""}`);
+    return `/sobreposicoes${params.toString() ? `?${params.toString()}` : ""}`;
+  }
+
+  function aplicar(overrides: { status?: string; orgao?: string; ano?: string }) {
+    router.push(hrefPara(overrides));
   }
 
   return (
@@ -42,15 +49,15 @@ export function FiltrosSobreposicoes({
         {ABAS.map((a) => {
           const ativa = statusAtual === a.valor;
           return (
-            <button
+            <Link
               key={a.valor}
-              onClick={() => aplicar({ status: a.valor })}
+              href={hrefPara({ status: a.valor })}
               className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
                 ativa ? a.ativa : "border border-black/10 text-ink-secondary hover:bg-plane"
               }`}
             >
               {a.rotulo} <span className="tabular opacity-80">({contagens[a.valor]})</span>
-            </button>
+            </Link>
           );
         })}
       </div>

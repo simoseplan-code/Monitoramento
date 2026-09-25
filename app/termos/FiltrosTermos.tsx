@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Search } from "lucide-react";
@@ -24,7 +25,9 @@ export function FiltrosTermos({
   const router = useRouter();
   const [busca, setBusca] = useState(atuais.busca);
 
-  function aplicar(mudancas: Partial<Atuais>) {
+  // Os botões de status são links de verdade (href) pra o botão direito oferecer
+  // "abrir em nova aba"; os demais filtros continuam navegando por aplicar().
+  function hrefPara(mudancas: Partial<Atuais>): string {
     const v = { ...atuais, busca, ...mudancas };
     const params = new URLSearchParams();
     if (v.status !== "pendente") params.set("status", v.status);
@@ -33,7 +36,11 @@ export function FiltrosTermos({
     if (v.de) params.set("de", v.de);
     if (v.ate) params.set("ate", v.ate);
     if (v.busca) params.set("busca", v.busca);
-    router.push(`/termos${params.toString() ? `?${params.toString()}` : ""}`);
+    return `/termos${params.toString() ? `?${params.toString()}` : ""}`;
+  }
+
+  function aplicar(mudancas: Partial<Atuais>) {
+    router.push(hrefPara(mudancas));
   }
 
   const campo =
@@ -43,15 +50,15 @@ export function FiltrosTermos({
     <div className="space-y-3 rounded-xl border border-black/5 bg-surface p-4 shadow-card">
       <div className="flex flex-wrap gap-2">
         {ABAS.map((a) => (
-          <button
+          <Link
             key={a.valor}
-            onClick={() => aplicar({ status: a.valor })}
+            href={hrefPara({ status: a.valor })}
             className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
               atuais.status === a.valor ? a.ativa : "border border-black/10 text-ink-secondary hover:bg-plane"
             }`}
           >
             {a.rotulo} <span className="tabular opacity-80">({contagens[a.valor]})</span>
-          </button>
+          </Link>
         ))}
       </div>
 
