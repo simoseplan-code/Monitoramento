@@ -175,6 +175,24 @@ export function csvParaObras(csvText: string): ObraRow[] {
     if (pos !== -1) posPorCampo[campo] = pos;
   }
 
+  // Datas de recebimento: se o nome exato não bateu, procura pelo sentido
+  // (sem acento): RECEB... + DEFINIT... / PROVIS... — o cabeçalho no arquivo
+  // pode vir como "RECEBIMENTO DEFINITIVO", "RECEB DEFINITIVO" etc.
+  const semAcento = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+  const acharPorSentido = (parte: string) =>
+    cabecalho.findIndex((h) => {
+      const n = semAcento(h);
+      return n.includes("RECEB") && n.includes(parte);
+    });
+  if (posPorCampo.data_receb_definitivo === undefined) {
+    const p = acharPorSentido("DEFINIT");
+    if (p !== -1) posPorCampo.data_receb_definitivo = p;
+  }
+  if (posPorCampo.data_receb_provisorio === undefined) {
+    const p = acharPorSentido("PROVIS");
+    if (p !== -1) posPorCampo.data_receb_provisorio = p;
+  }
+
   // Colunas do CSV que não caíram em nenhum campo conhecido acima —
   // guardadas em "extra" pra não perder dado se o SIMO adicionar coluna nova.
   const posConhecidas = new Set(Object.values(posPorCampo));

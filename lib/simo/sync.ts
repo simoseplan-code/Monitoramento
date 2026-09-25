@@ -28,6 +28,22 @@ async function abrirLog(admin: SupabaseClient, rotulo: string) {
   };
 }
 
+// Resumo das datas de recebimento lidas: quantas definitivas/provisórias e,
+// se não veio nenhuma, quais colunas "extras" (não reconhecidas) o arquivo
+// trouxe — mostra se a coluna não veio ou veio com outro nome.
+function resumoRecebimento(obras: ObraRow[]): string {
+  const comDef = obras.filter((o) => o.data_receb_definitivo).length;
+  const comProv = obras.filter((o) => o.data_receb_provisorio).length;
+  let texto = ` Datas de recebimento lidas: ${comDef} definitivas, ${comProv} provisórias.`;
+  if (comDef + comProv === 0) {
+    const chaves = new Set<string>();
+    for (const o of obras) for (const k of Object.keys(o.extra)) chaves.add(k);
+    const lista = Array.from(chaves).slice(0, 25).join(", ") || "nenhuma";
+    texto += ` ATENÇÃO: nenhuma data lida — colunas extras no arquivo: ${lista}.`;
+  }
+  return texto;
+}
+
 // CAMADA 1 — baixa o relatório do SIMO (a parte lenta, às vezes passa de
 // 1 minuto) e guarda o CSV compactado no banco (tabela sync_csv). É a única
 // camada que fala com o SIMO; recebe o tempo inteiro da requisição.
@@ -144,7 +160,7 @@ export async function executarSyncObras(): Promise<{ linhas: number }> {
     await log.fim({
       sucesso: true,
       linhas_processadas: obras.length,
-      mensagem: `OK obras: ${obras.length} ações em ${seg()}s (leitura ${tLeitura}s, gravação até ${tGravacao}s).`,
+      mensagem: `OK obras: ${obras.length} ações em ${seg()}s (leitura ${tLeitura}s, gravação até ${tGravacao}s).${resumoRecebimento(obras)}`,
     });
 
     return { linhas: obras.length };
