@@ -11,7 +11,7 @@ export function IdAcaoLink({ id, children }: { id: string; children?: React.Reac
       target="_blank"
       rel="noopener noreferrer"
       title="Abrir a ação no SIMO"
-      className="text-series-1 hover:underline"
+      className="-mx-1 inline-block rounded px-1 py-0.5 text-series-1 hover:underline"
     >
       {children ?? id}
     </a>
