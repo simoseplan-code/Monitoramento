@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Search } from "lucide-react";
+import { Search, Download } from "lucide-react";
 
 const FILTROS = [
   { chave: "", label: "Todas" },
@@ -12,23 +12,47 @@ const FILTROS = [
   { chave: "dado_incorreto", label: "Dado incorreto" },
 ];
 
-export function FiltrosAcoes({ buscaAtual, filtroAtual }: { buscaAtual: string; filtroAtual: string }) {
+export function FiltrosAcoes({
+  buscaAtual,
+  filtroAtual,
+  deAtual,
+  ateAtual,
+}: {
+  buscaAtual: string;
+  filtroAtual: string;
+  deAtual: string;
+  ateAtual: string;
+}) {
   const router = useRouter();
   const [busca, setBusca] = useState(buscaAtual);
 
-  function aplicar(filtro: string, buscaValor: string) {
+  function montarParams(overrides: { filtro?: string; busca?: string; de?: string; ate?: string }) {
     const params = new URLSearchParams();
+    const buscaValor = overrides.busca ?? busca;
+    const filtroValor = overrides.filtro ?? filtroAtual;
+    const deValor = overrides.de ?? deAtual;
+    const ateValor = overrides.ate ?? ateAtual;
     if (buscaValor) params.set("busca", buscaValor);
-    if (filtro) params.set("filtro", filtro);
+    if (filtroValor) params.set("filtro", filtroValor);
+    if (deValor) params.set("de", deValor);
+    if (ateValor) params.set("ate", ateValor);
+    return params;
+  }
+
+  function aplicar(overrides: { filtro?: string; busca?: string; de?: string; ate?: string }) {
+    const params = montarParams(overrides);
     router.push(`/acoes${params.toString() ? `?${params.toString()}` : ""}`);
   }
 
+  const campo =
+    "rounded-lg border border-black/10 bg-plane px-3 py-2 text-sm text-ink-secondary focus:border-series-1 focus:outline-none";
+
   return (
-    <div className="flex flex-col gap-3 border-b border-black/5 p-4 sm:flex-row sm:items-center sm:justify-between">
+    <div className="flex flex-col gap-3 border-b border-black/5 p-4 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
       <form
         onSubmit={(e) => {
           e.preventDefault();
-          aplicar(filtroAtual, busca);
+          aplicar({});
         }}
         className="relative"
       >
@@ -41,11 +65,27 @@ export function FiltrosAcoes({ buscaAtual, filtroAtual }: { buscaAtual: string; 
         />
       </form>
 
+      <div className="flex flex-wrap items-center gap-3">
+        <label className="flex items-center gap-2 text-xs text-ink-muted">
+          Criada de
+          <input type="date" value={deAtual} onChange={(e) => aplicar({ de: e.target.value })} className={campo} />
+        </label>
+        <label className="flex items-center gap-2 text-xs text-ink-muted">
+          até
+          <input type="date" value={ateAtual} onChange={(e) => aplicar({ ate: e.target.value })} className={campo} />
+        </label>
+        {(deAtual || ateAtual) && (
+          <button onClick={() => aplicar({ de: "", ate: "" })} className="text-xs text-series-1 hover:underline">
+            limpar datas
+          </button>
+        )}
+      </div>
+
       <div className="flex flex-wrap gap-1.5">
         {FILTROS.map((f) => (
           <button
             key={f.chave}
-            onClick={() => aplicar(f.chave, busca)}
+            onClick={() => aplicar({ filtro: f.chave })}
             className={`rounded-full px-3 py-1.5 text-xs font-medium transition-colors ${
               filtroAtual === f.chave ? "bg-series-1 text-white" : "bg-plane text-ink-secondary hover:bg-black/5"
             }`}
@@ -54,6 +94,14 @@ export function FiltrosAcoes({ buscaAtual, filtroAtual }: { buscaAtual: string; 
           </button>
         ))}
       </div>
+
+      <a
+        href={`/api/acoes/export?${montarParams({}).toString()}`}
+        className="flex items-center gap-1.5 rounded-full bg-status-good px-3 py-1.5 text-xs font-medium text-white transition-colors hover:opacity-90"
+      >
+        <Download size={14} />
+        Exportar Excel
+      </a>
     </div>
   );
 }

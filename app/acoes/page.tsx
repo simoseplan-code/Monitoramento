@@ -42,9 +42,9 @@ const LABELS: Record<string, string> = {
 export default async function AcoesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ busca?: string; filtro?: string; pagina?: string }>;
+  searchParams: Promise<{ busca?: string; filtro?: string; de?: string; ate?: string; pagina?: string }>;
 }) {
-  const { busca, filtro, pagina } = await searchParams;
+  const { busca, filtro, de, ate, pagina } = await searchParams;
   const paginaAtual = Math.max(1, parseInt(pagina ?? "1", 10) || 1);
   const supabase = await createClient();
 
@@ -80,8 +80,11 @@ export default async function AcoesPage({
     query = query.not("numero_siafe", "is", null).not("numero_siafe", "match", "^[0-9]{8}$");
   }
 
-  const de = (paginaAtual - 1) * PAGE_SIZE;
-  const { data: obras, count: totalFiltrado } = await query.order("nome_acao").range(de, de + PAGE_SIZE - 1);
+  if (de) query = query.gte("data_criacao", de);
+  if (ate) query = query.lte("data_criacao", ate);
+
+  const offset = (paginaAtual - 1) * PAGE_SIZE;
+  const { data: obras, count: totalFiltrado } = await query.order("nome_acao").range(offset, offset + PAGE_SIZE - 1);
 
   const linhas = obras ?? [];
   const totalPaginas = Math.max(1, Math.ceil((totalFiltrado ?? 0) / PAGE_SIZE));
@@ -96,7 +99,7 @@ export default async function AcoesPage({
       subtitulo={`${totalFiltrado ?? 0} ação(ões) encontradas · página ${paginaAtual} de ${totalPaginas}`}
     >
       <div className="rounded-xl border border-black/5 bg-surface shadow-card">
-        <FiltrosAcoes buscaAtual={busca ?? ""} filtroAtual={filtro ?? ""} />
+        <FiltrosAcoes buscaAtual={busca ?? ""} filtroAtual={filtro ?? ""} deAtual={de ?? ""} ateAtual={ate ?? ""} />
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -139,7 +142,7 @@ export default async function AcoesPage({
           </table>
         </div>
 
-        <Paginacao paginaAtual={paginaAtual} totalPaginas={totalPaginas} baseHref="/acoes" params={{ busca, filtro }} />
+        <Paginacao paginaAtual={paginaAtual} totalPaginas={totalPaginas} baseHref="/acoes" params={{ busca, filtro, de, ate }} />
       </div>
     </AppShell>
   );
