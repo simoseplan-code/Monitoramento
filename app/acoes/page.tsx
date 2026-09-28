@@ -42,9 +42,9 @@ const LABELS: Record<string, string> = {
 export default async function AcoesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ busca?: string; filtro?: string; de?: string; ate?: string; pagina?: string }>;
+  searchParams: Promise<{ busca?: string; filtro?: string; orgao?: string; de?: string; ate?: string; pagina?: string }>;
 }) {
-  const { busca, filtro, de, ate, pagina } = await searchParams;
+  const { busca, filtro, orgao, de, ate, pagina } = await searchParams;
   const paginaAtual = Math.max(1, parseInt(pagina ?? "1", 10) || 1);
   const supabase = await createClient();
 
@@ -52,12 +52,15 @@ export default async function AcoesPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: profile }, { count: pendentesAprovacao }, { count: totalGeral }, novasAcoesPendentes] = await Promise.all([
-    supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
-    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
-    supabase.from("obras").select("id_acao", { count: "exact", head: true }),
-    contarNovasAcoesPendentes(supabase),
-  ]);
+  const [{ data: profile }, { count: pendentesAprovacao }, { count: totalGeral }, novasAcoesPendentes, { data: orgaosRpc }] =
+    await Promise.all([
+      supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
+      supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
+      supabase.from("obras").select("id_acao", { count: "exact", head: true }),
+      contarNovasAcoesPendentes(supabase),
+      supabase.rpc("acoes_orgaos"),
+    ]);
+  const orgaosDisponiveis = (orgaosRpc ?? []).map((r: { orgao: string }) => r.orgao);
 
   // Filtro e classificação viram condição SQL — o Postgres já devolve só
   // a página pedida, em vez de trazer as 13 mil linhas pro Next.js
@@ -68,6 +71,10 @@ export default async function AcoesPage({
 
   if (busca) {
     query = query.or(`nome_acao.ilike.%${busca}%,id_acao.ilike.%${busca}%,orgao.ilike.%${busca}%`);
+  }
+
+  if (orgao) {
+    query = query.eq("orgao", orgao);
   }
 
   if (filtro === "vinculada") {
@@ -99,7 +106,14 @@ export default async function AcoesPage({
       subtitulo={`${totalFiltrado ?? 0} ação(ões) encontradas · página ${paginaAtual} de ${totalPaginas}`}
     >
       <div className="rounded-xl border border-black/5 bg-surface shadow-card">
-        <FiltrosAcoes buscaAtual={busca ?? ""} filtroAtual={filtro ?? ""} deAtual={de ?? ""} ateAtual={ate ?? ""} />
+        <FiltrosAcoes
+          buscaAtual={busca ?? ""}
+          filtroAtual={filtro ?? ""}
+          orgaoAtual={orgao ?? ""}
+          orgaos={orgaosDisponiveis}
+          deAtual={de ?? ""}
+          ateAtual={ate ?? ""}
+        />
 
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
@@ -142,7 +156,7 @@ export default async function AcoesPage({
           </table>
         </div>
 
-        <Paginacao paginaAtual={paginaAtual} totalPaginas={totalPaginas} baseHref="/acoes" params={{ busca, filtro, de, ate }} />
+        <Paginacao paginaAtual={paginaAtual} totalPaginas={totalPaginas} baseHref="/acoes" params={{ busca, filtro, orgao, de, ate }} />
       </div>
     </AppShell>
   );

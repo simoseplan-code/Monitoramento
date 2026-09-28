@@ -15,31 +15,37 @@ const FILTROS = [
 export function FiltrosAcoes({
   buscaAtual,
   filtroAtual,
+  orgaoAtual,
+  orgaos,
   deAtual,
   ateAtual,
 }: {
   buscaAtual: string;
   filtroAtual: string;
+  orgaoAtual: string;
+  orgaos: string[];
   deAtual: string;
   ateAtual: string;
 }) {
   const router = useRouter();
   const [busca, setBusca] = useState(buscaAtual);
 
-  function montarParams(overrides: { filtro?: string; busca?: string; de?: string; ate?: string }) {
+  function montarParams(overrides: { filtro?: string; busca?: string; orgao?: string; de?: string; ate?: string }) {
     const params = new URLSearchParams();
     const buscaValor = overrides.busca ?? busca;
     const filtroValor = overrides.filtro ?? filtroAtual;
+    const orgaoValor = overrides.orgao ?? orgaoAtual;
     const deValor = overrides.de ?? deAtual;
     const ateValor = overrides.ate ?? ateAtual;
     if (buscaValor) params.set("busca", buscaValor);
     if (filtroValor) params.set("filtro", filtroValor);
+    if (orgaoValor) params.set("orgao", orgaoValor);
     if (deValor) params.set("de", deValor);
     if (ateValor) params.set("ate", ateValor);
     return params;
   }
 
-  function aplicar(overrides: { filtro?: string; busca?: string; de?: string; ate?: string }) {
+  function aplicar(overrides: { filtro?: string; busca?: string; orgao?: string; de?: string; ate?: string }) {
     const params = montarParams(overrides);
     router.push(`/acoes${params.toString() ? `?${params.toString()}` : ""}`);
   }
@@ -66,6 +72,15 @@ export function FiltrosAcoes({
       </form>
 
       <div className="flex flex-wrap items-center gap-3">
+        <select value={orgaoAtual} onChange={(e) => aplicar({ orgao: e.target.value })} className={campo}>
+          <option value="">Todos os órgãos</option>
+          {orgaos.map((o) => (
+            <option key={o} value={o}>
+              {o}
+            </option>
+          ))}
+        </select>
+
         <label className="flex items-center gap-2 text-xs text-ink-muted">
           Criada de
           <input type="date" value={deAtual} onChange={(e) => aplicar({ de: e.target.value })} className={campo} />

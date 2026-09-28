@@ -16,6 +16,7 @@ export async function GET(request: NextRequest) {
   const params = request.nextUrl.searchParams;
   const busca = params.get("busca");
   const filtro = params.get("filtro");
+  const orgao = params.get("orgao");
   const de = params.get("de");
   const ate = params.get("ate");
 
@@ -29,6 +30,10 @@ export async function GET(request: NextRequest) {
 
   if (busca) {
     query = query.or(`nome_acao.ilike.%${busca}%,id_acao.ilike.%${busca}%,orgao.ilike.%${busca}%`);
+  }
+
+  if (orgao) {
+    query = query.eq("orgao", orgao);
   }
 
   if (filtro === "vinculada") {
