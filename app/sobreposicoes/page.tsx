@@ -29,11 +29,12 @@ type LinhaSobreposicao = {
 export default async function SobreposicoesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; orgao?: string; ano?: string; pagina?: string }>;
+  searchParams: Promise<{ status?: string; orgao?: string; ano?: string; ocultarEstradaVicinal?: string; pagina?: string }>;
 }) {
-  const { status, orgao, ano, pagina } = await searchParams;
+  const { status, orgao, ano, ocultarEstradaVicinal, pagina } = await searchParams;
   const statusAtual = status === "ok" || status === "problema" ? status : "pendente";
   const anoFiltro = ano ? parseInt(ano, 10) : null;
+  const ocultarEstradaVicinalAtual = ocultarEstradaVicinal === "1";
   const paginaAtual = Math.max(1, parseInt(pagina ?? "1", 10) || 1);
 
   const supabase = await createClient();
@@ -57,12 +58,17 @@ export default async function SobreposicoesPage({
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
     contarNovasAcoesPendentes(supabase),
     supabase.from("sobreposicoes").select("chave_local", { count: "exact", head: true }).eq("status", "pendente"),
-    // Números dos botões de status: seguem os filtros de órgão e ano.
-    supabase.rpc("sobreposicoes_contagens", { orgao_filtro: orgao || null, ano_filtro: anoFiltro }),
+    // Números dos botões de status: seguem os filtros de órgão, ano e tipologia.
+    supabase.rpc("sobreposicoes_contagens", {
+      orgao_filtro: orgao || null,
+      ano_filtro: anoFiltro,
+      ocultar_estrada_vicinal: ocultarEstradaVicinalAtual,
+    }),
     supabase.rpc("sobreposicoes_lista", {
       filtro_status: statusAtual,
       orgao_filtro: orgao || null,
       ano_filtro: anoFiltro,
+      ocultar_estrada_vicinal: ocultarEstradaVicinalAtual,
       pagina: paginaAtual,
       tamanho: PAGE_SIZE,
     }),
@@ -130,6 +136,7 @@ export default async function SobreposicoesPage({
           orgaos={orgaosDisponiveis}
           anoAtual={ano ?? ""}
           anos={anosDisponiveis}
+          ocultarEstradaVicinalAtual={ocultarEstradaVicinalAtual}
         />
       </div>
 
@@ -163,7 +170,12 @@ export default async function SobreposicoesPage({
           paginaAtual={paginaAtual}
           totalPaginas={totalPaginas}
           baseHref="/sobreposicoes"
-          params={{ status: statusAtual !== "pendente" ? statusAtual : undefined, orgao, ano }}
+          params={{
+            status: statusAtual !== "pendente" ? statusAtual : undefined,
+            orgao,
+            ano,
+            ocultarEstradaVicinal: ocultarEstradaVicinalAtual ? "1" : undefined,
+          }}
         />
       </div>
     </AppShell>

@@ -16,6 +16,7 @@ export function FiltrosSobreposicoes({
   orgaos,
   anoAtual,
   anos,
+  ocultarEstradaVicinalAtual,
 }: {
   statusAtual: string;
   contagens: { pendente: number; ok: number; problema: number };
@@ -23,23 +24,26 @@ export function FiltrosSobreposicoes({
   orgaos: string[];
   anoAtual: string;
   anos: number[];
+  ocultarEstradaVicinalAtual: boolean;
 }) {
   const router = useRouter();
 
   // Os botões de status são links de verdade (href) pra o botão direito oferecer
   // "abrir em nova aba"; os selects continuam navegando por aplicar().
-  function hrefPara(overrides: { status?: string; orgao?: string; ano?: string }): string {
+  function hrefPara(overrides: { status?: string; orgao?: string; ano?: string; ocultarEstradaVicinal?: boolean }): string {
     const params = new URLSearchParams();
     const statusValor = overrides.status ?? statusAtual;
     const orgaoValor = overrides.orgao ?? orgaoAtual;
     const anoValor = overrides.ano ?? anoAtual;
+    const ocultarValor = overrides.ocultarEstradaVicinal ?? ocultarEstradaVicinalAtual;
     if (statusValor !== "pendente") params.set("status", statusValor);
     if (orgaoValor) params.set("orgao", orgaoValor);
     if (anoValor) params.set("ano", anoValor);
+    if (ocultarValor) params.set("ocultarEstradaVicinal", "1");
     return `/sobreposicoes${params.toString() ? `?${params.toString()}` : ""}`;
   }
 
-  function aplicar(overrides: { status?: string; orgao?: string; ano?: string }) {
+  function aplicar(overrides: { status?: string; orgao?: string; ano?: string; ocultarEstradaVicinal?: boolean }) {
     router.push(hrefPara(overrides));
   }
 
@@ -88,6 +92,15 @@ export function FiltrosSobreposicoes({
           </option>
         ))}
       </select>
+
+      <label className="flex items-center gap-2 text-sm text-ink-secondary">
+        <input
+          type="checkbox"
+          checked={!ocultarEstradaVicinalAtual}
+          onChange={(e) => aplicar({ ocultarEstradaVicinal: !e.target.checked })}
+        />
+        Mostrar Estrada Vicinal × Estrada Vicinal
+      </label>
     </div>
   );
 }
