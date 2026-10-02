@@ -77,7 +77,7 @@ export default async function DesempenhoPage({
   ]);
 
   const situacao = calcularSituacao((situacaoRpc ?? []) as LinhaSituacao[], (ativos ?? []) as { id: string; nome: string }[]);
-  // ok/problema/solucionado_resp = análises da pessoa como responsável (problema = em aberto);
+  // ok / problema (incluindo os já solucionados) = análises da pessoa como responsável;
   // solucionou = problemas que ela marcou como solucionados.
   const sobreMapa = new Map<string, { ok: number; problema: number; resolvidos: number; solucionou: number }>();
   for (const l of (sobreposicoesRpc ?? []) as { usuario_id: string; situacao: string; total: number }[]) {
@@ -85,14 +85,14 @@ export default async function DesempenhoPage({
     const n = Number(l.total);
     if (l.situacao === "ok") x.ok += n;
     else if (l.situacao === "problema") x.problema += n;
-    else if (l.situacao === "solucionado_resp") x.resolvidos += n;
+    else if (l.situacao === "solucionado_resp") x.problema += n;
     else if (l.situacao === "solucionou") x.solucionou += n;
     sobreMapa.set(l.usuario_id, x);
   }
   const sobreposicoes = ((ativos ?? []) as { id: string; nome: string }[])
     .map((p) => {
       const x = sobreMapa.get(p.id) ?? { ok: 0, problema: 0, resolvidos: 0, solucionou: 0 };
-      return { id: p.id, nome: p.nome, ok: x.ok, problema: x.problema, solucionou: x.solucionou, total: x.ok + x.problema + x.resolvidos };
+      return { id: p.id, nome: p.nome, ok: x.ok, problema: x.problema, solucionou: x.solucionou, total: x.ok + x.problema };
     })
     .sort((a, b) => b.total + b.solucionou - (a.total + a.solucionou) || a.nome.localeCompare(b.nome));
   const totaisSobre = sobreposicoes.reduce(
@@ -248,9 +248,9 @@ export default async function DesempenhoPage({
           <h3 className="text-sm font-semibold text-ink-primary">Sobreposições — análises por pessoa</h3>
           <p className="mb-2 text-[11px] leading-snug text-ink-muted">
             1 por local. <span className="font-medium text-status-warning">Com problema</span>: fica para verificação
-            posterior (em aberto). <span className="font-medium text-status-good">Sem problema</span>: não se configura
+            posterior; continua contando aqui depois de solucionado. <span className="font-medium text-status-good">Sem problema</span>: não se configura
             como sobreposição. <span className="font-medium text-series-7">Solucionou</span>: problemas que a pessoa marcou
-            como solucionados. O total conta o que ela analisou, inclusive problemas dela que já foram solucionados.
+            como solucionados.
           </p>
           <table className="w-full text-xs">
             <thead className="border-b border-black/5 text-left uppercase tracking-wide text-ink-muted">
