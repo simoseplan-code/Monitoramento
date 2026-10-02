@@ -23,6 +23,8 @@ type LinhaSobreposicao = {
   status: "pendente" | "ok" | "problema";
   observacao: string | null;
   importado_em: string;
+  responsavel_id: string | null;
+  responsavel_nome: string | null;
   total_geral: number;
 };
 
@@ -52,6 +54,7 @@ export default async function SobreposicoesPage({
     { data: linhasRpc },
     { data: orgaosRpc },
     { data: anosRpc },
+    { data: equipeAtiva },
   ] = await Promise.all([
     supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
     supabase.from("obras").select("id_acao", { count: "exact", head: true }),
@@ -74,7 +77,12 @@ export default async function SobreposicoesPage({
     }),
     supabase.rpc("sobreposicoes_orgaos"),
     supabase.rpc("sobreposicoes_anos"),
+    // Só admin enxerga os perfis de todo mundo (RLS); pros demais volta vazio.
+    supabase.from("profiles").select("id, nome").eq("status", "aprovado").order("nome"),
   ]);
+  const ehAdmin = !!profile?.is_admin;
+  const equipe = ehAdmin ? ((equipeAtiva ?? []) as { id: string; nome: string }[]) : [];
+  const usuario = { id: user!.id, nome: profile?.nome ?? "Você" };
 
   const linhasCsv = (linhasRpc ?? []) as LinhaSobreposicao[];
 
@@ -155,6 +163,10 @@ export default async function SobreposicoesPage({
             lonFim={l.lon_fim}
             statusInicial={l.status}
             observacaoInicial={l.observacao}
+            responsavelInicial={l.responsavel_id ? { id: l.responsavel_id, nome: l.responsavel_nome ?? "—" } : null}
+            usuario={usuario}
+            ehAdmin={ehAdmin}
+            equipe={equipe}
           />
         ))}
 

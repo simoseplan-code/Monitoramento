@@ -64,6 +64,7 @@ export default async function DesempenhoPage({
     novasAcoesPendentes,
     { data: linhasRpc },
     { data: situacaoRpc },
+    { data: sobreposicoesRpc },
     { data: ativos },
   ] = await Promise.all([
     supabase.from("obras").select("id_acao", { count: "exact", head: true }),
@@ -71,10 +72,26 @@ export default async function DesempenhoPage({
     contarNovasAcoesPendentes(supabase),
     supabase.rpc("desempenho_agregado", { data_de: dataDe, data_ate: dataAte }),
     supabase.rpc("desempenho_situacao", { data_de: dataDe, data_ate: dataAte }),
+    supabase.rpc("desempenho_sobreposicoes", { data_de: dataDe, data_ate: dataAte }),
     supabase.from("profiles").select("id, nome").eq("status", "aprovado").order("nome"),
   ]);
 
   const situacao = calcularSituacao((situacaoRpc ?? []) as LinhaSituacao[], (ativos ?? []) as { id: string; nome: string }[]);
+  const sobreMapa = new Map<string, { ok: number; problema: number }>();
+  for (const l of (sobreposicoesRpc ?? []) as { usuario_id: string; situacao: string; total: number }[]) {
+    const x = sobreMapa.get(l.usuario_id) ?? { ok: 0, problema: 0 };
+    if (l.situacao === "ok") x.ok += Number(l.total);
+    else x.problema += Number(l.total);
+    sobreMapa.set(l.usuario_id, x);
+  }
+  const sobreposicoes = ((ativos ?? []) as { id: string; nome: string }[])
+    .map((p) => ({ id: p.id, nome: p.nome, ok: sobreMapa.get(p.id)?.ok ?? 0, problema: sobreMapa.get(p.id)?.problema ?? 0 }))
+    .sort((a, b) => b.ok + b.problema - (a.ok + a.problema) || a.nome.localeCompare(b.nome));
+  const totaisSobre = sobreposicoes.reduce(
+    (t, p) => ({ ok: t.ok + p.ok, problema: t.problema + p.problema }),
+    { ok: 0, problema: 0 }
+  );
+
   const totaisSituacao = situacao.reduce(
     (t, p) => ({ ok: t.ok + p.ok, pendencia: t.pendencia + p.pendencia, total: t.total + p.ok + p.pendencia }),
     { ok: 0, pendencia: 0, total: 0 }
@@ -181,51 +198,81 @@ export default async function DesempenhoPage({
         </p>
       )}
 
-      <section className="mb-4 rounded-xl border border-black/5 bg-surface p-5 shadow-card">
-        <h3 className="text-sm font-semibold text-ink-primary">Novas Ações — análises por pessoa</h3>
-        <p className="mb-3 text-xs text-ink-muted">
-          1 por ação, na situação de agora. <span className="font-medium text-status-good">Concluídas</span>: análise
-          finalizada. <span className="font-medium text-status-warning">Pendentes</span>: a pessoa analisou e ainda falta
-          resolver algo (item laranja); quando resolver, passa para concluídas.
-        </p>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="border-b border-black/5 text-left text-xs uppercase tracking-wide text-ink-muted">
+      <div className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <section className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
+          <h3 className="text-sm font-semibold text-ink-primary">Novas Ações — análises por pessoa</h3>
+          <p className="mb-2 text-[11px] leading-snug text-ink-muted">
+            1 por ação, na situação de agora. <span className="font-medium text-status-good">Concluída</span>: análise
+            finalizada. <span className="font-medium text-status-warning">Pendente</span>: falta resolver algo (item
+            laranja); ao resolver, passa para concluída.
+          </p>
+          <table className="w-full text-xs">
+            <thead className="border-b border-black/5 text-left uppercase tracking-wide text-ink-muted">
               <tr>
-                <th className="px-3 py-2">Pessoa</th>
-                <th className="px-3 py-2 text-right text-status-good">Análise concluída</th>
-                <th className="px-3 py-2 text-right text-status-warning">Análise pendente</th>
-                <th className="px-3 py-2 text-right">Total analisadas</th>
+                <th className="px-2 py-1.5">Pessoa</th>
+                <th className="px-2 py-1.5 text-right text-status-good">Concluída</th>
+                <th className="px-2 py-1.5 text-right text-status-warning">Pendente</th>
+                <th className="px-2 py-1.5 text-right">Total</th>
               </tr>
             </thead>
             <tbody>
               {situacao.map((p) => (
                 <tr key={p.id} className="border-b border-black/5 last:border-0">
-                  <td className="px-3 py-2 font-medium text-ink-primary">{p.nome}</td>
-                  <td className="tabular px-3 py-2 text-right font-semibold text-status-good">{p.ok || "—"}</td>
-                  <td className="tabular px-3 py-2 text-right font-semibold text-status-warning">{p.pendencia || "—"}</td>
-                  <td className="tabular px-3 py-2 text-right text-ink-primary">{p.ok + p.pendencia || "—"}</td>
+                  <td className="truncate px-2 py-1 font-medium text-ink-primary">{p.nome}</td>
+                  <td className="tabular px-2 py-1 text-right font-semibold text-status-good">{p.ok || "—"}</td>
+                  <td className="tabular px-2 py-1 text-right font-semibold text-status-warning">{p.pendencia || "—"}</td>
+                  <td className="tabular px-2 py-1 text-right text-ink-primary">{p.ok + p.pendencia || "—"}</td>
                 </tr>
               ))}
               {situacao.length > 0 && (
                 <tr className="border-t-2 border-black/10 bg-plane/60 font-semibold">
-                  <td className="px-3 py-2 text-ink-primary">Total</td>
-                  <td className="tabular px-3 py-2 text-right text-status-good">{totaisSituacao.ok}</td>
-                  <td className="tabular px-3 py-2 text-right text-status-warning">{totaisSituacao.pendencia}</td>
-                  <td className="tabular px-3 py-2 text-right text-ink-primary">{totaisSituacao.total}</td>
-                </tr>
-              )}
-              {situacao.length === 0 && (
-                <tr>
-                  <td colSpan={4} className="px-3 py-8 text-center text-sm text-ink-muted">
-                    Nenhuma análise no período.
-                  </td>
+                  <td className="px-2 py-1 text-ink-primary">Total</td>
+                  <td className="tabular px-2 py-1 text-right text-status-good">{totaisSituacao.ok}</td>
+                  <td className="tabular px-2 py-1 text-right text-status-warning">{totaisSituacao.pendencia}</td>
+                  <td className="tabular px-2 py-1 text-right text-ink-primary">{totaisSituacao.total}</td>
                 </tr>
               )}
             </tbody>
           </table>
-        </div>
-      </section>
+        </section>
+
+        <section className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
+          <h3 className="text-sm font-semibold text-ink-primary">Sobreposições — análises por pessoa</h3>
+          <p className="mb-2 text-[11px] leading-snug text-ink-muted">
+            1 por local. <span className="font-medium text-status-warning">Com problema</span>: fica para verificação
+            posterior. <span className="font-medium text-status-good">Sem problema</span>: não se configura como
+            sobreposição.
+          </p>
+          <table className="w-full text-xs">
+            <thead className="border-b border-black/5 text-left uppercase tracking-wide text-ink-muted">
+              <tr>
+                <th className="px-2 py-1.5">Pessoa</th>
+                <th className="px-2 py-1.5 text-right text-status-warning">Com problema</th>
+                <th className="px-2 py-1.5 text-right text-status-good">Sem problema</th>
+                <th className="px-2 py-1.5 text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {sobreposicoes.map((p) => (
+                <tr key={p.id} className="border-b border-black/5 last:border-0">
+                  <td className="truncate px-2 py-1 font-medium text-ink-primary">{p.nome}</td>
+                  <td className="tabular px-2 py-1 text-right font-semibold text-status-warning">{p.problema || "—"}</td>
+                  <td className="tabular px-2 py-1 text-right font-semibold text-status-good">{p.ok || "—"}</td>
+                  <td className="tabular px-2 py-1 text-right text-ink-primary">{p.ok + p.problema || "—"}</td>
+                </tr>
+              ))}
+              {sobreposicoes.length > 0 && (
+                <tr className="border-t-2 border-black/10 bg-plane/60 font-semibold">
+                  <td className="px-2 py-1 text-ink-primary">Total</td>
+                  <td className="tabular px-2 py-1 text-right text-status-warning">{totaisSobre.problema}</td>
+                  <td className="tabular px-2 py-1 text-right text-status-good">{totaisSobre.ok}</td>
+                  <td className="tabular px-2 py-1 text-right text-ink-primary">{totaisSobre.ok + totaisSobre.problema}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </section>
+      </div>
 
       <LazyDesempenhoCharts d={d} />
 

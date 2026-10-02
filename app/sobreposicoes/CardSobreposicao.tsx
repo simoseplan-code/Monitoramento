@@ -2,11 +2,12 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { CheckCircle2, AlertTriangle, Undo2, MapPin, Star } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Undo2, MapPin, Star, Lock, UserRound } from "lucide-react";
 import type { ObraNoLocal } from "@/lib/sobreposicoes/parseCsv";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
 
 type StatusRevisao = "pendente" | "ok" | "problema";
+type PessoaEquipe = { id: string; nome: string };
 
 // A ação com o menor ID é a mais antiga no SIMO — normalmente a
 // "original", que as outras do mesmo local estão duplicando. Vai
@@ -48,6 +49,10 @@ export function CardSobreposicao({
   lonFim,
   statusInicial,
   observacaoInicial,
+  responsavelInicial,
+  usuario,
+  ehAdmin,
+  equipe,
 }: {
   chaveLocal: string;
   obras: ObraNoLocal[];
@@ -60,9 +65,18 @@ export function CardSobreposicao({
   lonFim: number | null;
   statusInicial: StatusRevisao;
   observacaoInicial: string | null;
+  responsavelInicial: PessoaEquipe | null;
+  usuario: PessoaEquipe;
+  ehAdmin: boolean;
+  equipe: PessoaEquipe[];
 }) {
   const router = useRouter();
   const [status, setStatus] = useState(statusInicial);
+  const [responsavel, setResponsavel] = useState<PessoaEquipe | null>(responsavelInicial);
+  const [erro, setErro] = useState<string | null>(null);
+  const [trocando, setTrocando] = useState(false);
+  // Com responsável que não é você, só leitura (admin pode tudo).
+  const bloqueado = !!responsavel && responsavel.id !== usuario.id && !ehAdmin;
   // "escrevendo": campo de comentário aberto para a decisão escolhida
   // (ok ou problema) — os dois botões passam pelo mesmo campo.
   const [etapa, setEtapa] = useState<"fechado" | "escrevendo">("fechado");
@@ -72,17 +86,49 @@ export function CardSobreposicao({
 
   async function salvar(novoStatus: StatusRevisao, obs?: string) {
     setSalvando(true);
+    setErro(null);
     try {
-      await fetch("/api/sobreposicoes/status", {
+      const resp = await fetch("/api/sobreposicoes/status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ chaveLocal, status: novoStatus, observacao: obs ?? "" }),
       });
+      const json = (await resp.json().catch(() => ({}))) as { error?: string; responsavelId?: string };
+      if (!resp.ok) {
+        setErro(json.error ?? "Não foi possível salvar.");
+        setEtapa("fechado");
+        return;
+      }
+      if (json.responsavelId && json.responsavelId !== responsavel?.id) {
+        setResponsavel(json.responsavelId === usuario.id ? usuario : (equipe.find((p) => p.id === json.responsavelId) ?? responsavel));
+      }
       setStatus(novoStatus);
       setEtapa("fechado");
       router.refresh();
+    } catch {
+      setErro("Sem conexão com o servidor.");
     } finally {
       setSalvando(false);
+    }
+  }
+
+  async function trocarResponsavel(usuarioId: string) {
+    if (!usuarioId || usuarioId === responsavel?.id) return;
+    setTrocando(true);
+    setErro(null);
+    try {
+      const resp = await fetch("/api/revisao/responsavel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ modulo: "sobreposicoes", idAcao: chaveLocal, usuarioId }),
+      });
+      const json = (await resp.json().catch(() => ({}))) as { error?: string; responsavelId?: string; responsavelNome?: string };
+      if (!resp.ok) setErro(json.error ?? "Não foi possível trocar o responsável.");
+      else setResponsavel({ id: json.responsavelId!, nome: json.responsavelNome ?? "—" });
+    } catch {
+      setErro("Sem conexão com o servidor.");
+    } finally {
+      setTrocando(false);
     }
   }
 
@@ -117,7 +163,7 @@ export function CardSobreposicao({
           </p>
         </div>
 
-        {status !== "pendente" && (
+        {status !== "pendente" && !bloqueado && (
           <button
             onClick={() => salvar("pendente")}
             disabled={salvando}
@@ -170,7 +216,7 @@ export function CardSobreposicao({
         </p>
       )}
 
-      {status === "pendente" && etapa === "fechado" && (
+      {status === "pendente" && etapa === "fechado" && !bloqueado && (
         <div className="flex gap-2">
           <button
             onClick={() => {
@@ -226,6 +272,41 @@ export function CardSobreposicao({
           </div>
         </div>
       )}
+
+      <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
+        <span className="flex items-center gap-1.5 text-ink-muted">
+          {bloqueado ? <Lock size={12} /> : <UserRound size={12} />}
+          {responsavel ? (
+            <>
+              Responsável: <span className="font-medium text-ink-secondary">{responsavel.nome}</span>
+              {responsavel.id === usuario.id && " (você)"}
+            </>
+          ) : (
+            "Sem responsável — quem decidir primeiro assume a análise"
+          )}
+        </span>
+
+        {ehAdmin && (
+          <label className="flex items-center gap-1.5 text-ink-muted">
+            Alterar responsável
+            <select
+              value={responsavel?.id ?? ""}
+              disabled={trocando}
+              onChange={(e) => trocarResponsavel(e.target.value)}
+              className="rounded-lg border border-black/10 bg-plane px-2 py-1 text-xs text-ink-secondary focus:border-series-1 focus:outline-none disabled:opacity-50"
+            >
+              {!responsavel && <option value="">— escolher —</option>}
+              {equipe.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.nome}
+                </option>
+              ))}
+            </select>
+          </label>
+        )}
+      </div>
+
+      {erro && <p className="mt-2 rounded-lg bg-status-critical-bg px-3 py-1.5 text-xs text-status-critical">{erro}</p>}
     </div>
   );
 }

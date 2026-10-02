@@ -5,17 +5,22 @@ export type Responsavel =
   | { ok: true; responsavelId: string; ehAdmin: boolean; editandoPorOutro: boolean }
   | { ok: false; status: number; error: string };
 
-// Quem começa a analisar uma ação de Novas Ações vira o responsável; depois
-// disso só ele (ou um admin) mexe nela. Admin editando a ação de outra pessoa
-// continua gravando tudo no nome do responsável.
+export type AlvoResponsavel = { tabela: string; coluna: string };
+export const ALVO_NOVAS_ACOES: AlvoResponsavel = { tabela: "obras_revisao", coluna: "id_acao" };
+export const ALVO_SOBREPOSICOES: AlvoResponsavel = { tabela: "sobreposicoes", coluna: "chave_local" };
+
+// Quem começa a analisar vira o responsável; depois disso só ele (ou um admin)
+// mexe. Admin editando a análise de outra pessoa continua gravando tudo no
+// nome do responsável. Vale pra Novas Ações e pra Sobreposições.
 export async function resolverResponsavel(
   supabase: SupabaseClient,
   userId: string,
-  idAcao: string
+  idAcao: string,
+  alvo: AlvoResponsavel = ALVO_NOVAS_ACOES
 ): Promise<Responsavel> {
   const [{ data: perfil }, { data: revisao }] = await Promise.all([
     supabase.from("profiles").select("is_admin").eq("id", userId).single(),
-    supabase.from("obras_revisao").select("responsavel_id").eq("id_acao", idAcao).maybeSingle(),
+    supabase.from(alvo.tabela).select("responsavel_id").eq(alvo.coluna, idAcao).maybeSingle(),
   ]);
   const ehAdmin = !!perfil?.is_admin;
   const atual = revisao?.responsavel_id as string | null | undefined;
