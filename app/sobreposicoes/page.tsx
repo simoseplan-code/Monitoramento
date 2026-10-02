@@ -20,11 +20,13 @@ type LinhaSobreposicao = {
   lon_inicio: number | null;
   lat_fim: number | null;
   lon_fim: number | null;
-  status: "pendente" | "ok" | "problema";
+  status: "pendente" | "ok" | "problema" | "solucionado";
   observacao: string | null;
   importado_em: string;
   responsavel_id: string | null;
   responsavel_nome: string | null;
+  solucionado_por_nome: string | null;
+  solucionado_em: string | null;
   total_geral: number;
 };
 
@@ -34,7 +36,7 @@ export default async function SobreposicoesPage({
   searchParams: Promise<{ status?: string; orgao?: string; ano?: string; ocultarEstradaVicinal?: string; pagina?: string }>;
 }) {
   const { status, orgao, ano, ocultarEstradaVicinal, pagina } = await searchParams;
-  const statusAtual = status === "ok" || status === "problema" ? status : "pendente";
+  const statusAtual = status === "ok" || status === "problema" || status === "solucionado" ? status : "pendente";
   const anoFiltro = ano ? parseInt(ano, 10) : null;
   const ocultarEstradaVicinalAtual = ocultarEstradaVicinal === "1";
   const paginaAtual = Math.max(1, parseInt(pagina ?? "1", 10) || 1);
@@ -130,7 +132,7 @@ export default async function SobreposicoesPage({
         sobreposicoesPendentes: totalPendentes ?? 0,
       }}
       titulo="Sobreposições"
-      subtitulo={`${totalFiltrado} local(is) — ${{ pendente: "aguardando revisão", ok: "sem problema", problema: "com problema" }[statusAtual]}`}
+      subtitulo={`${totalFiltrado} local(is) — ${{ pendente: "aguardando revisão", ok: "sem problema", problema: "com problema", solucionado: "solucionado" }[statusAtual]}`}
     >
       <div className="mb-4">
         <UploadCsvSobreposicoes />
@@ -139,7 +141,7 @@ export default async function SobreposicoesPage({
       <div className="mb-4">
         <FiltrosSobreposicoes
           statusAtual={statusAtual}
-          contagens={{ pendente: Number(contagensRpc?.[0]?.pendente ?? 0), ok: Number(contagensRpc?.[0]?.ok ?? 0), problema: Number(contagensRpc?.[0]?.problema ?? 0) }}
+          contagens={{ pendente: Number(contagensRpc?.[0]?.pendente ?? 0), ok: Number(contagensRpc?.[0]?.ok ?? 0), problema: Number(contagensRpc?.[0]?.problema ?? 0), solucionado: Number(contagensRpc?.[0]?.solucionado ?? 0) }}
           orgaoAtual={orgao ?? ""}
           orgaos={orgaosDisponiveis}
           anoAtual={ano ?? ""}
@@ -163,6 +165,7 @@ export default async function SobreposicoesPage({
             lonFim={l.lon_fim}
             statusInicial={l.status}
             observacaoInicial={l.observacao}
+            solucionadoPor={l.solucionado_por_nome ? { nome: l.solucionado_por_nome, em: l.solucionado_em } : null}
             responsavelInicial={l.responsavel_id ? { id: l.responsavel_id, nome: l.responsavel_nome ?? "—" } : null}
             usuario={usuario}
             ehAdmin={ehAdmin}

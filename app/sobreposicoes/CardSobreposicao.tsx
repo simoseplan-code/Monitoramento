@@ -2,11 +2,11 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { CheckCircle2, AlertTriangle, Undo2, MapPin, Star, Lock, UserRound } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Undo2, MapPin, Star, Lock, UserRound, BadgeCheck } from "lucide-react";
 import type { ObraNoLocal } from "@/lib/sobreposicoes/parseCsv";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
 
-type StatusRevisao = "pendente" | "ok" | "problema";
+type StatusRevisao = "pendente" | "ok" | "problema" | "solucionado";
 type PessoaEquipe = { id: string; nome: string };
 
 // A ação com o menor ID é a mais antiga no SIMO — normalmente a
@@ -50,6 +50,7 @@ export function CardSobreposicao({
   statusInicial,
   observacaoInicial,
   responsavelInicial,
+  solucionadoPor: solucionadoPorInicial,
   usuario,
   ehAdmin,
   equipe,
@@ -66,6 +67,7 @@ export function CardSobreposicao({
   statusInicial: StatusRevisao;
   observacaoInicial: string | null;
   responsavelInicial: PessoaEquipe | null;
+  solucionadoPor: { nome: string; em: string | null } | null;
   usuario: PessoaEquipe;
   ehAdmin: boolean;
   equipe: PessoaEquipe[];
@@ -75,6 +77,10 @@ export function CardSobreposicao({
   const [responsavel, setResponsavel] = useState<PessoaEquipe | null>(responsavelInicial);
   const [erro, setErro] = useState<string | null>(null);
   const [trocando, setTrocando] = useState(false);
+  const [solucionadoPor, setSolucionadoPor] = useState(solucionadoPorInicial);
+  // Duas confirmações seguidas antes de gravar (qualquer pessoa pode solucionar).
+  const [solucionando, setSolucionando] = useState<0 | 1 | 2>(0);
+  const [confirmandoVolta, setConfirmandoVolta] = useState(false);
   // Com responsável que não é você, só leitura (admin pode tudo).
   const bloqueado = !!responsavel && responsavel.id !== usuario.id && !ehAdmin;
   // "escrevendo": campo de comentário aberto para a decisão escolhida
@@ -104,6 +110,35 @@ export function CardSobreposicao({
       }
       setStatus(novoStatus);
       setEtapa("fechado");
+      router.refresh();
+    } catch {
+      setErro("Sem conexão com o servidor.");
+    } finally {
+      setSalvando(false);
+    }
+  }
+
+  async function mudarSolucao(acao: "solucionar" | "voltar") {
+    setSalvando(true);
+    setErro(null);
+    try {
+      const resp = await fetch("/api/sobreposicoes/solucionar", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chaveLocal, acao }),
+      });
+      const json = (await resp.json().catch(() => ({}))) as { error?: string };
+      if (!resp.ok) {
+        setErro(json.error ?? "Não foi possível salvar.");
+      } else if (acao === "solucionar") {
+        setStatus("solucionado");
+        setSolucionadoPor({ nome: usuario.nome, em: new Date().toISOString() });
+      } else {
+        setStatus("problema");
+        setSolucionadoPor(null);
+      }
+      setSolucionando(0);
+      setConfirmandoVolta(false);
       router.refresh();
     } catch {
       setErro("Sem conexão com o servidor.");
@@ -142,7 +177,9 @@ export function CardSobreposicao({
           ? "border-status-good/20 bg-status-good-bg"
           : status === "problema"
             ? "border-status-warning/20 bg-status-warning-bg"
-            : "border-black/5 bg-surface"
+            : status === "solucionado"
+              ? "border-series-7/20 bg-series-7/5"
+              : "border-black/5 bg-surface"
       }`}
     >
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
@@ -163,17 +200,84 @@ export function CardSobreposicao({
           </p>
         </div>
 
-        {status !== "pendente" && !bloqueado && (
-          <button
-            onClick={() => salvar("pendente")}
-            disabled={salvando}
-            className="flex shrink-0 items-center gap-1.5 rounded-full bg-white/60 px-3 py-1.5 text-xs font-medium text-ink-secondary hover:bg-white disabled:opacity-50"
-            title="Reabrir revisão"
-          >
-            <Undo2 size={13} />
-            Reabrir
-          </button>
-        )}
+        <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
+          {status === "problema" && solucionando === 0 && (
+            <button
+              onClick={() => setSolucionando(1)}
+              disabled={salvando}
+              className="flex items-center gap-1.5 rounded-full bg-series-7 px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+              title="Qualquer pessoa pode marcar como solucionado"
+            >
+              <BadgeCheck size={13} />
+              Solucionado
+            </button>
+          )}
+          {status === "problema" && solucionando === 1 && (
+            <span className="flex items-center gap-1.5 rounded-full bg-white/80 px-2 py-1 text-xs font-medium text-series-7">
+              Esse problema foi solucionado?
+              <button onClick={() => setSolucionando(2)} className="rounded-full bg-series-7 px-2 py-0.5 text-white">
+                Sim
+              </button>
+              <button onClick={() => setSolucionando(0)} className="rounded-full px-1.5 text-ink-muted hover:text-ink-primary">
+                Não
+              </button>
+            </span>
+          )}
+          {status === "problema" && solucionando === 2 && (
+            <span className="flex items-center gap-1.5 rounded-full bg-white/80 px-2 py-1 text-xs font-medium text-series-7">
+              Confirma mesmo? Vai para Solucionado no seu nome.
+              <button
+                onClick={() => mudarSolucao("solucionar")}
+                disabled={salvando}
+                className="rounded-full bg-series-7 px-2 py-0.5 text-white disabled:opacity-50"
+              >
+                {salvando ? "..." : "Confirmar"}
+              </button>
+              <button onClick={() => setSolucionando(0)} className="rounded-full px-1.5 text-ink-muted hover:text-ink-primary">
+                Cancelar
+              </button>
+            </span>
+          )}
+
+          {status === "solucionado" && !confirmandoVolta && (
+            <button
+              onClick={() => setConfirmandoVolta(true)}
+              disabled={salvando}
+              className="flex items-center gap-1.5 rounded-full bg-white/60 px-3 py-1.5 text-xs font-medium text-ink-secondary hover:bg-white disabled:opacity-50"
+              title="Desfaz a solução e devolve ao responsável"
+            >
+              <Undo2 size={13} />
+              Voltar com problema
+            </button>
+          )}
+          {status === "solucionado" && confirmandoVolta && (
+            <span className="flex items-center gap-1.5 rounded-full bg-white/80 px-2 py-1 text-xs font-medium text-status-warning">
+              Voltar com problema? Remove quem solucionou.
+              <button
+                onClick={() => mudarSolucao("voltar")}
+                disabled={salvando}
+                className="rounded-full bg-status-warning px-2 py-0.5 text-white disabled:opacity-50"
+              >
+                {salvando ? "..." : "Sim"}
+              </button>
+              <button onClick={() => setConfirmandoVolta(false)} className="rounded-full px-1.5 text-ink-muted hover:text-ink-primary">
+                Não
+              </button>
+            </span>
+          )}
+
+          {(status === "ok" || status === "problema") && !bloqueado && solucionando === 0 && (
+            <button
+              onClick={() => salvar("pendente")}
+              disabled={salvando}
+              className="flex items-center gap-1.5 rounded-full bg-white/60 px-3 py-1.5 text-xs font-medium text-ink-secondary hover:bg-white disabled:opacity-50"
+              title="Reabrir revisão"
+            >
+              <Undo2 size={13} />
+              Reabrir
+            </button>
+          )}
+        </div>
       </div>
 
       <ul className="mb-3 space-y-1.5">
@@ -206,10 +310,18 @@ export function CardSobreposicao({
         ))}
       </ul>
 
+      {status === "solucionado" && solucionadoPor && (
+        <p className="mb-3 flex items-center gap-1.5 rounded-lg border border-series-7/20 bg-white/60 px-3 py-2 text-xs text-ink-secondary">
+          <BadgeCheck size={13} className="text-series-7" />
+          <strong className="text-series-7">Solucionado por {solucionadoPor.nome}</strong>
+          {solucionadoPor.em && <> em {new Date(solucionadoPor.em).toLocaleDateString("pt-BR")}</>}
+        </p>
+      )}
+
       {status !== "pendente" && observacaoInicial && etapa === "fechado" && (
         <p
           className={`mb-3 rounded-lg border bg-white/60 px-3 py-2 text-xs text-ink-secondary ${
-            status === "ok" ? "border-status-good/20" : "border-status-warning/20"
+            status === "ok" ? "border-status-good/20" : status === "solucionado" ? "border-series-7/20" : "border-status-warning/20"
           }`}
         >
           <strong className={status === "ok" ? "text-status-good" : "text-status-warning"}>Observação:</strong> {observacaoInicial}

@@ -77,19 +77,27 @@ export default async function DesempenhoPage({
   ]);
 
   const situacao = calcularSituacao((situacaoRpc ?? []) as LinhaSituacao[], (ativos ?? []) as { id: string; nome: string }[]);
-  const sobreMapa = new Map<string, { ok: number; problema: number }>();
+  // ok/problema/solucionado_resp = análises da pessoa como responsável (problema = em aberto);
+  // solucionou = problemas que ela marcou como solucionados.
+  const sobreMapa = new Map<string, { ok: number; problema: number; resolvidos: number; solucionou: number }>();
   for (const l of (sobreposicoesRpc ?? []) as { usuario_id: string; situacao: string; total: number }[]) {
-    const x = sobreMapa.get(l.usuario_id) ?? { ok: 0, problema: 0 };
-    if (l.situacao === "ok") x.ok += Number(l.total);
-    else x.problema += Number(l.total);
+    const x = sobreMapa.get(l.usuario_id) ?? { ok: 0, problema: 0, resolvidos: 0, solucionou: 0 };
+    const n = Number(l.total);
+    if (l.situacao === "ok") x.ok += n;
+    else if (l.situacao === "problema") x.problema += n;
+    else if (l.situacao === "solucionado_resp") x.resolvidos += n;
+    else if (l.situacao === "solucionou") x.solucionou += n;
     sobreMapa.set(l.usuario_id, x);
   }
   const sobreposicoes = ((ativos ?? []) as { id: string; nome: string }[])
-    .map((p) => ({ id: p.id, nome: p.nome, ok: sobreMapa.get(p.id)?.ok ?? 0, problema: sobreMapa.get(p.id)?.problema ?? 0 }))
-    .sort((a, b) => b.ok + b.problema - (a.ok + a.problema) || a.nome.localeCompare(b.nome));
+    .map((p) => {
+      const x = sobreMapa.get(p.id) ?? { ok: 0, problema: 0, resolvidos: 0, solucionou: 0 };
+      return { id: p.id, nome: p.nome, ok: x.ok, problema: x.problema, solucionou: x.solucionou, total: x.ok + x.problema + x.resolvidos };
+    })
+    .sort((a, b) => b.total + b.solucionou - (a.total + a.solucionou) || a.nome.localeCompare(b.nome));
   const totaisSobre = sobreposicoes.reduce(
-    (t, p) => ({ ok: t.ok + p.ok, problema: t.problema + p.problema }),
-    { ok: 0, problema: 0 }
+    (t, p) => ({ ok: t.ok + p.ok, problema: t.problema + p.problema, solucionou: t.solucionou + p.solucionou, total: t.total + p.total }),
+    { ok: 0, problema: 0, solucionou: 0, total: 0 }
   );
 
   const totaisSituacao = situacao.reduce(
@@ -240,8 +248,9 @@ export default async function DesempenhoPage({
           <h3 className="text-sm font-semibold text-ink-primary">Sobreposições — análises por pessoa</h3>
           <p className="mb-2 text-[11px] leading-snug text-ink-muted">
             1 por local. <span className="font-medium text-status-warning">Com problema</span>: fica para verificação
-            posterior. <span className="font-medium text-status-good">Sem problema</span>: não se configura como
-            sobreposição.
+            posterior (em aberto). <span className="font-medium text-status-good">Sem problema</span>: não se configura
+            como sobreposição. <span className="font-medium text-series-7">Solucionou</span>: problemas que a pessoa marcou
+            como solucionados. O total conta o que ela analisou, inclusive problemas dela que já foram solucionados.
           </p>
           <table className="w-full text-xs">
             <thead className="border-b border-black/5 text-left uppercase tracking-wide text-ink-muted">
@@ -249,6 +258,7 @@ export default async function DesempenhoPage({
                 <th className="px-2 py-1.5">Pessoa</th>
                 <th className="px-2 py-1.5 text-right text-status-warning">Com problema</th>
                 <th className="px-2 py-1.5 text-right text-status-good">Sem problema</th>
+                <th className="px-2 py-1.5 text-right text-series-7">Solucionou</th>
                 <th className="px-2 py-1.5 text-right">Total</th>
               </tr>
             </thead>
@@ -258,7 +268,8 @@ export default async function DesempenhoPage({
                   <td className="truncate px-2 py-1 font-medium text-ink-primary">{p.nome}</td>
                   <td className="tabular px-2 py-1 text-right font-semibold text-status-warning">{p.problema || "—"}</td>
                   <td className="tabular px-2 py-1 text-right font-semibold text-status-good">{p.ok || "—"}</td>
-                  <td className="tabular px-2 py-1 text-right text-ink-primary">{p.ok + p.problema || "—"}</td>
+                  <td className="tabular px-2 py-1 text-right font-semibold text-series-7">{p.solucionou || "—"}</td>
+                  <td className="tabular px-2 py-1 text-right text-ink-primary">{p.total || "—"}</td>
                 </tr>
               ))}
               {sobreposicoes.length > 0 && (
@@ -266,7 +277,8 @@ export default async function DesempenhoPage({
                   <td className="px-2 py-1 text-ink-primary">Total</td>
                   <td className="tabular px-2 py-1 text-right text-status-warning">{totaisSobre.problema}</td>
                   <td className="tabular px-2 py-1 text-right text-status-good">{totaisSobre.ok}</td>
-                  <td className="tabular px-2 py-1 text-right text-ink-primary">{totaisSobre.ok + totaisSobre.problema}</td>
+                  <td className="tabular px-2 py-1 text-right text-series-7">{totaisSobre.solucionou}</td>
+                  <td className="tabular px-2 py-1 text-right text-ink-primary">{totaisSobre.total}</td>
                 </tr>
               )}
             </tbody>

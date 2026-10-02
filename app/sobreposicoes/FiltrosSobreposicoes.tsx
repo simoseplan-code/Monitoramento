@@ -7,6 +7,7 @@ const ABAS = [
   { valor: "pendente", rotulo: "Aguardando revisão", ativa: "bg-series-1 text-white" },
   { valor: "ok", rotulo: "Sem problema", ativa: "bg-status-good text-white" },
   { valor: "problema", rotulo: "Com problema", ativa: "bg-status-warning text-white" },
+  { valor: "solucionado", rotulo: "Solucionado", ativa: "bg-series-7 text-white" },
 ] as const;
 
 export function FiltrosSobreposicoes({
@@ -19,7 +20,7 @@ export function FiltrosSobreposicoes({
   ocultarEstradaVicinalAtual,
 }: {
   statusAtual: string;
-  contagens: { pendente: number; ok: number; problema: number };
+  contagens: { pendente: number; ok: number; problema: number; solucionado: number };
   orgaoAtual: string;
   orgaos: string[];
   anoAtual: string;
