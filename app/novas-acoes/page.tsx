@@ -16,6 +16,8 @@ type LinhaNovaAcao = {
   sem_duplicacao: "pendente" | "confirmado" | "aguardando_atualizacao";
   documentos_obrigatorios: "pendente" | "confirmado" | "aguardando_atualizacao";
   concluido: boolean;
+  responsavel_id: string | null;
+  responsavel_nome: string | null;
   total_geral: number;
 };
 
@@ -40,6 +42,7 @@ export default async function NovasAcoesPage({
     { data: linhasRpc },
     { data: orgaosRpc },
     { data: aguardandoAtualizacao },
+    { data: equipeAtiva },
   ] = await Promise.all([
     supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
     supabase.from("obras").select("id_acao", { count: "exact", head: true }),
@@ -55,7 +58,12 @@ export default async function NovasAcoesPage({
     }),
     supabase.rpc("novas_acoes_orgaos", { data_inicio: DATA_INICIO_REVISAO }),
     supabase.rpc("contar_aguardando_atualizacao", { data_inicio: DATA_INICIO_REVISAO }),
+    // Só admin enxerga os perfis de todo mundo (RLS); pros demais volta vazio e a troca nem aparece.
+    supabase.from("profiles").select("id, nome").eq("status", "aprovado").order("nome"),
   ]);
+  const ehAdmin = !!profile?.is_admin;
+  const equipe = ehAdmin ? ((equipeAtiva ?? []) as { id: string; nome: string }[]) : [];
+  const usuario = { id: user!.id, nome: profile?.nome ?? "Você" };
 
   const linhas = (linhasRpc ?? []) as LinhaNovaAcao[];
   const totalGeral = linhas[0]?.total_geral ?? 0;
@@ -91,6 +99,10 @@ export default async function NovasAcoesPage({
             orgao={o.orgao}
             dataCriacao={o.data_criacao}
             concluido={o.concluido}
+            responsavelInicial={o.responsavel_id ? { id: o.responsavel_id, nome: o.responsavel_nome ?? "—" } : null}
+            usuario={usuario}
+            ehAdmin={ehAdmin}
+            equipe={equipe}
             statusInicial={{
               kml_anexado: o.kml_anexado,
               sem_duplicacao: o.sem_duplicacao,

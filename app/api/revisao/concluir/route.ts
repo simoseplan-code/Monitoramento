@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { registrarAnalise } from "@/lib/analisesLog";
+import { resolverResponsavel } from "@/lib/responsavelAnalise";
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -13,6 +15,9 @@ export async function POST(request: NextRequest) {
   if (!idAcao || typeof concluido !== "boolean") {
     return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
   }
+
+  const resp = await resolverResponsavel(supabase, user.id, idAcao);
+  if (!resp.ok) return NextResponse.json({ error: resp.error }, { status: resp.status });
 
   if (concluido) {
     const { data: revisao } = await supabase
@@ -36,12 +41,19 @@ export async function POST(request: NextRequest) {
     .update({
       concluido,
       concluido_em: concluido ? new Date().toISOString() : null,
-      concluido_por: concluido ? user.id : null,
+      concluido_por: concluido ? resp.responsavelId : null,
+      responsavel_id: resp.responsavelId,
       atualizado_em: new Date().toISOString(),
     })
     .eq("id_acao", idAcao);
 
   if (error) return NextResponse.json({ error: "Falha ao salvar." }, { status: 500 });
-  await registrarAnalise(supabase, user.id, "novas_acoes", idAcao, concluido ? "concluido" : "reaberto");
+  await registrarAnalise(
+    resp.editandoPorOutro ? createAdminClient() : supabase,
+    resp.responsavelId,
+    "novas_acoes",
+    idAcao,
+    concluido ? "concluido" : "reaberto"
+  );
   return NextResponse.json({ ok: true });
 }

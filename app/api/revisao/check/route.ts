@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { registrarAnalise } from "@/lib/analisesLog";
+import { resolverResponsavel } from "@/lib/responsavelAnalise";
 
 const CAMPOS_VALIDOS = ["kml_anexado", "sem_duplicacao", "documentos_obrigatorios"] as const;
 type Campo = (typeof CAMPOS_VALIDOS)[number];
@@ -21,6 +23,9 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
   }
 
+  const resp = await resolverResponsavel(supabase, user.id, idAcao);
+  if (!resp.ok) return NextResponse.json({ error: resp.error }, { status: resp.status });
+
   const { data: atual } = await supabase
     .from("obras_revisao")
     .select("kml_anexado, sem_duplicacao, documentos_obrigatorios")
@@ -40,7 +45,8 @@ export async function POST(request: NextRequest) {
     {
       id_acao: idAcao,
       ...proximo,
-      revisado_por: user.id,
+      responsavel_id: resp.responsavelId,
+      revisado_por: resp.responsavelId,
       revisado_em: completo ? new Date().toISOString() : null,
       atualizado_em: new Date().toISOString(),
     },
@@ -49,6 +55,15 @@ export async function POST(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: "Falha ao salvar checklist." }, { status: 500 });
 
-  await registrarAnalise(supabase, user.id, "novas_acoes", idAcao, status as string, campo as string);
-  return NextResponse.json({ ok: true, completo });
+  // Edição de admin na ação de outra pessoa entra no nome do responsável
+  // (a policy do log só deixa gravar em nome próprio, então vai por service_role).
+  await registrarAnalise(
+    resp.editandoPorOutro ? createAdminClient() : supabase,
+    resp.responsavelId,
+    "novas_acoes",
+    idAcao,
+    status as string,
+    campo as string
+  );
+  return NextResponse.json({ ok: true, completo, responsavelId: resp.responsavelId });
 }
