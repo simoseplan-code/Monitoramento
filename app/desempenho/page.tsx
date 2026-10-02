@@ -139,7 +139,7 @@ export default async function DesempenhoPage({
       </div>
 
       <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-3 xl:grid-cols-6">
-        <StatCard icon={Activity} label="Análises feitas" value={d.totalProdutivo} tint="series-1" ajuda="Total de decisões registradas no período (checklists, revisões, aprovações, gravações no SIMO). Desfazer/reabrir e falhas ficam fora." />
+        <StatCard icon={Activity} label="Análises feitas" value={d.totalProdutivo} tint="series-1" ajuda="Ações (ou locais) distintas que cada pessoa analisou. Mexer em vários itens do checklist da mesma ação conta uma vez só. Desfazer/reabrir e falhas ficam fora." />
         <StatCard icon={Users} label="Pessoas ativas" value={d.pessoas} tint="good" ajuda="Quantas pessoas fizeram pelo menos uma análise no período." />
         <StatCard icon={CalendarDays} label="Dias com atividade" value={d.diasAtivos} tint="neutral" ajuda="Dias em que houve ao menos uma análise registrada." />
         <StatCard icon={TrendingUp} label="Média por dia ativo" value={d.mediaPorDiaAtivo} tint="series-1" ajuda="Análises feitas divididas pelos dias com atividade." />
@@ -163,7 +163,10 @@ export default async function DesempenhoPage({
 
       <section className="mt-4 rounded-xl border border-black/5 bg-surface p-5 shadow-card">
         <h3 className="text-sm font-semibold text-ink-primary">Detalhe por pessoa</h3>
-        <p className="mb-3 text-xs text-ink-muted">Quanto cada um fez em cada tela, e o ritmo de trabalho</p>
+        <p className="mb-3 text-xs text-ink-muted">
+          Ações/locais distintos analisados por cada pessoa em cada tela. É um histórico do que foi feito: continua contando
+          mesmo que a análise tenha sido refeita ou apagada depois.
+        </p>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="border-b border-black/5 text-left text-xs uppercase tracking-wide text-ink-muted">
