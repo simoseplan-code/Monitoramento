@@ -18,6 +18,7 @@ import {
   Ruler,
   Link2,
   FileCheck2,
+  BarChart3,
   type LucideIcon,
 } from "lucide-react";
 import { SobrePainel } from "./SobrePainel";
@@ -62,6 +63,7 @@ export function Sidebar({
     { href: "/unidade-quantidade", label: "Unidade/Quantidade", icon: Ruler, count: counts.sugestoesUnidadePendentes || undefined },
     { href: "/orgaos", label: "Órgãos", icon: Building2 },
     { href: "/historico", label: "Histórico", icon: History },
+    { href: "/desempenho", label: "Desempenho", icon: BarChart3, adminOnly: true },
     { href: "/admin", label: "Equipe", icon: Users, count: counts.pendentesAprovacao || undefined, adminOnly: true },
     { href: "/admin", label: "Administração", icon: ShieldCheck, adminOnly: true },
   ];
