@@ -249,6 +249,42 @@ export function calcularDesempenho(linhas: LinhaAgregada[]): Desempenho {
   };
 }
 
+export type LinhaSituacao = { usuario_id: string; modulo: string; situacao: string; total: number };
+
+export type SituacaoPessoa = {
+  id: string;
+  nome: string;
+  ok: number;
+  pendencia: number;
+  andamento: number;
+  total: number;
+  porModulo: Record<string, { ok: number; pendencia: number }>;
+};
+
+export function calcularSituacao(linhas: LinhaSituacao[], pessoas: { id: string; nome: string }[]): SituacaoPessoa[] {
+  const mapa = new Map<string, SituacaoPessoa>();
+  for (const p of pessoas) {
+    mapa.set(p.id, { id: p.id, nome: p.nome, ok: 0, pendencia: 0, andamento: 0, total: 0, porModulo: {} });
+  }
+  for (const l of linhas) {
+    const n = Number(l.total);
+    const p = mapa.get(l.usuario_id) ?? { id: l.usuario_id, nome: "Desconhecido", ok: 0, pendencia: 0, andamento: 0, total: 0, porModulo: {} };
+    mapa.set(l.usuario_id, p);
+    p.total += n;
+    const m = (p.porModulo[l.modulo] ??= { ok: 0, pendencia: 0 });
+    if (l.situacao === "ok") {
+      p.ok += n;
+      m.ok += n;
+    } else if (l.situacao === "pendencia") {
+      p.pendencia += n;
+      m.pendencia += n;
+    } else {
+      p.andamento += n;
+    }
+  }
+  return Array.from(mapa.values()).sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome));
+}
+
 export function formatarDia(iso: string | null): string {
   if (!iso) return "—";
   return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;

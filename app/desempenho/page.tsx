@@ -6,7 +6,14 @@ import { AppShell } from "@/components/layout/AppShell";
 import { StatCard } from "@/components/dashboard/StatCard";
 import { LazyDesempenhoCharts } from "@/components/desempenho/LazyDesempenhoCharts";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
-import { MODULOS, calcularDesempenho, formatarDia, type LinhaAgregada } from "@/lib/desempenho";
+import {
+  MODULOS,
+  calcularDesempenho,
+  calcularSituacao,
+  formatarDia,
+  type LinhaAgregada,
+  type LinhaSituacao,
+} from "@/lib/desempenho";
 
 const PERIODOS = [
   { valor: "tudo", rotulo: "Tudo" },
@@ -51,12 +58,40 @@ export default async function DesempenhoPage({
     dataAte = hojeIso();
   }
 
-  const [{ count: totalAcoes }, { count: pendentesAprovacao }, novasAcoesPendentes, { data: linhasRpc }] = await Promise.all([
+  const [
+    { count: totalAcoes },
+    { count: pendentesAprovacao },
+    novasAcoesPendentes,
+    { data: linhasRpc },
+    { data: situacaoRpc },
+    { data: ativos },
+  ] = await Promise.all([
     supabase.from("obras").select("id_acao", { count: "exact", head: true }),
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
     contarNovasAcoesPendentes(supabase),
     supabase.rpc("desempenho_agregado", { data_de: dataDe, data_ate: dataAte }),
+    supabase.rpc("desempenho_situacao", { data_de: dataDe, data_ate: dataAte }),
+    supabase.from("profiles").select("id, nome").eq("status", "aprovado").order("nome"),
   ]);
+
+  const situacao = calcularSituacao((situacaoRpc ?? []) as LinhaSituacao[], (ativos ?? []) as { id: string; nome: string }[]);
+  const totaisSituacao = situacao.reduce(
+    (t, p) => {
+      t.ok += p.ok;
+      t.pendencia += p.pendencia;
+      t.andamento += p.andamento;
+      t.total += p.total;
+      for (const m of MODULOS) {
+        const x = p.porModulo[m.chave];
+        t.modulos[m.chave] = {
+          ok: (t.modulos[m.chave]?.ok ?? 0) + (x?.ok ?? 0),
+          pendencia: (t.modulos[m.chave]?.pendencia ?? 0) + (x?.pendencia ?? 0),
+        };
+      }
+      return t;
+    },
+    { ok: 0, pendencia: 0, andamento: 0, total: 0, modulos: {} as Record<string, { ok: number; pendencia: number }> }
+  );
 
   const todas = (linhasRpc ?? []) as LinhaAgregada[];
   const temRetro = todas.some((l) => l.retroativo);
@@ -158,6 +193,88 @@ export default async function DesempenhoPage({
           {d.retroativos} das análises são retroativas (de antes do histórico existir): contam 1 por ação, atribuídas à última pessoa que mexeu.
         </p>
       )}
+
+      <section className="mb-4 rounded-xl border border-black/5 bg-surface p-5 shadow-card">
+        <h3 className="text-sm font-semibold text-ink-primary">Situação das análises por pessoa</h3>
+        <p className="mb-3 text-xs text-ink-muted">
+          Conta 1 por ação/local, na situação de agora. <span className="font-medium text-status-good">Concluídas</span>: tudo
+          resolvido. <span className="font-medium text-status-warning">Com pendência</span>: a pessoa analisou e ainda há item
+          laranja; quando resolver, passa para concluídas. <span className="font-medium text-ink-secondary">Em andamento</span>:
+          começou e ainda não terminou, sem pendência.
+        </p>
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="text-xs uppercase tracking-wide text-ink-muted">
+              <tr className="border-b border-black/5 text-left">
+                <th rowSpan={2} className="px-3 py-2 align-bottom">Pessoa</th>
+                <th rowSpan={2} className="px-3 py-2 text-right align-bottom">Analisadas</th>
+                <th rowSpan={2} className="px-3 py-2 text-right align-bottom text-status-good">Concluídas</th>
+                <th rowSpan={2} className="px-3 py-2 text-right align-bottom text-status-warning">Com pendência</th>
+                <th rowSpan={2} className="px-3 py-2 text-right align-bottom">Em andamento</th>
+                {MODULOS.map((m) => (
+                  <th key={m.chave} colSpan={2} className="border-l border-black/5 px-3 py-2 text-center">
+                    <span className="mr-1.5 inline-block h-2 w-2 rounded-full align-middle" style={{ background: m.cor }} />
+                    {m.nome}
+                  </th>
+                ))}
+              </tr>
+              <tr className="border-b border-black/5">
+                {MODULOS.map((m) => (
+                  <th key={m.chave} colSpan={2} className="border-l border-black/5 p-0">
+                    <div className="flex">
+                      <span className="flex-1 px-3 py-1 text-right text-status-good">ok</span>
+                      <span className="flex-1 px-3 py-1 text-right text-status-warning">pend.</span>
+                    </div>
+                  </th>
+                ))}
+              </tr>
+            </thead>
+            <tbody>
+              {situacao.map((p) => (
+                <tr key={p.id} className="border-b border-black/5 last:border-0">
+                  <td className="px-3 py-2 font-medium text-ink-primary">{p.nome}</td>
+                  <td className="tabular px-3 py-2 text-right font-semibold text-ink-primary">{p.total || "—"}</td>
+                  <td className="tabular px-3 py-2 text-right font-semibold text-status-good">{p.ok || "—"}</td>
+                  <td className="tabular px-3 py-2 text-right font-semibold text-status-warning">{p.pendencia || "—"}</td>
+                  <td className="tabular px-3 py-2 text-right text-ink-secondary">{p.andamento || "—"}</td>
+                  {MODULOS.map((m) => (
+                    <td key={m.chave} colSpan={2} className="border-l border-black/5 p-0">
+                      <div className="tabular flex">
+                        <span className="flex-1 px-3 py-2 text-right text-status-good">{p.porModulo[m.chave]?.ok || "—"}</span>
+                        <span className="flex-1 px-3 py-2 text-right text-status-warning">{p.porModulo[m.chave]?.pendencia || "—"}</span>
+                      </div>
+                    </td>
+                  ))}
+                </tr>
+              ))}
+              {situacao.length > 0 && (
+                <tr className="border-t-2 border-black/10 bg-plane/60 font-semibold">
+                  <td className="px-3 py-2 text-ink-primary">Total</td>
+                  <td className="tabular px-3 py-2 text-right text-ink-primary">{totaisSituacao.total}</td>
+                  <td className="tabular px-3 py-2 text-right text-status-good">{totaisSituacao.ok}</td>
+                  <td className="tabular px-3 py-2 text-right text-status-warning">{totaisSituacao.pendencia}</td>
+                  <td className="tabular px-3 py-2 text-right text-ink-secondary">{totaisSituacao.andamento}</td>
+                  {MODULOS.map((m) => (
+                    <td key={m.chave} colSpan={2} className="border-l border-black/5 p-0">
+                      <div className="tabular flex">
+                        <span className="flex-1 px-3 py-2 text-right text-status-good">{totaisSituacao.modulos[m.chave]?.ok || "—"}</span>
+                        <span className="flex-1 px-3 py-2 text-right text-status-warning">{totaisSituacao.modulos[m.chave]?.pendencia || "—"}</span>
+                      </div>
+                    </td>
+                  ))}
+                </tr>
+              )}
+              {situacao.length === 0 && (
+                <tr>
+                  <td colSpan={5 + MODULOS.length * 2} className="px-3 py-8 text-center text-sm text-ink-muted">
+                    Nenhuma análise no período.
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+      </section>
 
       <LazyDesempenhoCharts d={d} />
 
