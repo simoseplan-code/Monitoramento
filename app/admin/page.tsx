@@ -1,6 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
-import { AprovarBotoes } from "./AprovarBotoes";
 import { SincronizarBotao } from "@/components/admin/SincronizarBotao";
 import { AplicarUnidadeBotao } from "@/components/unidadeQuantidade/AplicarUnidadeBotao";
 import { CheckCircle2, XCircle } from "lucide-react";
@@ -15,7 +14,7 @@ export default async function AdminPage() {
 
   const [
     { data: profile },
-    { data: pendentes },
+    { count: pendentesAprovacao },
     { data: ultimosSyncs },
     { count: totalAcoes },
     novasAcoesPendentes,
@@ -24,7 +23,7 @@ export default async function AdminPage() {
     { data: unidadeProdutividade },
   ] = await Promise.all([
     supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
-    supabase.from("profiles").select("id, nome, email, created_at").eq("status", "pendente").order("created_at"),
+    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
     supabase
       .from("sync_log")
       .select("id, executado_em, sucesso, linhas_processadas, mensagem")
@@ -46,9 +45,9 @@ export default async function AdminPage() {
       nome={profile?.nome ?? "Usuário"}
       cargo={profile?.cargo}
       isAdmin={!!profile?.is_admin}
-      counts={{ acoes: totalAcoes ?? 0, pendentesAprovacao: pendentes?.length ?? 0, novasAcoesPendentes }}
+      counts={{ acoes: totalAcoes ?? 0, pendentesAprovacao: pendentesAprovacao ?? 0, novasAcoesPendentes }}
       titulo="Administração"
-      subtitulo="Sincronização, cadastros e auditoria"
+      subtitulo="Sincronização com o SIMO, gravações e auditoria"
     >
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <section className="rounded-xl border border-black/5 bg-surface p-5 shadow-card">
@@ -90,30 +89,6 @@ export default async function AdminPage() {
           <AplicarUnidadeBotao pendentes={sugestoesUnidadeAprovadas ?? 0} />
         </section>
 
-        <section className="rounded-xl border border-black/5 bg-surface p-5 shadow-card">
-          <h2 className="mb-3 text-sm font-semibold text-ink-primary">
-            Cadastros pendentes de aprovação
-            {pendentes && pendentes.length > 0 && (
-              <span className="ml-2 rounded-full bg-status-warning-bg px-2 py-0.5 text-xs font-semibold text-status-warning">
-                {pendentes.length}
-              </span>
-            )}
-          </h2>
-          <div className="space-y-2">
-            {(pendentes ?? []).map((p) => (
-              <div key={p.id} className="flex items-center justify-between rounded-lg border border-black/5 p-3">
-                <div className="min-w-0">
-                  <p className="truncate text-sm font-medium text-ink-primary">{p.nome}</p>
-                  <p className="truncate text-xs text-ink-muted">{p.email}</p>
-                </div>
-                <AprovarBotoes userId={p.id} />
-              </div>
-            ))}
-            {(!pendentes || pendentes.length === 0) && (
-              <p className="text-sm text-ink-muted">Nenhum cadastro pendente.</p>
-            )}
-          </div>
-        </section>
       </div>
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">

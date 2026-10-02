@@ -64,7 +64,7 @@ export function Sidebar({
     { href: "/orgaos", label: "Órgãos", icon: Building2 },
     { href: "/historico", label: "Histórico", icon: History },
     { href: "/desempenho", label: "Desempenho", icon: BarChart3, adminOnly: true },
-    { href: "/admin", label: "Equipe", icon: Users, count: counts.pendentesAprovacao || undefined, adminOnly: true },
+    { href: "/equipe", label: "Equipe", icon: Users, count: counts.pendentesAprovacao || undefined, adminOnly: true },
     { href: "/admin", label: "Administração", icon: ShieldCheck, adminOnly: true },
   ];
 
