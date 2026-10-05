@@ -4,6 +4,7 @@ import { StatCard } from "@/components/dashboard/StatCard";
 import { LazyVinculacaoDonut } from "@/components/dashboard/LazyVinculacaoDonut";
 import { WorkflowColumns } from "@/components/dashboard/WorkflowColumns";
 import { QuickActions } from "@/components/dashboard/QuickActions";
+import { RelatoriosBar } from "@/components/dashboard/RelatoriosBar";
 import { NotificationsFeed } from "@/components/dashboard/NotificationsFeed";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { ClipboardList, Building2, Link2, Clock3, AlertTriangle, Archive } from "lucide-react";
@@ -86,6 +87,8 @@ export default async function DashboardGestaoPage() {
       subtitulo="Visão geral por período — ações de 2023 em diante entram na análise de status"
       notificacoesCount={eventos.filter((e) => e.tipo === "sync_erro").length}
     >
+      <RelatoriosBar isAdmin={!!profile?.is_admin} />
+
       <section className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         <StatCard icon={Archive} label="Criadas antes de 2023" value={resumo.antes_corte} tint="neutral" ajuda="Ações cadastradas no SIMO antes de 2023. Ficam fora de todos os indicadores desta tela; são contadas aqui só pra você saber quantas são." />
         <StatCard icon={ClipboardList} label="Criadas a partir de 2023" value={resumo.apos_corte_total} tint="series-1" ajuda="Total de ações cadastradas de 01/01/2023 em diante. É a base de todos os indicadores desta tela." />
