@@ -269,3 +269,35 @@ export async function salvarUnidadeQuantidade(
   const texto = new TextDecoder("iso-8859-1").decode(buffer);
   return { httpCode: resp.status, texto };
 }
+
+function numeroDoSimo(valor: string): number {
+  const v = valor.trim();
+  if (!v) return NaN;
+  // "3.035,00" (BR) ou "3035.00"/"3035" (ponto decimal).
+  return Number(v.includes(",") ? v.replace(/\./g, "").replace(",", ".") : v);
+}
+
+// O endpoint de edição responde 200 mesmo com aviso/erro de outra aba da
+// ação e grava assim mesmo. Pra não confiar às cegas, relê o formulário e
+// confere se Unidade (e Quantidade, quando enviada) ficaram como pedido.
+// Devolve null quando não foi possível reler (ex.: ação virou somente leitura).
+export async function confirmarUnidadeQuantidade(
+  cookie: string,
+  id: string,
+  unidade: string,
+  quantidade: string
+): Promise<boolean | null> {
+  try {
+    const { payload } = await lerFormularioSimo(cookie, id);
+    const atualUnidade = String(payload["general[measure_unit]"] ?? "").trim();
+    if (atualUnidade !== unidade.trim()) return false;
+    if (quantidade !== "") {
+      const esperado = numeroDoSimo(quantidade);
+      const atual = numeroDoSimo(String(payload["general[measure_quantity]"] ?? ""));
+      if (!Number.isNaN(esperado) && esperado !== atual) return false;
+    }
+    return true;
+  } catch {
+    return null;
+  }
+}

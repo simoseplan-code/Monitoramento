@@ -1,6 +1,6 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { loginSimo } from "@/lib/simo/client";
-import { salvarUnidadeQuantidade, SomenteLeituraError } from "@/lib/simo/formulario";
+import { confirmarUnidadeQuantidade, salvarUnidadeQuantidade, SomenteLeituraError } from "@/lib/simo/formulario";
 import { UNIDADES_VALIDAS, paraTextoBR } from "@/lib/unidadeQuantidade/sugestao";
 import { paraNumeroBR } from "@/lib/simo/parseCsv";
 import { registrarAnalise } from "@/lib/analisesLog";
@@ -94,6 +94,21 @@ export async function executarAplicacaoUnidade(executadoPor: string): Promise<Re
         resultado = "Sucesso (verificável)";
         aplicadoComSucesso = true;
         sucesso++;
+      } else if (httpCode === 200) {
+        // O SIMO responde 200 com aviso/erro de outra aba da ação e grava assim
+        // mesmo. Relê a ação e confere o valor; só é falha de verdade se o que
+        // está no SIMO não bateu com o pedido.
+        const confirmado = await confirmarUnidadeQuantidade(cookie, linha.id_acao, unidadeNova, quantidadeNova);
+        if (confirmado === false) {
+          resultado = "A verificar (HTTP 200 — o valor no SIMO não bateu)";
+          falha++;
+        } else {
+          resultado = confirmado
+            ? "Sucesso (confirmado: o SIMO gravou apesar do aviso)"
+            : "Sucesso (HTTP 200 com aviso do SIMO)";
+          aplicadoComSucesso = true;
+          sucesso++;
+        }
       } else {
         resultado = `A verificar (HTTP ${httpCode})`;
         falha++;
