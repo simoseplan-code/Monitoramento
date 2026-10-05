@@ -33,9 +33,9 @@ type LinhaSobreposicao = {
 export default async function SobreposicoesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; orgao?: string; ano?: string; ocultarEstradaVicinal?: string; pagina?: string }>;
+  searchParams: Promise<{ status?: string; orgao?: string; ano?: string; tipologia?: string; tipologiaTodas?: string; ocultarEstradaVicinal?: string; pagina?: string }>;
 }) {
-  const { status, orgao, ano, ocultarEstradaVicinal, pagina } = await searchParams;
+  const { status, orgao, ano, tipologia, tipologiaTodas, ocultarEstradaVicinal, pagina } = await searchParams;
   const statusAtual = status === "ok" || status === "problema" || status === "solucionado" ? status : "pendente";
   const anoFiltro = ano ? parseInt(ano, 10) : null;
   const ocultarEstradaVicinalAtual = ocultarEstradaVicinal === "1";
@@ -56,6 +56,7 @@ export default async function SobreposicoesPage({
     { data: linhasRpc },
     { data: orgaosRpc },
     { data: anosRpc },
+    { data: tipologiasRpc },
     { data: equipeAtiva },
   ] = await Promise.all([
     supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
@@ -68,17 +69,22 @@ export default async function SobreposicoesPage({
       orgao_filtro: orgao || null,
       ano_filtro: anoFiltro,
       ocultar_estrada_vicinal: ocultarEstradaVicinalAtual,
+      tipologia_filtro: tipologia || null,
+      tipologia_todas_filtro: tipologiaTodas || null,
     }),
     supabase.rpc("sobreposicoes_lista", {
       filtro_status: statusAtual,
       orgao_filtro: orgao || null,
       ano_filtro: anoFiltro,
       ocultar_estrada_vicinal: ocultarEstradaVicinalAtual,
+      tipologia_filtro: tipologia || null,
+      tipologia_todas_filtro: tipologiaTodas || null,
       pagina: paginaAtual,
       tamanho: PAGE_SIZE,
     }),
     supabase.rpc("sobreposicoes_orgaos"),
     supabase.rpc("sobreposicoes_anos"),
+    supabase.rpc("sobreposicoes_tipologias"),
     // Só admin enxerga os perfis de todo mundo (RLS); pros demais volta vazio.
     supabase.from("profiles").select("id, nome").eq("status", "aprovado").order("nome"),
   ]);
@@ -117,6 +123,7 @@ export default async function SobreposicoesPage({
   const totalFiltrado = linhas[0]?.total_geral ?? 0;
   const orgaosDisponiveis = (orgaosRpc ?? []).map((r: { orgao: string }) => r.orgao);
   const anosDisponiveis = (anosRpc ?? []).map((r: { ano: number }) => r.ano);
+  const tipologiasDisponiveis = (tipologiasRpc ?? []).map((r: { tipologia: string }) => r.tipologia);
 
   const totalPaginas = Math.max(1, Math.ceil(totalFiltrado / PAGE_SIZE));
 
@@ -145,6 +152,9 @@ export default async function SobreposicoesPage({
           orgaoAtual={orgao ?? ""}
           orgaos={orgaosDisponiveis}
           anoAtual={ano ?? ""}
+          tipologiaAtual={tipologia ?? ""}
+          tipologiaTodasAtual={tipologiaTodas ?? ""}
+          tipologias={tipologiasDisponiveis}
           anos={anosDisponiveis}
           ocultarEstradaVicinalAtual={ocultarEstradaVicinalAtual}
         />
@@ -189,6 +199,8 @@ export default async function SobreposicoesPage({
             status: statusAtual !== "pendente" ? statusAtual : undefined,
             orgao,
             ano,
+            tipologia,
+            tipologiaTodas,
             ocultarEstradaVicinal: ocultarEstradaVicinalAtual ? "1" : undefined,
           }}
         />

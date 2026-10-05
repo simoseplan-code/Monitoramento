@@ -16,6 +16,9 @@ export function FiltrosSobreposicoes({
   orgaoAtual,
   orgaos,
   anoAtual,
+  tipologiaAtual,
+  tipologiaTodasAtual,
+  tipologias,
   anos,
   ocultarEstradaVicinalAtual,
 }: {
@@ -24,6 +27,9 @@ export function FiltrosSobreposicoes({
   orgaoAtual: string;
   orgaos: string[];
   anoAtual: string;
+  tipologiaAtual: string;
+  tipologiaTodasAtual: string;
+  tipologias: string[];
   anos: number[];
   ocultarEstradaVicinalAtual: boolean;
 }) {
@@ -31,20 +37,24 @@ export function FiltrosSobreposicoes({
 
   // Os botões de status são links de verdade (href) pra o botão direito oferecer
   // "abrir em nova aba"; os selects continuam navegando por aplicar().
-  function hrefPara(overrides: { status?: string; orgao?: string; ano?: string; ocultarEstradaVicinal?: boolean }): string {
+  function hrefPara(overrides: { status?: string; orgao?: string; ano?: string; tipologia?: string; tipologiaTodas?: string; ocultarEstradaVicinal?: boolean }): string {
     const params = new URLSearchParams();
     const statusValor = overrides.status ?? statusAtual;
     const orgaoValor = overrides.orgao ?? orgaoAtual;
     const anoValor = overrides.ano ?? anoAtual;
+    const tipologiaValor = overrides.tipologia ?? tipologiaAtual;
+    const tipologiaTodasValor = overrides.tipologiaTodas ?? tipologiaTodasAtual;
     const ocultarValor = overrides.ocultarEstradaVicinal ?? ocultarEstradaVicinalAtual;
     if (statusValor !== "pendente") params.set("status", statusValor);
     if (orgaoValor) params.set("orgao", orgaoValor);
     if (anoValor) params.set("ano", anoValor);
+    if (tipologiaValor) params.set("tipologia", tipologiaValor);
+    if (tipologiaTodasValor) params.set("tipologiaTodas", tipologiaTodasValor);
     if (ocultarValor) params.set("ocultarEstradaVicinal", "1");
     return `/sobreposicoes${params.toString() ? `?${params.toString()}` : ""}`;
   }
 
-  function aplicar(overrides: { status?: string; orgao?: string; ano?: string; ocultarEstradaVicinal?: boolean }) {
+  function aplicar(overrides: { status?: string; orgao?: string; ano?: string; tipologia?: string; tipologiaTodas?: string; ocultarEstradaVicinal?: boolean }) {
     router.push(hrefPara(overrides));
   }
 
@@ -90,6 +100,34 @@ export function FiltrosSobreposicoes({
         {anos.map((a) => (
           <option key={a} value={a}>
             {a}
+          </option>
+        ))}
+      </select>
+
+      <select
+        value={tipologiaAtual}
+        onChange={(e) => aplicar({ tipologia: e.target.value })}
+        className="rounded-lg border border-black/10 bg-plane px-3 py-2 text-sm text-ink-secondary focus:border-series-1 focus:outline-none"
+        title="Local aparece se pelo menos uma das obras envolvidas for dessa tipologia"
+      >
+        <option value="">Pelo menos 1: qualquer tipologia</option>
+        {tipologias.map((t) => (
+          <option key={t} value={t}>
+            {t}
+          </option>
+        ))}
+      </select>
+
+      <select
+        value={tipologiaTodasAtual}
+        onChange={(e) => aplicar({ tipologiaTodas: e.target.value })}
+        className="rounded-lg border border-black/10 bg-plane px-3 py-2 text-sm text-ink-secondary focus:border-series-1 focus:outline-none"
+        title="Local aparece só se TODAS as obras envolvidas forem dessa tipologia"
+      >
+        <option value="">As duas são: qualquer tipologia</option>
+        {tipologias.map((t) => (
+          <option key={t} value={t}>
+            {t}
           </option>
         ))}
       </select>
