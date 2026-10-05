@@ -11,11 +11,11 @@ type Aba = { nome: string; colunas: Coluna[]; linhas: Linha[] };
 const fmtDataHora = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Fortaleza", dateStyle: "short", timeStyle: "short" });
 const fmtData = new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Fortaleza", dateStyle: "short" });
 
-function dataHora(iso: string | null | undefined): string {
+export function dataHora(iso: string | null | undefined): string {
   return iso ? fmtDataHora.format(new Date(iso)) : "";
 }
 
-function data(iso: string | null | undefined): string {
+export function data(iso: string | null | undefined): string {
   if (!iso) return "";
   // "AAAA-MM-DD" puro (coluna date) não pode passar por fuso.
   if (/^\d{4}-\d{2}-\d{2}$/.test(iso)) return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
@@ -29,7 +29,7 @@ const ROTULO_ITEM: Record<string, string> = {
 };
 
 // O PostgREST devolve no máximo N linhas por chamada: busca em páginas até acabar.
-async function buscarTudo<T>(
+export async function buscarTudo<T>(
   pagina: (de: number, ate: number) => PromiseLike<{ data: T[] | null; error: { message: string } | null }>
 ): Promise<T[]> {
   const tamanho = 1000;
@@ -43,14 +43,14 @@ async function buscarTudo<T>(
   return todos;
 }
 
-type Admin = ReturnType<typeof createAdminClient>;
+export type Admin = ReturnType<typeof createAdminClient>;
 
-async function nomesDePessoas(admin: Admin): Promise<Map<string, string>> {
+export async function nomesDePessoas(admin: Admin): Promise<Map<string, string>> {
   const { data: perfis } = await admin.from("profiles").select("id, nome");
   return new Map((perfis ?? []).map((p) => [p.id as string, p.nome as string]));
 }
 
-function ontemIso(): string {
+export function ontemIso(): string {
   return new Date(Date.now() - 3 * 3600 * 1000 - 86400000).toISOString().slice(0, 10);
 }
 
