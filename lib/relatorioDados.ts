@@ -27,6 +27,7 @@ export type DadosNovasAcoes = {
   porOrgao: { orgao: string; total: number; concluidas: number; pendDocs: number; pendKml: number; pendDup: number }[];
   porPessoa: { nome: string; concluidas: number; pendentes: number }[];
   desde: string;
+  excluidasPendentes: number;
 };
 
 export type DadosSobreposicoes = {
@@ -137,6 +138,7 @@ async function dadosNovasAcoes(admin: ReturnType<typeof createAdminClient>, nome
     porOrgao: [],
     porPessoa: [],
     desde: data(DATA_INICIO_REVISAO),
+    excluidasPendentes: 0,
   };
   const orgaos = new Map<string, { total: number; concluidas: number; pendDocs: number; pendKml: number; pendDup: number }>();
   const pessoas = new Map<string, { concluidas: number; pendentes: number }>();
@@ -177,6 +179,9 @@ async function dadosNovasAcoes(admin: ReturnType<typeof createAdminClient>, nome
       else p.pendentes++;
     }
   }
+
+  const { data: excluidas } = await admin.rpc("novas_acoes_excluidas");
+  out.excluidasPendentes = (excluidas ?? []).length;
 
   out.porOrgao = Array.from(orgaos.entries())
     .map(([orgao, x]) => ({ orgao, ...x }))

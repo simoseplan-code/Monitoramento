@@ -78,10 +78,14 @@ async function abasNovasAcoes(admin: Admin, nomes: Map<string, string>): Promise
       responsavel_id: string | null;
       revisado_por: string | null;
       revisado_em: string | null;
+      nome_acao: string | null;
+      orgao: string | null;
+      data_criacao: string | null;
+      excluida_em: string | null;
     }>((de, ate) =>
       admin
         .from("obras_revisao")
-        .select("id_acao, kml_anexado, sem_duplicacao, documentos_obrigatorios, concluido, concluido_em, concluido_por, responsavel_id, revisado_por, revisado_em")
+        .select("id_acao, kml_anexado, sem_duplicacao, documentos_obrigatorios, concluido, concluido_em, concluido_por, responsavel_id, revisado_por, revisado_em, nome_acao, orgao, data_criacao, excluida_em")
         .order("id_acao")
         .range(de, ate)
     ),
@@ -141,11 +145,36 @@ async function abasNovasAcoes(admin: Admin, nomes: Map<string, string>): Promise
     };
   });
 
+  // Ações que sumiram do SIMO: não somem do relatório, entram marcadas.
+  const idsNoEscopo = new Set(obras.map((o) => o.id_acao));
+  const excluidas = revisoes.filter((r) => r.excluida_em && !idsNoEscopo.has(r.id_acao));
+  let excluidasPendentes = 0;
+  for (const r of excluidas) {
+    const itens = [r.kml_anexado, r.sem_duplicacao, r.documentos_obrigatorios];
+    const concluida = !!r.concluido || itens.every((v) => v === "confirmado");
+    if (!concluida) excluidasPendentes++;
+    detalhe.push({
+      id: r.id_acao,
+      nome: r.nome_acao ?? "(nome não guardado — a ação sumiu antes do registro)",
+      orgao: r.orgao ?? "",
+      criada: data(r.data_criacao),
+      situacao: concluida ? "Concluída (ação excluída do SIMO)" : "Pendente — AÇÃO EXCLUÍDA DO SIMO",
+      kml: ROTULO_ITEM[r.kml_anexado] ?? r.kml_anexado,
+      dup: ROTULO_ITEM[r.sem_duplicacao] ?? r.sem_duplicacao,
+      docs: ROTULO_ITEM[r.documentos_obrigatorios] ?? r.documentos_obrigatorios,
+      responsavel: nomes.get(r.responsavel_id ?? r.revisado_por ?? "") ?? "",
+      concluidaEm: dataHora(r.concluido_em),
+      concluidaPor: nomes.get(r.concluido_por ?? "") ?? "",
+      ultimaRevisao: dataHora(r.revisado_em),
+    });
+  }
+
   const resumo: Linha[] = [
     { indicador: `Ações no escopo da revisão (criadas desde ${data(DATA_INICIO_REVISAO)}, sem conveniadas)`, valor: geral.total },
     { indicador: "Análises concluídas", valor: geral.concluidas },
     { indicador: "Em análise (iniciadas, não concluídas)", valor: geral.emAnalise },
     { indicador: "Não iniciadas", valor: geral.naoIniciadas },
+    { indicador: "Ações excluídas do SIMO com análise pendente (não entram nos totais acima)", valor: excluidasPendentes },
     { indicador: "Não concluídas com algum item aguardando atualização do órgão", valor: geral.comPendenciaOrgao },
     ...(["kml", "dup", "docs"] as const).flatMap((k) => {
       const nome = k === "kml" ? "KML anexado" : k === "dup" ? "Sem duplicação" : "Documentos obrigatórios";
@@ -177,6 +206,8 @@ async function abasNovasAcoes(admin: Admin, nomes: Map<string, string>): Promise
   for (const l of detalhe) {
     const nome = String(l.responsavel);
     if (!nome) continue;
+    // Ação excluída do SIMO fica visível no detalhe, mas não conta na produção por pessoa.
+    if (String(l.situacao).toLowerCase().includes("excluída")) continue;
     const x = responsaveis.get(nome) ?? { concluidas: 0, pendentes: 0 };
     if (l.situacao === "Concluída") x.concluidas++;
     else if (l.situacao !== "Não iniciada") x.pendentes++;

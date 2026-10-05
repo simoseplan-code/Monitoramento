@@ -307,6 +307,7 @@ function PaginaNovasAcoes({ d }: { d: DadosRelatorioPdf }) {
           { rotulo: "Em análise", valor: n.emAnalise, cor: C.amarelo },
           { rotulo: "Não iniciadas", valor: n.naoIniciadas, cor: C.neutro },
           { rotulo: "Item aguardando o órgão", valor: n.comPendenciaOrgao, cor: C.aviso },
+          { rotulo: "Excluídas do SIMO, pendentes", valor: n.excluidasPendentes, cor: C.vermelho },
         ]}
       />
       <View style={s.linha}>
