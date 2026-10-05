@@ -87,7 +87,7 @@ export default async function DashboardGestaoPage() {
       subtitulo="Visão geral por período — ações de 2023 em diante entram na análise de status"
       notificacoesCount={eventos.filter((e) => e.tipo === "sync_erro").length}
     >
-      <RelatoriosBar isAdmin={!!profile?.is_admin} />
+      {profile?.is_admin && <RelatoriosBar isAdmin />}
 
       <section className="mb-6 grid grid-cols-2 gap-4 md:grid-cols-3 xl:grid-cols-6">
         <StatCard icon={Archive} label="Criadas antes de 2023" value={resumo.antes_corte} tint="neutral" ajuda="Ações cadastradas no SIMO antes de 2023. Ficam fora de todos os indicadores desta tela; são contadas aqui só pra você saber quantas são." />

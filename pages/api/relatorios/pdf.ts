@@ -35,7 +35,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (!user) return res.status(401).json({ error: "Não autenticado." });
 
   const { data: perfil } = await supabase.from("profiles").select("status, is_admin").eq("id", user.id).single();
-  if (perfil?.status !== "aprovado") return res.status(403).json({ error: "Sem permissão." });
+  // Relatórios só para administrador.
+  if (perfil?.status !== "aprovado" || !perfil.is_admin) return res.status(403).json({ error: "Sem permissão." });
 
   const tipo = (Array.isArray(req.query.tipo) ? req.query.tipo[0] : req.query.tipo) as TipoPdf | undefined;
   if (!tipo || !TIPOS.includes(tipo)) return res.status(400).json({ error: "Tipo de relatório inválido." });
