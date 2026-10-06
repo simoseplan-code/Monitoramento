@@ -202,10 +202,11 @@ async function dadosSobreposicoes(admin: ReturnType<typeof createAdminClient>, n
     revisado_em: string | null;
     responsavel_id: string | null;
     solucionado_por: string | null;
+    solucao: string | null;
   }>((de, ate) =>
     admin
       .from("sobreposicoes")
-      .select("obras, status, observacao, revisado_por, revisado_em, responsavel_id, solucionado_por")
+      .select("obras, status, observacao, revisado_por, revisado_em, responsavel_id, solucionado_por, solucao")
       .order("chave_local")
       .range(de, ate)
   );
@@ -252,7 +253,7 @@ async function dadosSobreposicoes(admin: ReturnType<typeof createAdminClient>, n
           ids: obras.map((o) => o.id ?? "?").join(", "),
           orgaos: orgs.join(", "),
           responsavel: dono,
-          observacao: (l.observacao ?? "").trim(),
+          observacao: (l.observacao ?? "").trim() + (l.status === "solucionado" && l.solucao ? " — Solução: " + l.solucao.trim() : ""),
           quando: dataHora(l.revisado_em),
           ordem: l.revisado_em ?? "",
         });

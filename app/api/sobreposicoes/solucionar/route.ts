@@ -17,9 +17,14 @@ export async function POST(request: NextRequest) {
   const { data: perfil } = await supabase.from("profiles").select("status").eq("id", user.id).single();
   if (perfil?.status !== "aprovado") return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
 
-  const { chaveLocal, acao } = (await request.json()) as { chaveLocal?: string; acao?: string };
+  const { chaveLocal, acao, solucao } = (await request.json()) as { chaveLocal?: string; acao?: string; solucao?: string };
   if (!chaveLocal || (acao !== "solucionar" && acao !== "voltar")) {
     return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
+  }
+
+  const textoSolucao = typeof solucao === "string" ? solucao.trim().slice(0, 1000) : "";
+  if (acao === "solucionar" && textoSolucao.length < 3) {
+    return NextResponse.json({ error: "Informe como o problema foi solucionado." }, { status: 400 });
   }
 
   const admin = createAdminClient();
@@ -28,7 +33,7 @@ export async function POST(request: NextRequest) {
   if (acao === "solucionar") {
     const { data, error } = await admin
       .from("sobreposicoes")
-      .update({ status: "solucionado", solucionado_por: user.id, solucionado_em: agora, atualizado_em: agora })
+      .update({ status: "solucionado", solucionado_por: user.id, solucionado_em: agora, solucao: textoSolucao, atualizado_em: agora })
       .eq("chave_local", chaveLocal)
       .eq("status", "problema")
       .select("chave_local");
@@ -36,13 +41,15 @@ export async function POST(request: NextRequest) {
     if (!data || data.length === 0) {
       return NextResponse.json({ error: "Esse local não está mais como \"com problema\" (alguém pode ter alterado)." }, { status: 409 });
     }
-    await registrarAnalise(admin, user.id, "sobreposicoes", chaveLocal, "solucionado");
+    await registrarAnalise(admin, user.id, "sobreposicoes", chaveLocal, "solucionado", textoSolucao);
     return NextResponse.json({ ok: true });
   }
 
+  const { data: anterior } = await admin.from("sobreposicoes").select("solucao").eq("chave_local", chaveLocal).maybeSingle();
+
   const { data, error } = await admin
     .from("sobreposicoes")
-    .update({ status: "problema", solucionado_por: null, solucionado_em: null, atualizado_em: agora })
+    .update({ status: "problema", solucionado_por: null, solucionado_em: null, solucao: null, atualizado_em: agora })
     .eq("chave_local", chaveLocal)
     .eq("status", "solucionado")
     .select("chave_local");
@@ -50,6 +57,6 @@ export async function POST(request: NextRequest) {
   if (!data || data.length === 0) {
     return NextResponse.json({ error: "Esse local não está mais como solucionado." }, { status: 409 });
   }
-  await registrarAnalise(admin, user.id, "sobreposicoes", chaveLocal, "reaberto", "voltou com problema");
+  await registrarAnalise(admin, user.id, "sobreposicoes", chaveLocal, "reaberto", "voltou com problema" + (anterior?.solucao ? " (solução anterior: " + anterior.solucao + ")" : ""));
   return NextResponse.json({ ok: true });
 }

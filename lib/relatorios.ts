@@ -294,11 +294,12 @@ async function abasSobreposicoes(admin: Admin, nomes: Map<string, string>): Prom
     responsavel_id: string | null;
     solucionado_por: string | null;
     solucionado_em: string | null;
+    solucao: string | null;
     importado_em: string | null;
   }>((de, ate) =>
     admin
       .from("sobreposicoes")
-      .select("chave_local, obras, qtd_obras, extensao_m, tolerancia_m, qtd_segmentos, lat_inicio, lon_inicio, status, observacao, revisado_por, revisado_em, responsavel_id, solucionado_por, solucionado_em, importado_em")
+      .select("chave_local, obras, qtd_obras, extensao_m, tolerancia_m, qtd_segmentos, lat_inicio, lon_inicio, status, observacao, revisado_por, revisado_em, responsavel_id, solucionado_por, solucionado_em, solucao, importado_em")
       .order("chave_local")
       .range(de, ate)
   );
@@ -338,6 +339,7 @@ async function abasSobreposicoes(admin: Admin, nomes: Map<string, string>): Prom
       revisadoEm: dataHora(l.revisado_em),
       observacao: l.observacao ?? "",
       solucionadoPor: solucionou,
+      solucao: l.solucao ?? "",
       solucionadoEm: dataHora(l.solucionado_em),
       importadoEm: dataHora(l.importado_em),
       chave: l.chave_local,
@@ -390,6 +392,7 @@ async function abasSobreposicoes(admin: Admin, nomes: Map<string, string>): Prom
         { cabecalho: "Responsável", chave: "responsavel", largura: 28 },
         { cabecalho: "Revisado em", chave: "revisadoEm", largura: 17 },
         { cabecalho: "Observação", chave: "observacao", largura: 50, quebra: true },
+        { cabecalho: "Como foi solucionado", chave: "solucao", largura: 50, quebra: true },
         { cabecalho: "Solucionado por", chave: "solucionadoPor", largura: 28 },
         { cabecalho: "Solucionado em", chave: "solucionadoEm", largura: 17 },
         { cabecalho: "Início no mapa", chave: "mapa", largura: 40 },

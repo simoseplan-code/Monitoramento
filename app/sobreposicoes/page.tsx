@@ -27,6 +27,7 @@ type LinhaSobreposicao = {
   responsavel_nome: string | null;
   solucionado_por_nome: string | null;
   solucionado_em: string | null;
+  solucao: string | null;
   total_geral: number;
 };
 
@@ -176,6 +177,7 @@ export default async function SobreposicoesPage({
             statusInicial={l.status}
             observacaoInicial={l.observacao}
             solucionadoPor={l.solucionado_por_nome ? { nome: l.solucionado_por_nome, em: l.solucionado_em } : null}
+            solucao={l.solucao}
             responsavelInicial={l.responsavel_id ? { id: l.responsavel_id, nome: l.responsavel_nome ?? "—" } : null}
             usuario={usuario}
             ehAdmin={ehAdmin}
