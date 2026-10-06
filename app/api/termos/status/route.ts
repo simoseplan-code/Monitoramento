@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { limparTexto } from "@/lib/seguranca";
 import { registrarAnalise } from "@/lib/analisesLog";
 
 const STATUS_VALIDOS = ["pendente", "corrigido", "problema"] as const;
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
       {
         id_acao: idAcao,
         status,
-        observacao: observacao?.trim() || null,
+        observacao: limparTexto(observacao, 2000),
         revisado_por: status === "pendente" ? null : user.id,
         revisado_em: status === "pendente" ? null : agora,
         atualizado_em: agora,

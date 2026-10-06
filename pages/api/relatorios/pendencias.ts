@@ -93,6 +93,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     res.setHeader("Cache-Control", "no-store");
     return res.status(200).send(buffer);
   } catch (e) {
-    return res.status(500).json({ error: e instanceof Error ? e.message : "Falha ao gerar o PDF." });
+    console.error("relatorio pendencias:", e);
+    return res.status(500).json({ error: "Falha ao gerar o PDF." });
   }
 }

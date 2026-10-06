@@ -32,6 +32,7 @@ export async function GET(request: NextRequest) {
       },
     });
   } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "Falha ao gerar o relatório." }, { status: 500 });
+    console.error("relatorio excel:", e);
+    return NextResponse.json({ error: "Falha ao gerar o relatório." }, { status: 500 });
   }
 }

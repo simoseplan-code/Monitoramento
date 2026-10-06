@@ -1,12 +1,18 @@
 import { createServerClient, type CookieOptions } from "@supabase/ssr";
 import { NextResponse, type NextRequest } from "next/server";
 import { sessaoExpirada } from "@/lib/sessao";
+import { origemConfiavel } from "@/lib/seguranca";
 
 const ROTAS_PUBLICAS = ["/login", "/cadastro", "/pendente"];
 
 export async function middleware(request: NextRequest) {
   // Rotas de API cuidam da própria autenticação/rate limit.
   if (request.nextUrl.pathname.startsWith("/api")) {
+    // CSRF: pedido que altera dados só é aceito se vier do próprio painel.
+    const altera = !["GET", "HEAD", "OPTIONS"].includes(request.method);
+    if (altera && !origemConfiavel(request.headers.get("origin"), request.headers.get("host"))) {
+      return NextResponse.json({ error: "Origem não permitida." }, { status: 403 });
+    }
     return NextResponse.next();
   }
 

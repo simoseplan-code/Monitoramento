@@ -4,6 +4,7 @@ import { FiltrosAcoes } from "./FiltrosAcoes";
 import { Paginacao } from "@/components/Paginacao";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
+import { sanitizarBusca } from "@/lib/seguranca";
 
 const PAGE_SIZE = 100;
 
@@ -69,8 +70,9 @@ export default async function AcoesPage({
     .from("obras")
     .select("id_acao, nome_acao, numero_automatico, numero_siafe, orgao, status, estagio_atual", { count: "exact" });
 
-  if (busca) {
-    query = query.or(`nome_acao.ilike.%${busca}%,id_acao.ilike.%${busca}%,orgao.ilike.%${busca}%`);
+  const termo = sanitizarBusca(busca);
+  if (termo) {
+    query = query.or(`nome_acao.ilike.%${termo}%,id_acao.ilike.%${termo}%,orgao.ilike.%${termo}%`);
   }
 
   if (orgao) {

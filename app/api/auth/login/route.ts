@@ -15,9 +15,10 @@ const BLOQUEIO_MINUTOS = 15;
 
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request);
-  const { email, senha, turnstileToken } = await request.json();
+  const corpo = (await request.json().catch(() => ({}))) as { email?: unknown; senha?: unknown; turnstileToken?: unknown };
+  const { email, senha, turnstileToken } = corpo as { email: string; senha: string; turnstileToken: string };
 
-  if (!email || !senha) {
+  if (typeof email !== "string" || typeof senha !== "string" || !email || !senha || email.length > 254 || senha.length > 200) {
     return NextResponse.json({ error: "Informe email e senha." }, { status: 400 });
   }
 

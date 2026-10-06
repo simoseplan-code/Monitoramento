@@ -29,14 +29,16 @@ export async function POST(request: NextRequest) {
   const { data: perfilAcesso } = await supabase.from("profiles").select("is_admin").eq("id", user.id).single();
   if (!perfilAcesso?.is_admin) return NextResponse.json({ error: "Sem permissão para Sobreposições." }, { status: 403 });
 
-  const { csv } = (await request.json()) as { csv?: string };
-  if (!csv) return NextResponse.json({ error: "Nenhum CSV enviado." }, { status: 400 });
+  const corpo = (await request.json().catch(() => null)) as { csv?: unknown } | null;
+  const csv = corpo?.csv;
+  if (typeof csv !== "string" || !csv) return NextResponse.json({ error: "Nenhum CSV enviado." }, { status: 400 });
+  if (csv.length > 20_000_000) return NextResponse.json({ error: "Arquivo grande demais." }, { status: 413 });
 
   let locais;
   try {
     locais = csvParaSobreposicoes(csv);
-  } catch (e) {
-    return NextResponse.json({ error: e instanceof Error ? e.message : "CSV inválido." }, { status: 400 });
+  } catch {
+    return NextResponse.json({ error: "CSV inválido. Confira se é o arquivo do Mapa de Obras." }, { status: 400 });
   }
   if (locais.length === 0) {
     return NextResponse.json({ error: "Nenhum local sobreposto encontrado nesse CSV." }, { status: 400 });
@@ -126,7 +128,10 @@ export async function POST(request: NextRequest) {
     const { error } = await supabase.from("sobreposicoes").upsert(linhasNovas, { onConflict: "chave_local" });
     if (error) erros.push(error.message);
   }
-  if (erros.length > 0) return NextResponse.json({ error: "Falha ao salvar no banco: " + erros.join("; ") }, { status: 500 });
+  if (erros.length > 0) {
+    console.error("importar sobreposicoes:", erros);
+    return NextResponse.json({ error: "Falha ao salvar no banco." }, { status: 500 });
+  }
 
   const carregadosAutomaticamente = linhasNovas.filter((l) => "status" in l && l.status !== "pendente").length;
   const novos = locaisNovos.length;

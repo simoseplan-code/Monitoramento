@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { sanitizarBusca } from "@/lib/seguranca";
 
 function csvEscape(v: unknown): string {
   const s = v === null || v === undefined ? "" : String(v);
@@ -28,8 +29,9 @@ export async function GET(request: NextRequest) {
       "id_acao, nome_acao, numero_automatico, numero_siafe, orgao, status, data_criacao, estagio_atual, percentual_execucao, acao_conveniada"
     );
 
-  if (busca) {
-    query = query.or(`nome_acao.ilike.%${busca}%,id_acao.ilike.%${busca}%,orgao.ilike.%${busca}%`);
+  const termo = sanitizarBusca(busca);
+  if (termo) {
+    query = query.or(`nome_acao.ilike.%${termo}%,id_acao.ilike.%${termo}%,orgao.ilike.%${termo}%`);
   }
 
   if (orgao) {
