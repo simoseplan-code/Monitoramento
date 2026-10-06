@@ -44,7 +44,11 @@ export function Turnstile({ onToken }: { onToken: (token: string) => void }) {
   }, [siteKey, onToken]);
 
   if (!siteKey) {
-    // Sem site key configurada (ex: ambiente local) — captcha fica desligado.
+    // Sem site key: em dev local o captcha fica desligado; em produção o servidor
+    // exige o token, então avisa em vez de deixar o formulário falhar sem explicação.
+    if (process.env.NODE_ENV === "production") {
+      return <p className="text-xs text-red-600">Verificação de segurança não configurada. Avise o administrador.</p>;
+    }
     return null;
   }
 

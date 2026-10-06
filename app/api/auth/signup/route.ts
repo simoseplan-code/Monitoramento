@@ -14,8 +14,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "A senha precisa ter pelo menos 8 caracteres." }, { status: 400 });
   }
 
-  const captchaOk = await verificarTurnstile(turnstileToken, ip);
-  if (!captchaOk) {
+  const captcha = await verificarTurnstile(turnstileToken, ip, request.headers.get("host"));
+  if (captcha === "indisponivel") {
+    return NextResponse.json({ error: "Verificação de segurança indisponível no momento. Tente de novo em instantes ou avise o administrador." }, { status: 503 });
+  }
+  if (captcha !== "ok") {
     return NextResponse.json({ error: "Falha na verificação de segurança. Tente novamente." }, { status: 400 });
   }
 
