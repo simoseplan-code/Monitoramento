@@ -13,6 +13,12 @@ const nextConfig = {
       "./node_modules/fontkit/**/*",
       "./node_modules/hyphen/**/*",
     ],
+    "/api/relatorios/pendencias": [
+      "./node_modules/pdfkit/**/*",
+      "./node_modules/@react-pdf/**/*",
+      "./node_modules/fontkit/**/*",
+      "./node_modules/hyphen/**/*",
+    ],
   },
 };
 

@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Lock, UserRound } from "lucide-react";
 import { ChecklistItem } from "./ChecklistItem";
 import { ConcluirBotao } from "./ConcluirBotao";
@@ -27,6 +27,9 @@ export function CardNovaAcao({
   usuario,
   ehAdmin,
   equipe,
+  selecionada = false,
+  onSelecionar,
+  onPendencia,
 }: {
   idAcao: string;
   nomeAcao: string;
@@ -42,6 +45,9 @@ export function CardNovaAcao({
   usuario: PessoaEquipe;
   ehAdmin: boolean;
   equipe: PessoaEquipe[];
+  selecionada?: boolean;
+  onSelecionar?: (idAcao: string, marcada: boolean) => void;
+  onPendencia?: (idAcao: string, temPendencia: boolean) => void;
 }) {
   // Estado local pros checks — clicar num item atualiza só este
   // card na hora, sem pedir pro Next.js re-renderizar a página inteira
@@ -52,8 +58,16 @@ export function CardNovaAcao({
   const [trocando, setTrocando] = useState(false);
 
   const tudoConfirmado = CHECKS.every((c) => status[c.campo] === "confirmado");
+  // Só dá pra marcar (pra encaminhar ao órgão) ação com algum item pendente.
+  const temPendencia = CHECKS.some((c) => status[c.campo] === "aguardando_atualizacao") && !concluido;
   // Com responsável que não é você, só leitura (admin pode tudo).
   const bloqueado = !!responsavel && responsavel.id !== usuario.id && !ehAdmin;
+
+  useEffect(() => {
+    onPendencia?.(idAcao, temPendencia);
+    if (!temPendencia && selecionada) onSelecionar?.(idAcao, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [temPendencia]);
 
   function aoSalvarResponsavel(id: string) {
     if (responsavel?.id === id) return;
@@ -95,7 +109,30 @@ export function CardNovaAcao({
             {dataCriacao ? new Date(dataCriacao + "T00:00:00").toLocaleDateString("pt-BR") : "—"}
           </p>
         </div>
-        {!bloqueado && (tudoConfirmado || concluido) && <ConcluirBotao idAcao={idAcao} concluido={concluido} />}
+        <div className="flex shrink-0 items-center gap-3">
+          {!bloqueado && (tudoConfirmado || concluido) && <ConcluirBotao idAcao={idAcao} concluido={concluido} />}
+          {temPendencia && onSelecionar && (
+            <label
+              className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                selecionada ? "border-status-warning bg-status-warning-bg text-status-warning" : "border-black/10 text-ink-muted hover:bg-plane"
+              } ${bloqueado ? "cursor-not-allowed opacity-50" : ""}`}
+              title={
+                bloqueado
+                  ? "Só o responsável pela análise ou um administrador pode encaminhar"
+                  : "Marcar para encaminhar ao órgão (aguardando solução de pendência)"
+              }
+            >
+              <input
+                type="checkbox"
+                checked={selecionada}
+                disabled={bloqueado}
+                onChange={(e) => onSelecionar(idAcao, e.target.checked)}
+                className="h-3.5 w-3.5 accent-status-warning"
+              />
+              Marcar
+            </label>
+          )}
+        </div>
       </div>
       <div className="flex flex-wrap gap-2">
         {CHECKS.map((c) => (
