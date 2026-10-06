@@ -39,7 +39,7 @@ const s = StyleSheet.create({
   rodape: { position: "absolute", left: 28, right: 28, bottom: 18, flexDirection: "row", justifyContent: "space-between", fontSize: 7, color: C.mudo },
 });
 
-const dia = (iso: string | null) => (iso ? new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString("pt-BR", { timeZone: "America/Fortaleza" }) : "—");
+const dia = (iso: string | null) => (iso ? new Date(iso.length === 10 ? `${iso}T00:00:00` : iso).toLocaleDateString("pt-BR", { timeZone: "America/Fortaleza" }) : "-");
 
 function Cabecalho({ titulo, subtitulo, geradoEm }: { titulo: string; subtitulo: string; geradoEm: string }) {
   return (
@@ -72,11 +72,11 @@ function Rodape({ geradoEm }: { geradoEm: string }) {
 // uma, só os itens que foram marcados como pendentes.
 export function PendenciasPdf({ orgaos, geradoEm }: { orgaos: OrgaoPendente[]; geradoEm: string }) {
   return (
-    <Document title="Pendências por órgão — Monitoramento de Obras" author="Monitoramento de Obras">
+    <Document title="Pendências por órgão: Monitoramento de Obras" author="Monitoramento de Obras">
       {orgaos.map((o) => (
         <Page key={o.orgao} size="A4" style={s.pagina}>
           <Cabecalho
-            titulo={`Pendências — ${o.orgao}`}
+            titulo={`Pendências: ${o.orgao}`}
             subtitulo={`${o.acoes.length} ação(ões) aguardando solução de pendência`}
             geradoEm={geradoEm}
           />

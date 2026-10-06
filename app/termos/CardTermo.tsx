@@ -57,7 +57,7 @@ export function CardTermo({
   }
 
   const status = statusInicial;
-  const formatar = (d: string | null) => (d ? new Date(d + "T00:00:00").toLocaleDateString("pt-BR") : "—");
+  const formatar = (d: string | null) => (d ? new Date(d + "T00:00:00").toLocaleDateString("pt-BR") : "-");
   const abrir = (d: "corrigido" | "problema") => {
     setDecisao(d);
     setEtapa("escrevendo");

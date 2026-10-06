@@ -1,6 +1,6 @@
 export type ResultadoCaptcha = "ok" | "invalido" | "indisponivel";
 
-// Falha FECHADA: em produção, sem a chave secreta o captcha NÃO é ignorado —
+// Falha FECHADA: em produção, sem a chave secreta o captcha NÃO é ignorado -
 // recusa tudo e avisa que a configuração está faltando (antes, uma variável
 // vazia na Vercel desligava o captcha em silêncio). Só fora de produção (dev
 // local sem chave) ele fica liberado.

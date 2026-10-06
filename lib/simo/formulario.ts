@@ -1,7 +1,7 @@
-// Leitura/gravação do formulário "Geral" de uma ação no SIMO — porta
+// Leitura/gravação do formulário "Geral" de uma ação no SIMO, porta
 // fiel da parte de scraping da planilha "Sugestão Unidade/Quantidade"
 // (Apps Script), trocando UrlFetchApp por fetch. Usada só pra trocar
-// Unidade de Medida / Quantidade (app/api/admin/aplicar-unidade) — não
+// Unidade de Medida / Quantidade (app/api/admin/aplicar-unidade), não
 // mexe em vinculação de contrato SIAFE, que é outro fluxo (lib/simo/sync.ts).
 //
 // Fragilidade conhecida e intencionalmente preservada (validada em
@@ -9,7 +9,7 @@
 // gravação (não só a aba visível), fala Latin-1/Windows-1252 no corpo
 // do POST (exceto o campo de unidade, que precisa vir em UTF-8), e tem
 // blocos <template> escondidos no HTML que precisam ser removidos antes
-// de serializar — senão os arrays de itens repetidos (pagamentos,
+// de serializar, senão os arrays de itens repetidos (pagamentos,
 // localizações...) ficam desalinhados e o SIMO recusa a gravação.
 
 const SIMO_INFORMATION_URL = "http://simo.pi.gov.br/cahier/action/projects/information/";
@@ -18,7 +18,7 @@ const SIMO_SHOW_ACTION_URL = "http://simo.pi.gov.br/cahier/action/projects/show/
 
 // Campos cujo VALOR precisa ir em UTF-8 padrão, não Latin-1 (confirmado
 // testando ao vivo: "general[measure_unit]" com "M²" em Latin-1 salvava
-// como "M" puro — o "²" sumia). O SIMO valida esse dropdown comparando
+// como "M" puro, o "²" sumia). O SIMO valida esse dropdown comparando
 // contra o texto em UTF-8, diferente do resto do formulário.
 const CAMPOS_VALOR_UTF8 = ["general[measure_unit]"];
 
@@ -44,7 +44,7 @@ function decodificarEntidadesHtml(s: string): string {
   return out.replace(/&#(\d+);/g, (_, cod) => String.fromCharCode(parseInt(cod, 10)));
 }
 
-// O HTML do formulário do SIMO tem blocos "template" — usados pelo JS
+// O HTML do formulário do SIMO tem blocos "template", usados pelo JS
 // deles pra clonar uma linha nova quando o usuário clica "+ adicionar".
 // Ficam escondidos no HTML (CSS "dnone") com os MESMOS nomes de campo
 // dos itens reais, só que com valores fictícios. Se não remover antes de
@@ -59,7 +59,7 @@ function removerTemplatesHtml(html: string): string {
 }
 
 // O SIMO usa "-" como texto de "sem valor" em vários campos (datas
-// principalmente) — isso está no HTML cru, mas o navegador limpa isso
+// principalmente), isso está no HTML cru, mas o navegador limpa isso
 // via JS antes de salvar de verdade. Reenviar o "-" literal quebra
 // validação de data no backend.
 function limparTraco(v: string): string {
@@ -69,7 +69,7 @@ function limparTraco(v: string): string {
 type Payload = Record<string, string | string[]>;
 
 // Serializa TODOS os campos habilitados do formulário (igual o navegador
-// faz de verdade ao clicar "Salvar" — o SIMO reenvia o formulário inteiro
+// faz de verdade ao clicar "Salvar", o SIMO reenvia o formulário inteiro
 // a cada gravação). Lê genericamente <input>/<select>/<textarea> com
 // "name", pulando os desabilitados e os tipos que nunca são enviados
 // como texto (submit/button/file/image/reset); checkbox/radio só se
@@ -154,12 +154,12 @@ function mesclarCookies(cookieBase: string, resp: Response): string {
 }
 
 // Busca o formulário atual da ação no SIMO e monta o payload com o mesmo
-// conjunto de campos que o SIMO reenvia ao clicar "Salvar" — só assim dá
+// conjunto de campos que o SIMO reenvia ao clicar "Salvar", só assim dá
 // pra reenviar tudo igual, trocando apenas Unidade/Quantidade, sem risco
 // de apagar outro campo da ação (datas, responsável, pagamentos...).
 async function lerFormularioSimo(cookie: string, id: string): Promise<{ payload: Payload; cookie: string }> {
   // Visita a página "show" da ação primeiro, igual uma navegação normal
-  // faria — sem isso, o SIMO às vezes devolve em "information/" uma
+  // faria, sem isso, o SIMO às vezes devolve em "information/" uma
   // versão SOMENTE LEITURA do formulário, mesmo com permissão total.
   const respShow = await fetch(SIMO_SHOW_ACTION_URL + id, { headers: { Cookie: cookie } });
   cookie = mesclarCookies(cookie, respShow);
@@ -191,7 +191,7 @@ async function lerFormularioSimo(cookie: string, id: string): Promise<{ payload:
 }
 
 // Codifica UMA string em application/x-www-form-urlencoded usando Latin-1
-// (ISO-8859-1) — todo acento do português cai dentro da faixa 0-255 do
+// (ISO-8859-1), todo acento do português cai dentro da faixa 0-255 do
 // Latin-1, então cada caractere vira exatamente 1 byte (%XX), igual o
 // SIMO espera. encodeURIComponent do JS gera UTF-8 (2+ bytes por acento)
 // e corrompe o texto no backend deles.

@@ -94,8 +94,8 @@ export default async function TermosPage({
         novasAcoesPendentes,
         termosPendentes,
       }}
-      titulo="Termos — Outros Documentos"
-      subtitulo={`${totalGeral} ação(ões) concluída(s) com TEI ou Rescisão — ${ROTULO_STATUS[status]}`}
+      titulo="Termos: Outros Documentos"
+      subtitulo={`${totalGeral} ação(ões) concluída(s) com TEI ou Rescisão, ${ROTULO_STATUS[status]}`}
     >
       <div className="mb-4">
         <FiltrosTermos atuais={{ status, tipo, orgao, de, ate, busca }} contagens={contagens} orgaos={orgaos} />

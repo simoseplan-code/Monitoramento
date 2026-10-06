@@ -33,11 +33,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Quantidade precisa ser um número (ex.: 9, 25,28 ou 1.732,32)." }, { status: 400 });
     }
 
-    // O SIMO trava edição de ação "Concluído" — aprovar só criaria um
+    // O SIMO trava edição de ação "Concluído", aprovar só criaria um
     // erro de "somente leitura" na hora de gravar.
     const { data: obra } = await supabase.from("obras").select("status").eq("id_acao", idAcao).maybeSingle();
     if (/^conclu[ií]do$/i.test((obra?.status ?? "").trim())) {
-      return NextResponse.json({ error: "Ação concluída — o SIMO não permite alterar Unidade/Quantidade." }, { status: 400 });
+      return NextResponse.json({ error: "Ação concluída, o SIMO não permite alterar Unidade/Quantidade." }, { status: 400 });
     }
   }
 
@@ -59,7 +59,7 @@ export async function POST(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: "Falha ao salvar aprovação." }, { status: 500 });
   // RLS bloqueando (perfil não aprovado) ou sugestão que saiu da fila num
-  // sync: o update "funciona" sem alterar nada — não pode responder ok.
+  // sync: o update "funciona" sem alterar nada, não pode responder ok.
   if (!data || data.length === 0) {
     return NextResponse.json({ error: "Sugestão não encontrada (pode ter saído da fila no último sync) ou sem permissão." }, { status: 404 });
   }

@@ -1,6 +1,6 @@
 // Tempo máximo de uma sessão, contado desde o último login com senha
 // (não desde a última atividade). O Supabase por padrão mantém a sessão
-// por meses no navegador — com perfil de navegador compartilhado entre
+// por meses no navegador, com perfil de navegador compartilhado entre
 // computadores da empresa, outra pessoa abria o painel já logada.
 export const SESSAO_MAX_HORAS = 12;
 

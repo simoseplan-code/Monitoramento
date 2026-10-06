@@ -247,7 +247,7 @@ export function PendenciasPorOrgao({ grupos, usuarioId, ehAdmin }: { grupos: Gru
                               {st === "aguardando_atualizacao" && <AlertTriangle size={12} strokeWidth={2.5} />}
                               {st === "confirmado" && <Check size={12} strokeWidth={3} />}
                               {i.rotulo}
-                              {st === "aguardando_atualizacao" && " — pendente"}
+                              {st === "aguardando_atualizacao" && " (pendente)"}
                             </span>
                           );
                         })}

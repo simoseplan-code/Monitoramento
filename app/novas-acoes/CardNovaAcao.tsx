@@ -49,7 +49,7 @@ export function CardNovaAcao({
   onSelecionar?: (idAcao: string, marcada: boolean) => void;
   onPendencia?: (idAcao: string, temPendencia: boolean) => void;
 }) {
-  // Estado local pros checks — clicar num item atualiza só este
+  // Estado local pros checks, clicar num item atualiza só este
   // card na hora, sem pedir pro Next.js re-renderizar a página inteira
   // (que numa lista de dezenas de ações ficava perceptivelmente lento).
   const [status, setStatus] = useState(statusInicial);
@@ -87,7 +87,7 @@ export function CardNovaAcao({
       });
       const json = (await resp.json().catch(() => ({}))) as { error?: string; responsavelId?: string; responsavelNome?: string };
       if (!resp.ok) setErro(json.error ?? "Não foi possível trocar o responsável.");
-      else setResponsavel({ id: json.responsavelId!, nome: json.responsavelNome ?? "—" });
+      else setResponsavel({ id: json.responsavelId!, nome: json.responsavelNome ?? "-" });
     } catch {
       setErro("Sem conexão com o servidor.");
     } finally {
@@ -106,7 +106,7 @@ export function CardNovaAcao({
           <p className="truncate text-sm font-semibold text-ink-primary">{nomeAcao}</p>
           <p className="text-xs text-ink-muted">
             <IdAcaoLink id={idAcao} /> · {orgao ?? "Sem órgão"} · criada em{" "}
-            {dataCriacao ? new Date(dataCriacao + "T00:00:00").toLocaleDateString("pt-BR") : "—"}
+            {dataCriacao ? new Date(dataCriacao + "T00:00:00").toLocaleDateString("pt-BR") : "-"}
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-3">
@@ -162,7 +162,7 @@ export function CardNovaAcao({
               {responsavel.id === usuario.id && " (você)"}
             </>
           ) : (
-            "Sem responsável — quem marcar o primeiro item assume a análise"
+            "Sem responsável, quem marcar o primeiro item assume a análise"
           )}
         </span>
 
@@ -175,7 +175,7 @@ export function CardNovaAcao({
               onChange={(e) => trocarResponsavel(e.target.value)}
               className="rounded-lg border border-black/10 bg-plane px-2 py-1 text-xs text-ink-secondary focus:border-series-1 focus:outline-none disabled:opacity-50"
             >
-              {!responsavel && <option value="">— escolher —</option>}
+              {!responsavel && <option value="">Escolher</option>}
               {equipe.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.nome}

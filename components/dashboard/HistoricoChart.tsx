@@ -17,7 +17,7 @@ export function HistoricoChart({ pontos }: { pontos: Ponto[] }) {
         <h3 className="text-sm font-semibold text-ink-primary">Evolução da vinculação</h3>
         <p className="text-xs text-ink-muted">Total, vinculadas e pendentes ao longo do tempo</p>
         <div className="flex h-64 items-center justify-center text-sm text-ink-muted">
-          Ainda não há histórico suficiente — volte depois de algumas sincronizações do SIMO.
+          Ainda não há histórico suficiente, volte depois de algumas sincronizações do SIMO.
         </div>
       </div>
     );

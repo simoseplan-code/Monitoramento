@@ -128,7 +128,7 @@ export async function POST(request: NextRequest) {
     await admin.auth.admin.signOut(login.session.access_token, "others");
   }
 
-  // Sessão criada mesmo se ainda "pendente" — o middleware redireciona
+  // Sessão criada mesmo se ainda "pendente", o middleware redireciona
   // esse usuário para /pendente em qualquer rota interna.
   return response;
 }

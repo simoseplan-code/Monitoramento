@@ -188,7 +188,7 @@ export default async function NovasAcoesPage({
               dataCriacao={e.data_criacao}
               excluidaEm={e.excluida_em}
               status={{ kml_anexado: e.kml_anexado, sem_duplicacao: e.sem_duplicacao, documentos_obrigatorios: e.documentos_obrigatorios }}
-              responsavel={e.responsavel_id ? { id: e.responsavel_id, nome: e.responsavel_nome ?? "—" } : null}
+              responsavel={e.responsavel_id ? { id: e.responsavel_id, nome: e.responsavel_nome ?? "-" } : null}
               podeDarBaixa={ehAdmin || !e.responsavel_id || e.responsavel_id === usuario.id}
             />
           ))}
@@ -206,7 +206,7 @@ export default async function NovasAcoesPage({
             orgao: o.orgao,
             dataCriacao: o.data_criacao,
             concluido: o.concluido,
-            responsavel: o.responsavel_id ? { id: o.responsavel_id, nome: o.responsavel_nome ?? "—" } : null,
+            responsavel: o.responsavel_id ? { id: o.responsavel_id, nome: o.responsavel_nome ?? "-" } : null,
             status: {
               kml_anexado: o.kml_anexado,
               sem_duplicacao: o.sem_duplicacao,

@@ -8,9 +8,9 @@ export const runtime = "nodejs";
 export const maxDuration = 300;
 
 // Sync em camadas, uma por requisição (cada uma com os seus 60s):
-//   fase "baixar"    — baixa o relatório do SIMO (a parte lenta) e guarda no banco
-//   fase "obras"     — lê o relatório guardado e grava as obras
-//   fase "sugestoes" — recalcula a fila de Unidade/Quantidade
+//   fase "baixar"   , baixa o relatório do SIMO (a parte lenta) e guarda no banco
+//   fase "obras"    , lê o relatório guardado e grava as obras
+//   fase "sugestoes", recalcula a fila de Unidade/Quantidade
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const {

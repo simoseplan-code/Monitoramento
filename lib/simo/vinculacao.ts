@@ -6,11 +6,11 @@ import { registrarAnalise } from "@/lib/analisesLog";
 // Endpoint que efetivamente cria o vínculo de contrato SIAFE numa ação
 // (o que acontece ao clicar "Vincular Contrato" → colar o código →
 // Salvar, no SIMO). Diferente do formulário "Geral" usado por
-// lib/simo/formulario.ts — aqui o SIMO responde com um JSON simples
+// lib/simo/formulario.ts, aqui o SIMO responde com um JSON simples
 // { status: "success" | "error", message }, sempre em HTTP 200.
 const SIMO_CONTRACTS_STORE_URL = "http://simo.pi.gov.br/cahier/action/projects/contracts/store";
 
-// Pausa entre cada vinculação — mesmo valor do script original, pra não
+// Pausa entre cada vinculação, mesmo valor do script original, pra não
 // sobrecarregar o SIMO com escritas seguidas.
 const PAUSA_MS = 600;
 // Corta com folga antes do limite de execução da rota (maxDuration em
@@ -37,7 +37,7 @@ async function vincularContratoSiafe(cookie: string, idAcao: string, numero: str
 }
 
 // Uma tentativa completa: chama o SIMO, registra no log de auditoria e
-// grava o resultado na própria obra — sucesso limpa o erro guardado,
+// grava o resultado na própria obra, sucesso limpa o erro guardado,
 // falha guarda o motivo + o número tentado (pra "Vincular todas" não
 // insistir no mesmo erro até o número mudar). Compartilhado entre o
 // lote e o retry individual, pra não ter duas implementações do mesmo
@@ -57,7 +57,7 @@ async function tentarVincular(
     const r = await vincularContratoSiafe(cookie, obra.id_acao, obra.numero_siafe.trim());
     httpCode = r.httpCode;
     textoResp = r.texto;
-    // O SIMO sempre responde HTTP 200, mesmo em erro — o resultado real
+    // O SIMO sempre responde HTTP 200, mesmo em erro, o resultado real
     // vem no campo "status" do JSON.
     let parsed: { status?: string; message?: string } | null = null;
     try {
@@ -113,7 +113,7 @@ export type ResultadoVinculacao = {
 // dígitos), órgão diferente de AGESPISA (não possui SIAFE), status
 // diferente de "Cancelado", E que não tenha falhado antes com esse
 // MESMO número (mesmo critério de contar_vinculacao_pendentes_validas,
-// 0018) — evita reprocessar em massa um erro que só se resolve com
+// 0018), evita reprocessar em massa um erro que só se resolve com
 // correção manual no SIMO.
 export async function executarVinculacaoLote(executadoPor: string): Promise<ResultadoVinculacao> {
   const admin = createAdminClient();
@@ -156,11 +156,11 @@ export async function executarVinculacaoLote(executadoPor: string): Promise<Resu
   return { sucesso, falha, restantes: candidatos.length - processadas, detalhes };
 }
 
-// Retry individual — disparado do card na tela, depois de alguém
+// Retry individual, disparado do card na tela, depois de alguém
 // corrigir algo (no SIMO ou digitando o número certo aqui mesmo).
 // Ignora o erro guardado (é justamente o que essa ação serve pra
 // sobrescrever). Se `numeroSiafeOverride` vier diferente do que está
-// salvo, grava esse número em obras.numero_siafe antes de tentar —
+// salvo, grava esse número em obras.numero_siafe antes de tentar -
 // assim a pessoa não precisa abrir o SIMO só pra corrigir um dígito
 // antes de poder tentar de novo pelo app.
 export async function executarVinculacaoUnica(

@@ -115,7 +115,7 @@ export function CardAcaoExcluida({
       </div>
 
       <p className="mt-3 text-xs text-ink-muted">
-        Responsável: <span className="font-medium text-ink-secondary">{responsavel?.nome ?? "—"}</span> · análise ficou pendente e a ação
+        Responsável: <span className="font-medium text-ink-secondary">{responsavel?.nome ?? "-"}</span> · análise ficou pendente e a ação
         não existe mais no SIMO.
       </p>
       {erro && <p className="mt-2 rounded-lg bg-white/70 px-3 py-1.5 text-xs text-status-critical">{erro}</p>}

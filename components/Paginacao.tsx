@@ -10,10 +10,10 @@ const BTN_ATIVO = "text-ink-secondary hover:bg-plane";
 const BTN_DESATIVADO = "pointer-events-none text-ink-muted opacity-40";
 
 // Paginação compartilhada por toda a listagem paginada do app (Ações,
-// Novas Ações, Sobreposições, Unidade/Quantidade, Vinculação SIAFE) —
+// Novas Ações, Sobreposições, Unidade/Quantidade, Vinculação SIAFE) -
 // evita repetir a mesma função montarHref/Link cinco vezes. `params` é
 // o conjunto de filtros atuais da página (busca, orgão, etc.), sem a
-// própria página — o componente cuida de acrescentar "pagina" no link.
+// própria página, o componente cuida de acrescentar "pagina" no link.
 export function Paginacao({
   paginaAtual,
   totalPaginas,
@@ -28,7 +28,7 @@ export function Paginacao({
   const router = useRouter();
   const [valor, setValor] = useState(String(paginaAtual));
 
-  // O componente não desmonta ao trocar de página (mesma rota) — sem isso
+  // O componente não desmonta ao trocar de página (mesma rota), sem isso
   // o campo ficava mostrando o número da página anterior.
   useEffect(() => {
     setValor(String(paginaAtual));

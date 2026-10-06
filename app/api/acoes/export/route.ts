@@ -21,7 +21,7 @@ export async function GET(request: NextRequest) {
   const de = params.get("de");
   const ate = params.get("ate");
 
-  // Mesmos filtros da tela (app/acoes/page.tsx) — exporta exatamente o que
+  // Mesmos filtros da tela (app/acoes/page.tsx), exporta exatamente o que
   // está sendo visto, não a base inteira.
   let query = supabase
     .from("obras")

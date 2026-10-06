@@ -63,7 +63,7 @@ export function VincularBotao({ pendentes }: { pendentes: number }) {
         <div className="mt-3 rounded-lg border border-black/5 bg-plane p-3">
           <p className="mb-2 text-xs font-medium text-ink-secondary">
             {ultimoResultado.sucesso} vinculada(s), {ultimoResultado.falha} falharam
-            {ultimoResultado.restantes > 0 ? ` — ${ultimoResultado.restantes} restante(s), rode de novo pra continuar.` : "."}
+            {ultimoResultado.restantes > 0 ? `, ${ultimoResultado.restantes} restante(s), rode de novo pra continuar.` : "."}
             {ultimoResultado.sucesso > 0 ? " Rode \"Sincronizar agora\" pra atualizar o Número Automático na base." : ""}
           </p>
           <ul className="max-h-64 space-y-1.5 overflow-y-auto">
@@ -78,7 +78,7 @@ export function VincularBotao({ pendentes }: { pendentes: number }) {
                   )}
                   <div className="min-w-0">
                     <p className="truncate text-ink-primary">
-                      <IdAcaoLink id={d.idAcao} /> · {d.nomeAcao || "—"}
+                      <IdAcaoLink id={d.idAcao} /> · {d.nomeAcao || "-"}
                     </p>
                     <p className="text-ink-muted">{d.resultado}</p>
                   </div>

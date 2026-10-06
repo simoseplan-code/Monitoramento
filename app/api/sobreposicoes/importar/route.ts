@@ -2,13 +2,13 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { csvParaSobreposicoes, type ObraNoLocal } from "@/lib/sobreposicoes/parseCsv";
 
-// Combinação estável dos IDs das obras de um local, ordenados — ao
+// Combinação estável dos IDs das obras de um local, ordenados, ao
 // contrário de "Chave do Local" (que inclui coordenada e pode mudar
 // levemente entre exportações do Mapa de Obras por arredondamento),
 // isso não muda enquanto o par de obras for o mesmo. Usada pra
 // reconhecer "essa combinação já foi revisada antes" mesmo quando a
 // chave exata é nova. Mesma lógica de supabase/migrations/0020 (coluna
-// gerada por SQL) — mantida em JS aqui só pra montar a consulta de
+// gerada por SQL), mantida em JS aqui só pra montar a consulta de
 // combinações já revisadas antes do upsert.
 function chaveObras(obras: ObraNoLocal[]): string {
   return obras
@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
   }
 
   // Quais chaves já existem, pra reportar quantas são realmente novas
-  // (as já vistas só têm os dados atualizados — status/revisão nunca é
+  // (as já vistas só têm os dados atualizados, status/revisão nunca é
   // sobrescrito aqui, porque a coluna nem entra no "update set" abaixo).
   const chaves = locais.map((l) => l.chave_local);
   const { data: existentes } = await supabase.from("sobreposicoes").select("chave_local").in("chave_local", chaves);
@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
   // Pros locais que são NOVOS (chave_local nunca vista), busca se a
   // MESMA combinação de obras já foi revisada sob uma chave_local
-  // diferente (drift de coordenada entre exportações) — se achar, a
+  // diferente (drift de coordenada entre exportações), se achar, a
   // decisão já tomada é reaplicada agora, em vez do local reaparecer
   // como pendente de novo.
   const locaisNovos = locais.filter((l) => !jaExistiam.has(l.chave_local));
@@ -99,11 +99,11 @@ export async function POST(request: NextRequest) {
   });
 
   // Locais já conhecidos: nunca inclui status/observacao/revisado_* no
-  // objeto — assim o upsert não sobrescreve uma decisão já tomada.
+  // objeto, assim o upsert não sobrescreve uma decisão já tomada.
   const linhasExistentes = locais.filter((l) => jaExistiam.has(l.chave_local)).map(camposBase);
 
   // Locais novos: se a combinação de obras já tinha decisão registrada
-  // sob outra chave, entra direto com essa decisão — carimbado como
+  // sob outra chave, entra direto com essa decisão, carimbado como
   // "carregado adiante", não como se alguém tivesse revisado agora.
   const linhasNovas = locaisNovos.map((l) => {
     const decisao = decisaoPorChaveObras.get(chaveObrasPorLocal.get(l.chave_local) || "");

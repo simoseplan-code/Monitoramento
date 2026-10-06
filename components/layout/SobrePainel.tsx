@@ -34,7 +34,7 @@ export function SobrePainel() {
             </button>
           </div>
           <p className="mb-2 text-xs text-ink-secondary">
-            Desenvolvido por <span className="font-medium text-ink-primary">Tom Munique Marques Morais</span> — Engenheiro de Produção.
+            Desenvolvido por <span className="font-medium text-ink-primary">Tom Munique Marques Morais</span>, Engenheiro de Produção.
           </p>
           <p className="text-xs leading-relaxed text-ink-muted">
             As análises consideram as ações do relatório do SIMO (AUTOMAÇÃO CONTRATO SIAFE). Ações conveniadas e de

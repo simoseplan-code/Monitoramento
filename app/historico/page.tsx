@@ -75,7 +75,7 @@ export default async function HistoricoPage() {
             {linhas.length === 0 && (
               <tr>
                 <td colSpan={6} className="px-4 py-10 text-center text-sm text-ink-muted">
-                  Nenhum retrato registrado ainda — aparece um a cada sincronização com o SIMO.
+                  Nenhum retrato registrado ainda, aparece um a cada sincronização com o SIMO.
                 </td>
               </tr>
             )}

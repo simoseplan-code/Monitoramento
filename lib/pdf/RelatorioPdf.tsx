@@ -427,7 +427,7 @@ function PaginaSobreposicoes({ d }: { d: DadosRelatorioPdf }) {
 function PaginaTermos({ d }: { d: DadosRelatorioPdf }) {
   const t = d.termos;
   return (
-    <Pagina titulo="Termos — Outros Documentos" subtitulo="Ações concluídas com Termo de Encerramento por Inatividade (TEI) ou Termo de Rescisão" geradoEm={d.geradoEm}>
+    <Pagina titulo="Termos: Outros Documentos" subtitulo="Ações concluídas com Termo de Encerramento por Inatividade (TEI) ou Termo de Rescisão" geradoEm={d.geradoEm}>
       <Kpis
         itens={[
           { rotulo: "Ações com termo", valor: t.total, cor: C.azul },
@@ -593,7 +593,7 @@ function PaginaEquipe({ d }: { d: DadosRelatorioPdf }) {
 
 export function RelatorioPdf({ dados, tipo }: { dados: DadosRelatorioPdf; tipo: TipoPdf }) {
   return (
-    <Document title="Relatório — Monitoramento de Obras" author="Monitoramento de Obras">
+    <Document title="Relatório: Monitoramento de Obras" author="Monitoramento de Obras">
       {tipo === "completo" && <PaginaGestao d={dados} />}
       {(tipo === "completo" || tipo === "novas_acoes") && <PaginaNovasAcoes d={dados} />}
       {(tipo === "completo" || tipo === "sobreposicoes") && <PaginaSobreposicoes d={dados} />}

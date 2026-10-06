@@ -1,7 +1,7 @@
 // Parser do CSV de sobreposições exportado pelo Mapa de Obras (painel
 // separado, ferramenta de detecção geométrica de trechos duplicados).
 // Formato "longo": uma linha por obra dentro de cada local, com a
-// coluna "Chave do Local" repetida nas linhas do mesmo grupo — aqui a
+// coluna "Chave do Local" repetida nas linhas do mesmo grupo, aqui a
 // gente desfaz isso e agrupa de volta em um objeto por local.
 
 import { parseCsvLinhas } from "@/lib/simo/parseCsv";
@@ -109,7 +109,7 @@ export function csvParaSobreposicoes(csvText: string): SobreposicaoImportada[] {
 
     const idAcao = linha[idx.idAcao]?.trim() || null;
     // Defesa contra CSV com linha duplicada pra mesma obra no mesmo local (ex.: uma
-    // exportação antiga do mapa, de antes da chave do local incluir a coordenada) —
+    // exportação antiga do mapa, de antes da chave do local incluir a coordenada) -
     // sem isso a mesma obra aparecia repetida várias vezes dentro de um único card.
     const jaTem = grupo.obras.some((o) => (idAcao ? o.id === idAcao : o.nome === nomeAcao));
     if (jaTem) continue;

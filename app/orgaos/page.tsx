@@ -14,7 +14,7 @@ export default async function OrgaosPage() {
   const [{ data: profile }, { data: porOrgao }, { count: totalGeral }, { count: pendentesAprovacao }, novasAcoesPendentes] =
     await Promise.all([
       supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
-      // Já agrupado no banco (função obras_por_orgao) — em vez de baixar
+      // Já agrupado no banco (função obras_por_orgao), em vez de baixar
       // as 13k+ linhas de "obras" só pra somar por órgão em JavaScript.
       supabase.rpc("obras_por_orgao"),
       supabase.from("obras").select("id_acao", { count: "exact", head: true }),

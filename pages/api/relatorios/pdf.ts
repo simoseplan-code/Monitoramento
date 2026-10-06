@@ -6,7 +6,7 @@ import { reunirDadosPdf } from "@/lib/relatorioDados";
 import { RelatorioPdf, type TipoPdf } from "@/lib/pdf/RelatorioPdf";
 
 // Fica no Pages Router de propósito: o gerador de PDF usa o React instalado
-// (18), e o App Router do Next usa um React próprio — misturar os dois dá
+// (18), e o App Router do Next usa um React próprio, misturar os dois dá
 // "Minified React error #31". Aqui os dois são o mesmo React.
 export const config = { maxDuration: 60, api: { responseLimit: false } };
 

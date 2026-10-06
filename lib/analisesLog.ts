@@ -2,7 +2,7 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 
 export type ModuloAnalise = "novas_acoes" | "sobreposicoes" | "termos" | "unidade_quantidade" | "vinculacao";
 
-// Registra no histórico (analises_log) quem fez a análise — base do
+// Registra no histórico (analises_log) quem fez a análise, base do
 // dashboard de produtividade. Nunca pode derrubar a ação principal: se
 // falhar (ex.: migration ainda não rodada), só loga o erro.
 export async function registrarAnalise(

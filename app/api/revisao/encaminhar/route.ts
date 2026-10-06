@@ -9,7 +9,7 @@ type Acao = "encaminhar" | "voltar" | "resolver";
 // Encaminha (em grupo) ações com item pendente para "Aguardando solução de
 // pendência", devolve elas para a fila de análise, ou registra que o órgão
 // RESOLVEU a pendência (confirma os itens pendentes e conclui a análise). Só o
-// responsável pela análise ou um administrador mexe em cada ação — o resto vem
+// responsável pela análise ou um administrador mexe em cada ação, o resto vem
 // na lista de ignoradas.
 export async function POST(request: NextRequest) {
   const supabase = await createClient();

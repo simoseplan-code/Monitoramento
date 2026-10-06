@@ -34,7 +34,7 @@ export function ChecklistItem({
   const [salvando, setSalvando] = useState(false);
 
   // Atualiza a tela na hora (sem esperar o servidor re-renderizar a
-  // página inteira) e só then salva de verdade — se a chamada falhar,
+  // página inteira) e só then salva de verdade, se a chamada falhar,
   // o próprio card volta a ficar coerente na próxima ação do usuário.
   async function salvar(novoStatus: Status) {
     setSalvando(true);

@@ -208,7 +208,7 @@ export default async function DesempenhoPage({
 
       <div className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
         <section className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
-          <h3 className="text-sm font-semibold text-ink-primary">Novas Ações — análises por pessoa</h3>
+          <h3 className="text-sm font-semibold text-ink-primary">Novas Ações: análises por pessoa</h3>
           <p className="mb-2 text-[11px] leading-snug text-ink-muted">
             1 por ação, na situação de agora. <span className="font-medium text-status-good">Concluída</span>: análise
             finalizada. <span className="font-medium text-status-warning">Pendente</span>: falta resolver algo (item
@@ -227,9 +227,9 @@ export default async function DesempenhoPage({
               {situacao.map((p) => (
                 <tr key={p.id} className="border-b border-black/5 last:border-0">
                   <td className="truncate px-2 py-1 font-medium text-ink-primary">{p.nome}</td>
-                  <td className="tabular px-2 py-1 text-right font-semibold text-status-good">{p.ok || "—"}</td>
-                  <td className="tabular px-2 py-1 text-right font-semibold text-status-warning">{p.pendencia || "—"}</td>
-                  <td className="tabular px-2 py-1 text-right text-ink-primary">{p.ok + p.pendencia || "—"}</td>
+                  <td className="tabular px-2 py-1 text-right font-semibold text-status-good">{p.ok || "-"}</td>
+                  <td className="tabular px-2 py-1 text-right font-semibold text-status-warning">{p.pendencia || "-"}</td>
+                  <td className="tabular px-2 py-1 text-right text-ink-primary">{p.ok + p.pendencia || "-"}</td>
                 </tr>
               ))}
               {situacao.length > 0 && (
@@ -245,7 +245,7 @@ export default async function DesempenhoPage({
         </section>
 
         <section className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
-          <h3 className="text-sm font-semibold text-ink-primary">Sobreposições — análises por pessoa</h3>
+          <h3 className="text-sm font-semibold text-ink-primary">Sobreposições: análises por pessoa</h3>
           <p className="mb-2 text-[11px] leading-snug text-ink-muted">
             1 por local. <span className="font-medium text-status-warning">Com problema</span>: fica para verificação
             posterior; continua contando aqui depois de solucionado. <span className="font-medium text-status-good">Sem problema</span>: não se configura
@@ -266,10 +266,10 @@ export default async function DesempenhoPage({
               {sobreposicoes.map((p) => (
                 <tr key={p.id} className="border-b border-black/5 last:border-0">
                   <td className="truncate px-2 py-1 font-medium text-ink-primary">{p.nome}</td>
-                  <td className="tabular px-2 py-1 text-right font-semibold text-status-warning">{p.problema || "—"}</td>
-                  <td className="tabular px-2 py-1 text-right font-semibold text-status-good">{p.ok || "—"}</td>
-                  <td className="tabular px-2 py-1 text-right font-semibold text-series-7">{p.solucionou || "—"}</td>
-                  <td className="tabular px-2 py-1 text-right text-ink-primary">{p.total || "—"}</td>
+                  <td className="tabular px-2 py-1 text-right font-semibold text-status-warning">{p.problema || "-"}</td>
+                  <td className="tabular px-2 py-1 text-right font-semibold text-status-good">{p.ok || "-"}</td>
+                  <td className="tabular px-2 py-1 text-right font-semibold text-series-7">{p.solucionou || "-"}</td>
+                  <td className="tabular px-2 py-1 text-right text-ink-primary">{p.total || "-"}</td>
                 </tr>
               ))}
               {sobreposicoes.length > 0 && (
@@ -318,13 +318,13 @@ export default async function DesempenhoPage({
                   <td className="px-3 py-2 font-medium text-ink-primary">{p.nome}</td>
                   {MODULOS.map((m) => (
                     <td key={m.chave} className="tabular px-3 py-2 text-right text-ink-secondary">
-                      {p.porModulo[m.chave] ?? "—"}
+                      {p.porModulo[m.chave] ?? "-"}
                     </td>
                   ))}
                   <td className="tabular px-3 py-2 text-right font-semibold text-ink-primary">{p.total}</td>
                   <td className="tabular px-3 py-2 text-right text-ink-secondary">{p.diasAtivos}</td>
                   <td className="tabular px-3 py-2 text-right text-ink-secondary">{p.mediaPorDiaAtivo}</td>
-                  <td className={`tabular px-3 py-2 text-right ${p.falhas ? "text-status-critical" : "text-ink-muted"}`}>{p.falhas || "—"}</td>
+                  <td className={`tabular px-3 py-2 text-right ${p.falhas ? "text-status-critical" : "text-ink-muted"}`}>{p.falhas || "-"}</td>
                   <td className="tabular px-3 py-2 text-right text-ink-secondary">{formatarDia(p.ultimoDia)}</td>
                 </tr>
               ))}

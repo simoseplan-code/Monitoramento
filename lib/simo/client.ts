@@ -5,7 +5,7 @@ const SIMO_REPORT_ID = "1740"; // Relatório "AUTOMAÇÃO CONTRATO SIAFE" (pasta
 const SIMO_SHOW_URL = `http://simo.pi.gov.br/cahier/action/projects/report/show/id/${SIMO_REPORT_ID}/`;
 const SIMO_EXPORT_URL = `http://simo.pi.gov.br/cahier/action/projects/report/export-to-csv/id/${SIMO_REPORT_ID}`;
 
-// fetch com limite de tempo e mensagem que diz QUAL etapa do SIMO demorou —
+// fetch com limite de tempo e mensagem que diz QUAL etapa do SIMO demorou -
 // sem isso, a rota era morta pelo servidor e o erro virava só "timeout".
 async function buscar(etapa: string, url: string, init: RequestInit, timeoutMs: number): Promise<Response> {
   try {
@@ -84,7 +84,7 @@ export async function baixarCsvSimo(cookie: string, timeoutMs = 50_000): Promise
   const tCabecalho = ((Date.now() - t0) / 1000).toFixed(1);
 
   // Lê o corpo aos pedaços, contando o que chegou: se estourar o tempo, a
-  // mensagem diz quanto do arquivo já tinha vindo — isso mostra se o SIMO
+  // mensagem diz quanto do arquivo já tinha vindo, isso mostra se o SIMO
   // está lento pra gerar ou pra enviar, e quão grande o relatório ficou.
   const pedacos: Uint8Array[] = [];
   let recebidos = 0;
@@ -111,7 +111,7 @@ export async function baixarCsvSimo(cookie: string, timeoutMs = 50_000): Promise
   // O SIMO exporta em Latin-1/Windows-1252, não UTF-8.
   const texto = new TextDecoder("iso-8859-1").decode(buffer);
   if (/<html/i.test(texto.slice(0, 200))) {
-    throw new Error("O SIMO retornou uma página de login em vez do CSV — sessão expirada ou credenciais incorretas.");
+    throw new Error("O SIMO retornou uma página de login em vez do CSV, sessão expirada ou credenciais incorretas.");
   }
   return texto;
 }

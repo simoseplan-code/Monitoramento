@@ -1,4 +1,4 @@
-// Motor de sugestão de Unidade de Medida / Quantidade — porta da
+// Motor de sugestão de Unidade de Medida / Quantidade, porta da
 // planilha "Sugestão Unidade/Quantidade" (Apps Script) pro app. Lógica
 // pura (sem I/O), pra poder rodar tanto no sync (lib/simo/sync.ts)
 // quanto em teste isolado. Ver plano em
@@ -13,7 +13,7 @@ type Confianca = "alta" | "baixa";
 // Mapeamento Tipologia → Unidade esperada. "alta" = regra confirmada
 // (dado real da base ou orientação explícita da equipe); "baixa" =
 // chute por analogia, sempre mostrado como sugestão de baixa confiança
-// pra equipe revisar — nunca aplicado sem aprovação explícita.
+// pra equipe revisar, nunca aplicado sem aprovação explícita.
 export const TIPOLOGIA_UNIDADE_MAP: Record<string, { unidade: string; confianca: Confianca }> = {
   // ── confiança ALTA (tabela de referência da equipe) ──────────────────
   "RUA": { unidade: "M²", confianca: "alta" },
@@ -22,7 +22,7 @@ export const TIPOLOGIA_UNIDADE_MAP: Record<string, { unidade: string; confianca:
   "PASSAGEM MOLHADA": { unidade: "UNIDADE", confianca: "alta" },
   "PRAÇA": { unidade: "UNIDADE", confianca: "alta" },
   "QUADRA ESPORTIVA": { unidade: "UNIDADE", confianca: "alta" },
-  // ── APRENDIZADOS DA EQUIPE (regras confirmadas na revisão — acrescentar aqui) ──
+  // ── APRENDIZADOS DA EQUIPE (regras confirmadas na revisão, acrescentar aqui) ──
   // Praça, quadra etc. cadastradas sob essa tipologia são sempre UNIDADE,
   // quantidade 1: o "844,90 M²" do texto é o tamanho da estrutura.
   "ESPAÇO E EQUIPAMENTO DE ESPORTE E LAZER": { unidade: "UNIDADE", confianca: "alta" },
@@ -30,7 +30,7 @@ export const TIPOLOGIA_UNIDADE_MAP: Record<string, { unidade: string; confianca:
   // que o texto descreva outra quantidade ("02 estádios", "duas ...").
   "SISTEMA DE ABASTECIMENTO D`ÁGUA": { unidade: "UNIDADE", confianca: "alta" },
   "ESTÁDIO": { unidade: "UNIDADE", confianca: "alta" },
-  // ── confiança BAIXA (rascunho por analogia — revisar) ────────────────
+  // ── confiança BAIXA (rascunho por analogia, revisar) ────────────────
   "RODOVIA": { unidade: "KM", confianca: "baixa" },
   "CONTORNO RODOVIÁRIO": { unidade: "KM", confianca: "baixa" },
   "FERROVIA": { unidade: "KM", confianca: "baixa" },
@@ -66,13 +66,13 @@ export const TIPOLOGIA_UNIDADE_MAP: Record<string, { unidade: string; confianca:
   "TERMINAL RODOVIÁRIO": { unidade: "UNIDADE", confianca: "baixa" },
   "TERMINAL TURÍSTICO": { unidade: "UNIDADE", confianca: "baixa" },
   "PRÉDIO PÚBLICO": { unidade: "UNIDADE", confianca: "baixa" },
-  "CAPACITAÇÃO": { unidade: "", confianca: "baixa" }, // Dias/Horas/Unidade — ambíguo
+  "CAPACITAÇÃO": { unidade: "", confianca: "baixa" }, // Dias/Horas/Unidade, ambíguo
   "CONSULTORIA": { unidade: "", confianca: "baixa" },
   "ASSISTÊNCIA TÉCNICA": { unidade: "", confianca: "baixa" },
   "SUPERVISÃO": { unidade: "", confianca: "baixa" },
   "FISCALIZAÇÃO": { unidade: "", confianca: "baixa" },
   "ELABORAÇÃO DE PROJETO": { unidade: "", confianca: "baixa" },
-  "ADUTORA": { unidade: "", confianca: "baixa" }, // KM ou M — depende da rede
+  "ADUTORA": { unidade: "", confianca: "baixa" }, // KM ou M, depende da rede
   "DRENAGEM": { unidade: "", confianca: "baixa" },
   "REDE DE DISTRIBUIÇÃO DE AGUA": { unidade: "", confianca: "baixa" },
   "REDE DE ENERGIA ELÉTRICA": { unidade: "", confianca: "baixa" },
@@ -81,7 +81,7 @@ export const TIPOLOGIA_UNIDADE_MAP: Record<string, { unidade: string; confianca:
 };
 
 // Número no formato BR completo: milhar com ponto (0 ou mais grupos de 3
-// dígitos) + decimal opcional com vírgula — ex: "1.732,32", "4.938,00",
+// dígitos) + decimal opcional com vírgula, ex: "1.732,32", "4.938,00",
 // "25,28", "9". A ordem das duas alternativas importa: tenta primeiro a
 // forma COM separador de milhar (mais específica), senão perderia o "1."
 // de "1.732,32".
@@ -91,7 +91,7 @@ const NUM_BR = "(\\d{1,3}(?:\\.\\d{3})+(?:,\\d+)?|\\d+(?:,\\d+)?)";
 // Descrição da ação. Ordem importa: a primeira que bater define o
 // palpite. Quando a regex tem um grupo de captura, ele vira também um
 // palpite de Quantidade (ex: "9 Km" → unidade KM, quantidade 9). Tudo
-// aqui entra sempre como confiança "baixa" — é só um indício textual,
+// aqui entra sempre como confiança "baixa", é só um indício textual,
 // nunca aplicado sem revisão.
 export const PALAVRAS_CHAVE_UNIDADE: { re: RegExp; unidade: string }[] = [
   { re: new RegExp(NUM_BR + "\\s*km²", "i"), unidade: "KM²" },
@@ -104,7 +104,7 @@ export const PALAVRAS_CHAVE_UNIDADE: { re: RegExp; unidade: string }[] = [
   { re: new RegExp(NUM_BR + "\\s*horas?\\b", "i"), unidade: "Horas" },
   { re: new RegExp(NUM_BR + "\\s*dias?\\b", "i"), unidade: "Dias" },
   { re: new RegExp(NUM_BR + "\\s*(?:unidades?\\b|ve[ií]culos?\\b|equipamentos?\\b|kits?\\b)", "i"), unidade: "UNIDADE" },
-  // sem número explícito no texto — só reconhece o TIPO de unidade
+  // sem número explícito no texto, só reconhece o TIPO de unidade
   { re: /\bkm²/i, unidade: "KM²" },
   { re: /\bkm³/i, unidade: "KM³" },
   { re: /\bkm\b|quil[oô]metros?\b/i, unidade: "KM" },
@@ -119,9 +119,9 @@ export const PALAVRAS_CHAVE_UNIDADE: { re: RegExp; unidade: string }[] = [
 
 // Unidades "vizinhas" que costumam aparecer no texto como rótulo
 // abreviado/errado de uma unidade de área/volume esperada pela Tipologia
-// (ex: "M" em vez de "M²" — só esqueceram do ²). Uma unidade encontrada
+// (ex: "M" em vez de "M²", só esqueceram do ²). Uma unidade encontrada
 // no texto que NÃO esteja nessa lista (ex: KM pra uma Tipologia M²) é
-// diferente demais pra ser só abreviação — é sinal de Tipologia errada.
+// diferente demais pra ser só abreviação, é sinal de Tipologia errada.
 const UNIDADES_ABREVIACAO_PLAUSIVEL: Record<string, string[]> = {
   "M²": ["Metros"],
   "M³": ["Metros"],
@@ -130,7 +130,7 @@ const UNIDADES_ABREVIACAO_PLAUSIVEL: Record<string, string[]> = {
 };
 
 // Números por extenso comuns em nome/descrição de ação (só até 10, que é
-// o que aparece na prática — "construção de DUAS pontes" etc.).
+// o que aparece na prática, "construção de DUAS pontes" etc.).
 const PALAVRAS_NUMERO_PT: Record<string, number> = {
   um: 1, uma: 1, dois: 2, duas: 2, "três": 3, tres: 3, quatro: 4,
   cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10,
@@ -159,7 +159,7 @@ function sugerirUnidadePorTexto(texto: string | null | undefined): { unidade: st
   for (const regra of PALAVRAS_CHAVE_UNIDADE) {
     const m = texto.match(regra.re);
     // Mantém o número exatamente como apareceu no texto (formato BR:
-    // vírgula pra casa decimal, sem separador de milhar) — não converte
+    // vírgula pra casa decimal, sem separador de milhar), não converte
     // pra ponto, senão exibe errado (ex: "25,28" virando "25.28").
     if (m) return { unidade: regra.unidade, trecho: m[0].trim(), quantidade: m[1] || "" };
   }
@@ -171,7 +171,7 @@ function sugerirUnidadePorTexto(texto: string | null | undefined): { unidade: st
 // (dígito ou por extenso) IMEDIATAMENTE antes do nome da estrutura (aceita
 // plural em cada palavra); dígito + "unidades/estruturas"; e, se não for
 // estrito, qualquer número por extenso solto no texto. Sem indício, assume
-// 1 — o caso mais comum. "estrito" existe porque o número solto pode ser
+// 1, o caso mais comum. "estrito" existe porque o número solto pode ser
 // parte de nome de lugar ("Localidade Dois Irmãos" não é 2 estruturas).
 function contarUnidadesPorTexto(texto: string, tipologia: string | null | undefined, estrito = false): string {
   const palavrasNumero = Object.keys(PALAVRAS_NUMERO_PT).join("|");
@@ -202,7 +202,7 @@ function contarUnidadesPorTexto(texto: string, tipologia: string | null | undefi
 }
 
 // Estruturas reconhecidas pelo NOME quando a Tipologia vem vazia ou não
-// está no mapa (o card aparece sem tipologia). APRENDIZADOS DA EQUIPE —
+// está no mapa (o card aparece sem tipologia). APRENDIZADOS DA EQUIPE -
 // acrescentar aqui. Cuidado com palavras que também aparecem em nome de
 // rua/quadra de bairro: só entra aqui o que a equipe confirmou.
 const ESTRUTURAS_POR_NOME: { re: RegExp; tipologia: string }[] = [
@@ -224,11 +224,11 @@ export type SugestaoUnidade = {
   avisoTipologia?: boolean;
 };
 
-// Combina texto (Nome primeiro, Descrição como reforço — é onde a
+// Combina texto (Nome primeiro, Descrição como reforço, é onde a
 // informação costuma estar de fato) e Tipologia (via TIPOLOGIA_UNIDADE_MAP)
 // pra montar uma sugestão de Unidade/Quantidade com motivo explicado.
 // Retorna null quando não há indício nenhum (nem texto, nem tipologia
-// mapeada) — nesse caso não há o que sugerir.
+// mapeada), nesse caso não há o que sugerir.
 export function sugerirUnidadeQuantidade(row: SugestaoUnidadeInput): SugestaoUnidade | null {
   const nome = row.nome || "";
   const descricao = row.descricao || "";
@@ -245,7 +245,7 @@ export function sugerirUnidadeQuantidade(row: SugestaoUnidadeInput): SugestaoUni
 
   const sugestao = sugerirPorTipologia(nome, descricao, tipologia);
   if (sugestao && inferida) {
-    sugestao.motivo = `Tipologia vazia ou não mapeada — reconheci "${inferida}" pelo Nome. ` + sugestao.motivo;
+    sugestao.motivo = `Tipologia vazia ou não mapeada, reconheci "${inferida}" pelo Nome. ` + sugestao.motivo;
   }
   return sugestao;
 }
@@ -261,7 +261,7 @@ function sugerirPorTipologia(nome: string, descricao: string, tipologia: string)
 
   const porTipologia = TIPOLOGIA_UNIDADE_MAP[tipologia];
 
-  // Tipologia "UNIDADE" (Praça, Ponte, Passagem Molhada...) — o número
+  // Tipologia "UNIDADE" (Praça, Ponte, Passagem Molhada...), o número
   // que aparece no texto (m², km, metros...) normalmente é o TAMANHO da
   // estrutura, não a quantidade dela.
   if (porTipologia && porTipologia.unidade === "UNIDADE" && porTexto && porTexto.unidade !== "UNIDADE") {
@@ -270,14 +270,14 @@ function sugerirPorTipologia(nome: string, descricao: string, tipologia: string)
       quantidadeSugerida: contarUnidadesPorTexto(nome + " " + descricao, tipologia, true),
       confianca: porTipologia.confianca,
       motivo:
-        'Tipologia "' + tipologia + '" é UNIDADE — "' + porTexto.trecho + '" no ' + origemTexto +
+        'Tipologia "' + tipologia + '" é UNIDADE, "' + porTexto.trecho + '" no ' + origemTexto +
         " é o tamanho da estrutura, não a quantidade dela. Quantidade = contagem de estruturas no texto (padrão 1 se não especificado).",
     };
   }
 
   // Tipologia de MEDIDA (M², KM...) com confiança ALTA, mas o texto
-  // trouxe uma unidade diferente — pode ser só rótulo abreviado (ex: "M"
-  // em vez de "M²") ou a unidade errada de verdade (ex: RUA com "KM" —
+  // trouxe uma unidade diferente, pode ser só rótulo abreviado (ex: "M"
+  // em vez de "M²") ou a unidade errada de verdade (ex: RUA com "KM" -
   // comprimento em vez de área).
   if (
     porTipologia &&
@@ -296,9 +296,9 @@ function sugerirPorTipologia(nome: string, descricao: string, tipologia: string)
         confianca: "baixa",
         avisoTipologia: true,
         motivo:
-          '⚠️ Encontrei "' + porTexto.trecho + '" no ' + origemTexto + ' — mas Tipologia "' + tipologia + '" é sempre ' +
+          'Encontrei "' + porTexto.trecho + '" no ' + origemTexto + ', mas Tipologia "' + tipologia + '" é sempre ' +
           porTipologia.unidade + ", e " + porTexto.unidade + " não é o mesmo tipo de medida (é comprimento, não área/volume). " +
-          "Provavelmente está errado por vir em " + porTexto.unidade + " — sugiro calcular/recalcular o valor em " + porTipologia.unidade +
+          "Provavelmente está errado por vir em " + porTexto.unidade + ", sugiro calcular/recalcular o valor em " + porTipologia.unidade +
           " (não dá pra converter automaticamente sem saber a largura/outra dimensão). Confira com atenção antes de aplicar.",
       };
     }
@@ -308,7 +308,7 @@ function sugerirPorTipologia(nome: string, descricao: string, tipologia: string)
       quantidadeSugerida: porTexto.quantidade,
       confianca: "alta",
       motivo:
-        'Tipologia "' + tipologia + '" é sempre ' + porTipologia.unidade + ' — "' + porTexto.trecho + '" no ' + origemTexto +
+        'Tipologia "' + tipologia + '" é sempre ' + porTipologia.unidade + ', "' + porTexto.trecho + '" no ' + origemTexto +
         " veio com o rótulo abreviado/errado (" + porTexto.unidade + "). Mantive o número, só corrigi a unidade.",
     };
   }
@@ -327,7 +327,7 @@ function sugerirPorTipologia(nome: string, descricao: string, tipologia: string)
   if (porTexto) {
     let motivo = 'Encontrei "' + porTexto.trecho + '" no ' + origemTexto + " → sugiro " + porTexto.unidade + ".";
     if (porTipologia && porTipologia.unidade && porTipologia.unidade !== porTexto.unidade) {
-      motivo += ' ⚠️ Diverge do esperado pra Tipologia "' + tipologia + '" (' + porTipologia.unidade + ") — confira com atenção.";
+      motivo += ' Diverge do esperado pra Tipologia "' + tipologia + '" (' + porTipologia.unidade + "), confira com atenção.";
     }
     return { unidadeSugerida: porTexto.unidade, quantidadeSugerida: porTexto.quantidade, confianca: "baixa", motivo };
   }
@@ -341,8 +341,8 @@ function sugerirPorTipologia(nome: string, descricao: string, tipologia: string)
       quantidadeSugerida: contaEstruturas ? contarUnidadesPorTexto(nome + " " + descricao, tipologia, true) : "",
       confianca: porTipologia.confianca,
       motivo: contaEstruturas
-        ? 'Tipologia "' + tipologia + '" é UNIDADE — quantidade = contagem de estruturas no texto (padrão 1 se não especificado).'
-        : 'Nenhuma palavra-chave clara no Nome/Descrição — sugestão baseada só na Tipologia "' + tipologia + '".',
+        ? 'Tipologia "' + tipologia + '" é UNIDADE, quantidade = contagem de estruturas no texto (padrão 1 se não especificado).'
+        : 'Nenhuma palavra-chave clara no Nome/Descrição, sugestão baseada só na Tipologia "' + tipologia + '".',
     };
   }
 

@@ -47,7 +47,7 @@ export function CardSugestaoUnidade({
 }) {
   const router = useRouter();
   const bloqueado = !!aplicadoEm;
-  // Igual à planilha: ação "Concluído" fica listada só de registro — o
+  // Igual à planilha: ação "Concluído" fica listada só de registro, o
   // SIMO trava a edição dela, então não dá pra aprovar.
   const concluida = /^conclu[ií]do$/i.test((statusAcao ?? "").trim());
 
@@ -106,7 +106,7 @@ export function CardSugestaoUnidade({
             title="Desfazer aprovação"
           >
             <Undo2 size={13} />
-            Aprovada — aguardando gravação
+            Aprovada, aguardando gravação
           </button>
         ) : null}
       </div>
@@ -114,11 +114,11 @@ export function CardSugestaoUnidade({
       <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
         <div>
           <p className="text-[11px] uppercase tracking-wide text-ink-muted">Unidade atual</p>
-          <p className="text-sm font-medium text-ink-primary">{unidadeAtual || "—"}</p>
+          <p className="text-sm font-medium text-ink-primary">{unidadeAtual || "-"}</p>
         </div>
         <div>
           <p className="text-[11px] uppercase tracking-wide text-ink-muted">Quantidade atual</p>
-          <p className="text-sm font-medium text-ink-primary">{quantidadeAtual || "—"}</p>
+          <p className="text-sm font-medium text-ink-primary">{quantidadeAtual || "-"}</p>
         </div>
         <div className="col-span-2 sm:col-span-2">
           <p className="text-[11px] uppercase tracking-wide text-ink-muted">
@@ -131,7 +131,7 @@ export function CardSugestaoUnidade({
                 {semQuantidade ? "" : quantidadeSugerida ? ` (${quantidadeSugerida})` : ""}
               </>
             ) : (
-              <span className="text-ink-muted">Nenhuma — escolha manualmente abaixo</span>
+              <span className="text-ink-muted">Nenhuma, escolha manualmente abaixo</span>
             )}
           </p>
         </div>
@@ -143,13 +143,13 @@ export function CardSugestaoUnidade({
       </p>
       {concluida && !bloqueado && (
         <p className="mb-3 text-xs font-medium text-status-warning">
-          🔒 Ação concluída — o SIMO trava a edição, fica aqui só de registro (não dá pra aprovar).
+          Ação concluída, o SIMO trava a edição, fica aqui só de registro (não dá pra aprovar).
         </p>
       )}
 
       <div className="flex flex-wrap items-end gap-2 rounded-lg border border-black/10 bg-plane/60 p-3">
         <div>
-          <label className="mb-1 block text-[11px] uppercase tracking-wide text-ink-muted">Vai pro SIMO — Unidade</label>
+          <label className="mb-1 block text-[11px] uppercase tracking-wide text-ink-muted">Vai pro SIMO: Unidade</label>
           <select
             value={unidade}
             onChange={(e) => setUnidade(e.target.value)}
@@ -165,7 +165,7 @@ export function CardSugestaoUnidade({
           </select>
         </div>
         <div>
-          <label className="mb-1 block text-[11px] uppercase tracking-wide text-ink-muted">Vai pro SIMO — Quantidade</label>
+          <label className="mb-1 block text-[11px] uppercase tracking-wide text-ink-muted">Vai pro SIMO: Quantidade</label>
           <input
             value={quantidade}
             onChange={(e) => setQuantidade(e.target.value)}
@@ -179,7 +179,7 @@ export function CardSugestaoUnidade({
           <button
             onClick={() => salvar(true)}
             disabled={salvando || !unidade || concluida}
-            title={concluida ? "Ação concluída — o SIMO não permite editar" : !unidade ? "Escolha uma unidade antes de aprovar" : undefined}
+            title={concluida ? "Ação concluída, o SIMO não permite editar" : !unidade ? "Escolha uma unidade antes de aprovar" : undefined}
             className="ml-auto flex items-center gap-1.5 rounded-lg bg-status-good px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
           >
             <Check size={13} />

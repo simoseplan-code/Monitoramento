@@ -5,7 +5,7 @@ import { registrarAnalise } from "@/lib/analisesLog";
 
 // Qualquer pessoa aprovada pode marcar um local "com problema" como
 // solucionado (fica gravado quem foi) e também desfazer. O responsável pela
-// análise original (responsavel_id) nunca é alterado aqui — por isso a
+// análise original (responsavel_id) nunca é alterado aqui, por isso a
 // gravação vai por service_role, já que a RLS de update trava no responsável.
 export async function POST(request: NextRequest) {
   const supabase = await createClient();

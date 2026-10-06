@@ -143,7 +143,7 @@ export default async function VinculacaoPage({
                   )}
                   <div className="min-w-0">
                     <p className="truncate text-ink-secondary">
-                      <IdAcaoLink id={l.id_acao} /> · {l.nome_acao} — SIAFE {l.numero_siafe}
+                      <IdAcaoLink id={l.id_acao} /> · {l.nome_acao}, SIAFE {l.numero_siafe}
                       {sucesso ? "" : `: ${l.resultado}`}
                     </p>
                     <p className="text-xs text-ink-muted">

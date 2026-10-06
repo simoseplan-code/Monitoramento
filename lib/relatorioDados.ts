@@ -253,7 +253,7 @@ async function dadosSobreposicoes(admin: ReturnType<typeof createAdminClient>, n
           ids: obras.map((o) => o.id ?? "?").join(", "),
           orgaos: orgs.join(", "),
           responsavel: dono,
-          observacao: (l.observacao ?? "").trim() + (l.status === "solucionado" && l.solucao ? " — Solução: " + l.solucao.trim() : ""),
+          observacao: (l.observacao ?? "").trim() + (l.status === "solucionado" && l.solucao ? ". Solução: " + l.solucao.trim() : ""),
           quando: dataHora(l.revisado_em),
           ordem: l.revisado_em ?? "",
         });

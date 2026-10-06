@@ -156,10 +156,10 @@ async function abasNovasAcoes(admin: Admin, nomes: Map<string, string>): Promise
     if (!concluida) excluidasPendentes++;
     detalhe.push({
       id: r.id_acao,
-      nome: r.nome_acao ?? "(nome não guardado — a ação sumiu antes do registro)",
+      nome: r.nome_acao ?? "(nome não guardado, a ação sumiu antes do registro)",
       orgao: r.orgao ?? "",
       criada: data(r.data_criacao),
-      situacao: concluida ? "Concluída (ação excluída do SIMO)" : "Pendente — AÇÃO EXCLUÍDA DO SIMO",
+      situacao: concluida ? "Concluída (ação excluída do SIMO)" : "Pendente, AÇÃO EXCLUÍDA DO SIMO",
       kml: ROTULO_ITEM[r.kml_anexado] ?? r.kml_anexado,
       dup: ROTULO_ITEM[r.sem_duplicacao] ?? r.sem_duplicacao,
       docs: ROTULO_ITEM[r.documentos_obrigatorios] ?? r.documentos_obrigatorios,
@@ -180,7 +180,7 @@ async function abasNovasAcoes(admin: Admin, nomes: Map<string, string>): Promise
     ...(["kml", "dup", "docs"] as const).flatMap((k) => {
       const nome = k === "kml" ? "KML anexado" : k === "dup" ? "Sem duplicação" : "Documentos obrigatórios";
       return ["confirmado", "aguardando_atualizacao", "pendente"].map((st) => ({
-        indicador: `${nome} — ${ROTULO_ITEM[st]} (entre as não concluídas)`,
+        indicador: `${nome}, ${ROTULO_ITEM[st]} (entre as não concluídas)`,
         valor: geral.itens[k][st] ?? 0,
       }));
     }),

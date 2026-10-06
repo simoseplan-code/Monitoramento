@@ -84,7 +84,7 @@ export default async function DashboardGestaoPage() {
       isAdmin={!!profile?.is_admin}
       counts={{ acoes: totalGeral, pendentesAprovacao: pendentesAprovacao ?? 0, novasAcoesPendentes }}
       titulo="Dashboard Gestão"
-      subtitulo="Visão geral por período — ações de 2023 em diante entram na análise de status"
+      subtitulo="Visão geral por período, ações de 2023 em diante entram na análise de status"
       notificacoesCount={eventos.filter((e) => e.tipo === "sync_erro").length}
     >
       {profile?.is_admin && <RelatoriosBar isAdmin />}

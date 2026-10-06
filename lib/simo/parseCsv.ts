@@ -2,7 +2,7 @@
 // SIMO. Mesma estratégia do Apps Script original: procura a linha de
 // cabeçalho pelo NOME das colunas (não pela posição), porque o
 // relatório sempre imprime título/subtítulo antes do cabeçalho de
-// verdade — e assim, se o SIMO adicionar colunas novas, o parser
+// verdade, e assim, se o SIMO adicionar colunas novas, o parser
 // continua funcionando (a coluna nova só não é reconhecida até
 // entrarmos no HEADER_MAP abaixo, e cai em "extra").
 
@@ -136,7 +136,7 @@ function vazio(raw: string | undefined): boolean {
 }
 
 // Nomes de TODAS as colunas do arquivo (linha de cabeçalho detectada do mesmo
-// jeito que csvParaObras) — usado no histórico do sync pra ver se uma coluna
+// jeito que csvParaObras), usado no histórico do sync pra ver se uma coluna
 // esperada realmente veio no relatório exportado.
 export function cabecalhoDoCsv(csvText: string): string[] {
   const linhas = parseCsvLinhas(csvText);
@@ -194,7 +194,7 @@ export function csvParaObras(csvText: string): ObraRow[] {
   }
 
   // Datas de recebimento: se o nome exato não bateu, procura pelo sentido
-  // (sem acento): RECEB... + DEFINIT... / PROVIS... — o cabeçalho no arquivo
+  // (sem acento): RECEB... + DEFINIT... / PROVIS..., o cabeçalho no arquivo
   // pode vir como "RECEBIMENTO DEFINITIVO", "RECEB DEFINITIVO" etc.
   const semAcento = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "");
   const acharPorSentido = (parte: string) =>
@@ -211,7 +211,7 @@ export function csvParaObras(csvText: string): ObraRow[] {
     if (p !== -1) posPorCampo.data_receb_provisorio = p;
   }
 
-  // Colunas do CSV que não caíram em nenhum campo conhecido acima —
+  // Colunas do CSV que não caíram em nenhum campo conhecido acima -
   // guardadas em "extra" pra não perder dado se o SIMO adicionar coluna nova.
   const posConhecidas = new Set(Object.values(posPorCampo));
   const colunasExtras = cabecalho

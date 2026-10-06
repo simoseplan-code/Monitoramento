@@ -63,7 +63,7 @@ export default async function AcoesPage({
     ]);
   const orgaosDisponiveis = (orgaosRpc ?? []).map((r: { orgao: string }) => r.orgao);
 
-  // Filtro e classificação viram condição SQL — o Postgres já devolve só
+  // Filtro e classificação viram condição SQL, o Postgres já devolve só
   // a página pedida, em vez de trazer as 13 mil linhas pro Next.js
   // filtrar em memória a cada troca de página.
   let query = supabase
@@ -138,9 +138,9 @@ export default async function AcoesPage({
                     <td className="px-4 py-3 text-ink-secondary">{r.nome_acao}</td>
                     <td className="px-4 py-3 text-ink-secondary">{r.orgao}</td>
                     <td className={`px-4 py-3 ${r.numero_siafe && !siafeValido(r.numero_siafe) ? "font-medium text-status-critical" : "text-ink-secondary"}`}>
-                      {r.numero_siafe ?? "—"}
+                      {r.numero_siafe ?? "-"}
                     </td>
-                    <td className="px-4 py-3 text-ink-secondary">{r.estagio_atual ?? "—"}</td>
+                    <td className="px-4 py-3 text-ink-secondary">{r.estagio_atual ?? "-"}</td>
                     <td className="px-4 py-3">
                       <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${BADGES[st]}`}>{LABELS[st]}</span>
                     </td>

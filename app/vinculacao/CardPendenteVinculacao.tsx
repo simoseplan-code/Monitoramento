@@ -78,8 +78,8 @@ export function CardPendenteVinculacao({
 
       {situacao && (
         <p className="mt-2 text-xs text-status-critical">
-          ⚠️ {situacao}
-          {falhouAntes && " — não entra automaticamente em \"Vincular todas\" até o número mudar ou alguém tentar de novo aqui."}
+          {situacao}
+          {falhouAntes && ", não entra automaticamente em \"Vincular todas\" até o número mudar ou alguém tentar de novo aqui."}
         </p>
       )}
 
@@ -108,13 +108,13 @@ export function CardPendenteVinculacao({
             <span className={`text-xs ${resultado.sucesso ? "text-status-good" : "text-status-critical"}`}>
               {resultado.sucesso ? "✅ " : "❌ "}
               {resultado.texto}
-              {resultado.sucesso && " — rode \"Sincronizar agora\" pra atualizar aqui."}
+              {resultado.sucesso && ", rode \"Sincronizar agora\" pra atualizar aqui."}
             </span>
           )}
         </div>
       ) : (
         <p className="mt-2 text-sm text-ink-secondary">
-          Número do Contrato no SIAFE: <strong className="text-ink-primary">{numeroSiafe || "—"}</strong>
+          Número do Contrato no SIAFE: <strong className="text-ink-primary">{numeroSiafe || "-"}</strong>
         </p>
       )}
     </div>

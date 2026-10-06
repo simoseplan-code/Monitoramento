@@ -1,6 +1,6 @@
 import { createClient } from "@supabase/supabase-js";
 
-// Cliente com service_role — só pode ser importado em código de
+// Cliente com service_role, só pode ser importado em código de
 // servidor (rotas de API, nunca em "use client"). Ignora RLS.
 export function createAdminClient() {
   return createClient(

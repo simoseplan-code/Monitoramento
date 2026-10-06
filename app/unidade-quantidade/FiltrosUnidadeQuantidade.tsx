@@ -30,7 +30,7 @@ export function FiltrosUnidadeQuantidade({
   const router = useRouter();
   const [busca, setBusca] = useState(buscaAtual);
 
-  // O ano em uso SEMPRE tem que existir como opção — se não existir, o
+  // O ano em uso SEMPRE tem que existir como opção, se não existir, o
   // select cai na primeira ("Todos os anos") e mostra um filtro diferente
   // do que está realmente aplicado.
   const anoAtualNumero = parseInt(anoMinAtual, 10);
@@ -106,7 +106,7 @@ export function FiltrosUnidadeQuantidade({
         value={anoMinAtual}
         onChange={(e) => aplicar({ anoMin: e.target.value })}
         className="rounded-lg border border-black/10 bg-plane px-3 py-2 text-sm text-ink-secondary focus:border-series-1 focus:outline-none"
-        title="Só ações criadas a partir desse ano — escolha 'Todos os anos' pra ver o histórico completo"
+        title="Só ações criadas a partir desse ano, escolha 'Todos os anos' pra ver o histórico completo"
       >
         <option value="todos">Todos os anos</option>
         {opcoesAnos.map((a) => (

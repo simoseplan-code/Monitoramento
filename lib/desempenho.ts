@@ -28,7 +28,7 @@ export const CORES_PESSOAS = [
 ];
 
 // Desfazer/reabrir não é produção, e falha de gravação no SIMO não é análise
-// concluída — ficam fora do total "produtivo" e aparecem à parte.
+// concluída, ficam fora do total "produtivo" e aparecem à parte.
 const ACOES_IMPRODUTIVAS = new Set(["pendente", "reaberto", "desaprovado"]);
 const ACOES_FALHA = new Set(["falha_gravacao", "falha_vinculacao"]);
 
@@ -286,6 +286,6 @@ export function calcularSituacao(linhas: LinhaSituacao[], pessoas: { id: string;
 }
 
 export function formatarDia(iso: string | null): string {
-  if (!iso) return "—";
+  if (!iso) return "-";
   return `${iso.slice(8, 10)}/${iso.slice(5, 7)}/${iso.slice(0, 4)}`;
 }

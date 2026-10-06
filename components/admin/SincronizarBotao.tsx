@@ -7,7 +7,7 @@ import { Loader2 } from "lucide-react";
 type Fase = "baixar" | "obras" | "sugestoes";
 
 // apenasSugestoes: roda só a camada 3 (recalcula a fila de Unidade/Quantidade
-// a partir das obras que já estão no banco, sem baixar nada do SIMO) —
+// a partir das obras que já estão no banco, sem baixar nada do SIMO) -
 // usado na própria tela de Unidade/Quantidade.
 export function SincronizarBotao({ apenasSugestoes = false }: { apenasSugestoes?: boolean }) {
   const router = useRouter();
@@ -15,7 +15,7 @@ export function SincronizarBotao({ apenasSugestoes = false }: { apenasSugestoes?
   const [msg, setMsg] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
   const [etapa, setEtapa] = useState("");
 
-  // Uma camada por requisição — cada uma tem o seu limite de tempo no
+  // Uma camada por requisição, cada uma tem o seu limite de tempo no
   // servidor: 1) baixar o relatório do SIMO (a parte lenta), 2) gravar as
   // obras, 3) recalcular a fila de Unidade/Quantidade.
   async function chamar(fase: Fase): Promise<{ ok: boolean; texto: string }> {
@@ -25,7 +25,7 @@ export function SincronizarBotao({ apenasSugestoes = false }: { apenasSugestoes?
       body: JSON.stringify({ fase }),
     });
     // Resposta que não é JSON = o servidor foi cortado antes de responder
-    // (timeout devolve página de erro) — mostra o status em vez de esconder.
+    // (timeout devolve página de erro), mostra o status em vez de esconder.
     const bruto = await resp.text();
     let data: { linhas?: number; naFila?: number; kb?: number; error?: string } | null = null;
     try {
@@ -38,7 +38,7 @@ export function SincronizarBotao({ apenasSugestoes = false }: { apenasSugestoes?
         fase === "baixar" ? `relatório baixado (${data.kb} KB)` : fase === "obras" ? `${data.linhas} ações` : `${data.naFila} na fila de Unidade/Quantidade`;
       return { ok: true, texto };
     }
-    return { ok: false, texto: data?.error ?? `servidor respondeu HTTP ${resp.status} sem detalhes (provável timeout — veja o histórico abaixo)` };
+    return { ok: false, texto: data?.error ?? `servidor respondeu HTTP ${resp.status} sem detalhes (provável timeout, veja o histórico abaixo)` };
   }
 
   async function sincronizar() {

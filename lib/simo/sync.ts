@@ -9,7 +9,7 @@ const TAMANHO_LOTE = 1000;
 
 // Linha do histórico (sync_log) aberta ANTES do trabalho: se o servidor
 // cortar a execução por tempo o catch nunca roda, e essa linha fica como
-// evidência dizendo em QUE FASE parou — em vez de só "falha ao conectar".
+// evidência dizendo em QUE FASE parou, em vez de só "falha ao conectar".
 async function abrirLog(admin: SupabaseClient, rotulo: string) {
   const { data } = await admin
     .from("sync_log")
@@ -30,7 +30,7 @@ async function abrirLog(admin: SupabaseClient, rotulo: string) {
 
 // Resumo das datas de recebimento lidas: quantas definitivas/provisórias e,
 // se não veio nenhuma, quais colunas "extras" (não reconhecidas) o arquivo
-// trouxe — mostra se a coluna não veio ou veio com outro nome.
+// trouxe, mostra se a coluna não veio ou veio com outro nome.
 function resumoRecebimento(obras: ObraRow[]): string {
   const comDef = obras.filter((o) => o.data_receb_definitivo).length;
   const comProv = obras.filter((o) => o.data_receb_provisorio).length;
@@ -39,12 +39,12 @@ function resumoRecebimento(obras: ObraRow[]): string {
     const chaves = new Set<string>();
     for (const o of obras) for (const k of Object.keys(o.extra)) chaves.add(k);
     const lista = Array.from(chaves).slice(0, 25).join(", ") || "nenhuma";
-    texto += ` ATENÇÃO: nenhuma data lida — colunas extras no arquivo: ${lista}.`;
+    texto += ` ATENÇÃO: nenhuma data lida, colunas extras no arquivo: ${lista}.`;
   }
   return texto;
 }
 
-// CAMADA 1 — baixa o relatório do SIMO (a parte lenta, às vezes passa de
+// CAMADA 1, baixa o relatório do SIMO (a parte lenta, às vezes passa de
 // 1 minuto) e guarda o CSV compactado no banco (tabela sync_csv). É a única
 // camada que fala com o SIMO; recebe o tempo inteiro da requisição.
 export async function executarSyncBaixar(): Promise<{ kb: number }> {
@@ -91,7 +91,7 @@ export async function executarSyncBaixar(): Promise<{ kb: number }> {
   }
 }
 
-// CAMADA 2 — lê o CSV já baixado e grava as obras. Não fala com o SIMO.
+// CAMADA 2, lê o CSV já baixado e grava as obras. Não fala com o SIMO.
 export async function executarSyncObras(): Promise<{ linhas: number }> {
   const admin = createAdminClient();
   const inicio = Date.now();
@@ -107,9 +107,9 @@ export async function executarSyncObras(): Promise<{ linhas: number }> {
       .limit(1)
       .maybeSingle();
     if (erroCsv) throw new Error(`Falha ao ler o relatório baixado: ${erroCsv.message}`);
-    if (!csvRow) throw new Error("Nenhum relatório baixado ainda — rode a etapa de download primeiro.");
+    if (!csvRow) throw new Error("Nenhum relatório baixado ainda, rode a etapa de download primeiro.");
     const idadeHoras = (Date.now() - new Date(csvRow.criado_em).getTime()) / 3_600_000;
-    if (idadeHoras > 24) throw new Error("O relatório baixado tem mais de 24h — rode a etapa de download de novo.");
+    if (idadeHoras > 24) throw new Error("O relatório baixado tem mais de 24h, rode a etapa de download de novo.");
 
     const csvText = gunzipSync(Buffer.from(csvRow.csv_gzip_b64, "base64")).toString("utf8");
     const obras = csvParaObras(csvText);
@@ -117,7 +117,7 @@ export async function executarSyncObras(): Promise<{ linhas: number }> {
     const tLeitura = seg();
 
     if (obras.length === 0) {
-      throw new Error("O SIMO retornou 0 linhas — provavelmente algo mudou no relatório. Sync abortado sem apagar dados.");
+      throw new Error("O SIMO retornou 0 linhas, provavelmente algo mudou no relatório. Sync abortado sem apagar dados.");
     }
 
     // Um único carimbo de tempo pra toda a execução: cada linha gravada
@@ -172,7 +172,7 @@ export async function executarSyncObras(): Promise<{ linhas: number }> {
   }
 }
 
-// CAMADA 3 — recalcula a fila de Unidade/Quantidade a partir das obras já
+// CAMADA 3, recalcula a fila de Unidade/Quantidade a partir das obras já
 // gravadas no banco (não baixa nada do SIMO).
 export async function executarSyncSugestoes(): Promise<{ naFila: number }> {
   const admin = createAdminClient();
@@ -187,7 +187,7 @@ export async function executarSyncSugestoes(): Promise<{ naFila: number }> {
       .select("id_acao, nome_acao, descricao_acao, tipologia, unidade_medida, quantidade");
     if (error) throw new Error(`Falha ao ler obras: ${error.message}`);
     const obras = (data ?? []) as ObraParaSugestao[];
-    if (obras.length === 0) throw new Error("Nenhuma obra no banco — rode o sync de obras primeiro.");
+    if (obras.length === 0) throw new Error("Nenhuma obra no banco, rode o sync de obras primeiro.");
     const tLeitura = seg();
 
     const naFila = await calcularSugestoesUnidade(admin, obras, new Date().toISOString(), log.fase);
@@ -222,7 +222,7 @@ type SugestaoExistente = {
 
 // Recalcula, pra toda a base, quais ações têm Unidade de Medida vazia ou
 // divergente da sugestão do motor (lib/unidadeQuantidade/sugestao.ts), e
-// persiste isso em obras_unidade_sugestao — a tela de revisão só faz
+// persiste isso em obras_unidade_sugestao, a tela de revisão só faz
 // SELECT paginado nessa tabela, nunca recalcula em cima da base inteira
 // a cada carregamento (mesmo motivo de performance que levou o dashboard
 // e Novas Ações a usarem RPC em vez de baixar tudo pro Next.js).
@@ -233,10 +233,10 @@ async function calcularSugestoesUnidade(
   fase: (texto: string) => Promise<void>
 ): Promise<number> {
   await fase("calculando sugestões");
-  // Guarda a sugestão computada junto (em vez de recalcular depois) —
+  // Guarda a sugestão computada junto (em vez de recalcular depois) -
   // importante porque agora um item pode entrar na fila mesmo com
   // sugestao === null (Unidade vazia, mas o motor não achou nem
-  // Tipologia mapeada nem palavra-chave no texto — antes isso sumia da
+  // Tipologia mapeada nem palavra-chave no texto, antes isso sumia da
   // fila silenciosamente; a equipe via 2658 ações com Unidade vazia na
   // base mas só 726 apareciam pra revisar).
   const precisamSugestao: { obra: ObraParaSugestao; unidadeAtualVazia: boolean; sugestao: ReturnType<typeof sugerirUnidadeQuantidade> }[] = [];
@@ -251,12 +251,12 @@ async function calcularSugestoesUnidade(
       if (!vazio && !divergente) continue;
       precisamSugestao.push({ obra, unidadeAtualVazia: vazio, sugestao });
     } else if (vazio) {
-      // Sem nenhum indício (nem tipologia mapeada, nem texto) — ainda
+      // Sem nenhum indício (nem tipologia mapeada, nem texto), ainda
       // assim precisa de revisão manual, só não dá pra sugerir nada.
       precisamSugestao.push({ obra, unidadeAtualVazia: true, sugestao: null });
     }
     // Sem sugestão e com Unidade já preenchida: não dá pra saber se
-    // diverge sem ter com o que comparar — fica de fora, igual antes.
+    // diverge sem ter com o que comparar, fica de fora, igual antes.
   }
 
   // Busca as sugestões já existentes só pra esse subconjunto, pra
@@ -295,9 +295,9 @@ async function calcularSugestoesUnidade(
       sem_quantidade: !quantidadeSugerida,
       confianca: sugestao?.confianca ?? "baixa",
       aviso_tipologia: !!sugestao?.avisoTipologia,
-      motivo: sugestao?.motivo ?? "Nenhuma palavra-chave clara no Nome/Descrição e Tipologia não mapeada — revisar manualmente, escolhendo a unidade certa.",
+      motivo: sugestao?.motivo ?? "Nenhuma palavra-chave clara no Nome/Descrição e Tipologia não mapeada, revisar manualmente, escolhendo a unidade certa.",
       // A análise já feita fica FIXA no ID: aprovação, valor escolhido e
-      // "gravado no SIMO" sobrevivem a qualquer novo cálculo — inclusive
+      // "gravado no SIMO" sobrevivem a qualquer novo cálculo, inclusive
       // quando a sugestão do motor muda (regra nova ensinada pela equipe).
       // O valor aprovado é o unidade_final/quantidade_final, que a pessoa
       // escolheu, então não fica velho se a sugestão mudar depois.
@@ -322,10 +322,10 @@ async function calcularSugestoesUnidade(
   if (erroEscrita?.error) throw new Error(`Falha ao gravar sugestões de unidade: ${erroEscrita.error.message}`);
 
   // Ações que tinham sugestão antes e não precisam mais (Unidade foi
-  // corrigida no SIMO, texto mudou, etc.) — mesmo truque de carimbo de
+  // corrigida no SIMO, texto mudou, etc.), mesmo truque de carimbo de
   // tempo usado pra "obras" em vez de um NOT IN gigante.
   // Linhas já aplicadas no SIMO ficam: depois de gravar, a Unidade do
-  // SIMO passa a bater com a sugestão e a ação sai da fila — sem esse
+  // SIMO passa a bater com a sugestão e a ação sai da fila, sem esse
   // filtro a aba "Já aplicadas" esvaziaria a cada sync.
   const { error: erroDelete } = await admin
     .from("obras_unidade_sugestao")

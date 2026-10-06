@@ -6,7 +6,7 @@ import { paraNumeroBR } from "@/lib/simo/parseCsv";
 import { registrarAnalise } from "@/lib/analisesLog";
 
 // Mesma conversão do script original: o texto ("1.732,32") vira número
-// e volta como "1732,32" (vírgula decimal, sem separador de milhar) —
+// e volta como "1732,32" (vírgula decimal, sem separador de milhar) -
 // é o formato que o campo Quantidade do SIMO espera. Vazio = não mexe.
 function normalizarQuantidade(bruta: string): string {
   const t = bruta.trim();
@@ -15,11 +15,11 @@ function normalizarQuantidade(bruta: string): string {
   return n === null ? t : paraTextoBR(n);
 }
 
-// Pausa entre gravações — mesmo valor da planilha (SIMO_GRAVACAO_PAUSA_MS),
+// Pausa entre gravações, mesmo valor da planilha (SIMO_GRAVACAO_PAUSA_MS),
 // pra não sobrecarregar/derrubar a sessão do SIMO num lote grande.
 const PAUSA_MS = 600;
 // Corta com folga antes do limite de execução da rota (ver maxDuration
-// em app/api/admin/aplicar-unidade/route.ts) — quem chamou a rota vê
+// em app/api/admin/aplicar-unidade/route.ts), quem chamou a rota vê
 // quantas ainda restam e pode rodar de novo pra continuar de onde parou
 // (mesma solução que a planilha usa pro timeout de 6 min do Apps Script).
 const LIMITE_TEMPO_MS = 45_000;
@@ -68,7 +68,7 @@ export async function executarAplicacaoUnidade(executadoPor: string): Promise<Re
     processadas++;
 
     const nomeAcao = nomesPorId.get(linha.id_acao as string) ?? "";
-    // O valor FINAL é o que a equipe aprovou de verdade — pode ter sido
+    // O valor FINAL é o que a equipe aprovou de verdade, pode ter sido
     // editado na tela em cima da sugestão original (unidade_sugerida é
     // só a proposta do motor, nunca o que vai pro SIMO).
     const unidadeNova = linha.unidade_final || linha.unidade_sugerida || "";
@@ -89,7 +89,7 @@ export async function executarAplicacaoUnidade(executadoPor: string): Promise<Re
       httpCode = r.httpCode;
       textoResp = r.texto;
       // O endpoint de edição do SIMO não devolve um JSON claro de
-      // sucesso/erro — confirmado na prática (planilha original) que
+      // sucesso/erro, confirmado na prática (planilha original) que
       // mesmo "Objeto incompleto" (outra aba com pendência) ainda salva
       // Unidade/Quantidade, porque o SIMO não é atômico. Só HTTP
       // diferente de 200 ou erro explícito conta como falha de verdade.
@@ -107,7 +107,7 @@ export async function executarAplicacaoUnidade(executadoPor: string): Promise<Re
         // está no SIMO não bateu com o pedido.
         const confirmado = await confirmarUnidadeQuantidade(cookie, linha.id_acao, unidadeNova, quantidadeNova);
         if (confirmado === false) {
-          resultado = "A verificar (HTTP 200 — o valor no SIMO não bateu)";
+          resultado = "A verificar (HTTP 200: o valor no SIMO não bateu)";
           falha++;
         } else {
           resultado = confirmado
@@ -122,7 +122,7 @@ export async function executarAplicacaoUnidade(executadoPor: string): Promise<Re
       }
     } catch (e) {
       resultado = e instanceof SomenteLeituraError
-        ? "Somente leitura mesmo após renovar sessão — pode ser status Concluído ou ação travada no SIMO."
+        ? "Somente leitura mesmo após renovar sessão, pode ser status Concluído ou ação travada no SIMO."
         : `Erro: ${e instanceof Error ? e.message : "desconhecido"}`;
       falha++;
     }

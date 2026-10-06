@@ -126,7 +126,7 @@ export default async function EquipePage() {
                       {euMesmo && <span className="ml-2 text-xs font-normal text-ink-muted">(você)</span>}
                     </td>
                     <td className="px-3 py-2 text-ink-secondary">{m.email}</td>
-                    <td className="px-3 py-2 text-ink-secondary">{m.cargo || "—"}</td>
+                    <td className="px-3 py-2 text-ink-secondary">{m.cargo || "-"}</td>
                     <td className="px-3 py-2">
                       {souAdmin && !euMesmo ? (
                         <PapelSelect userId={m.id} papelAtual={m.papel} />

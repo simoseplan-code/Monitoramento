@@ -103,7 +103,7 @@ export default async function UnidadeQuantidadePage({
         sugestoesUnidadePendentes,
       }}
       titulo="Unidade / Quantidade"
-      subtitulo={`${totalGeral} ação(ões) — ${
+      subtitulo={`${totalGeral} ação(ões), ${
         { pendentes: "aguardando revisão", aprovadas: "aprovadas, aguardando gravação", aplicadas: "já aplicadas no SIMO", todas: "no total" }[
           statusAtual
         ] ?? "aguardando revisão"

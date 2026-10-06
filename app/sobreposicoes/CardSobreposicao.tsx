@@ -9,7 +9,7 @@ import { IdAcaoLink } from "@/components/IdAcaoLink";
 type StatusRevisao = "pendente" | "ok" | "problema" | "solucionado";
 type PessoaEquipe = { id: string; nome: string };
 
-// A ação com o menor ID é a mais antiga no SIMO — normalmente a
+// A ação com o menor ID é a mais antiga no SIMO, normalmente a
 // "original", que as outras do mesmo local estão duplicando. Vai
 // primeiro na lista, marcada como Principal, pra saber qual olhar antes.
 function ordenarComPrincipalPrimeiro(obras: ObraNoLocal[]): ObraNoLocal[] {
@@ -88,7 +88,7 @@ export function CardSobreposicao({
   // Com responsável que não é você, só leitura (admin pode tudo).
   const bloqueado = !!responsavel && responsavel.id !== usuario.id && !ehAdmin;
   // "escrevendo": campo de comentário aberto para a decisão escolhida
-  // (ok ou problema) — os dois botões passam pelo mesmo campo.
+  // (ok ou problema), os dois botões passam pelo mesmo campo.
   const [etapa, setEtapa] = useState<"fechado" | "escrevendo">("fechado");
   const [decisao, setDecisao] = useState<"ok" | "problema">("problema");
   const [observacao, setObservacao] = useState(observacaoInicial ?? "");
@@ -168,7 +168,7 @@ export function CardSobreposicao({
       });
       const json = (await resp.json().catch(() => ({}))) as { error?: string; responsavelId?: string; responsavelNome?: string };
       if (!resp.ok) setErro(json.error ?? "Não foi possível trocar o responsável.");
-      else setResponsavel({ id: json.responsavelId!, nome: json.responsavelNome ?? "—" });
+      else setResponsavel({ id: json.responsavelId!, nome: json.responsavelNome ?? "-" });
     } catch {
       setErro("Sem conexão com o servidor.");
     } finally {
@@ -194,10 +194,10 @@ export function CardSobreposicao({
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-ink-primary">
-            {obras.length} obras envolvidas · {extensaoM != null ? `${Math.round(extensaoM)} m` : "—"} sobrepostos
+            {obras.length} obras envolvidas · {extensaoM != null ? `${Math.round(extensaoM)} m` : "-"} sobrepostos
           </p>
           <p className="text-xs text-ink-muted">
-            Tolerância {toleranciaM ?? "—"} m · {qtdSegmentos ?? "—"} segmento(s)
+            Tolerância {toleranciaM ?? "-"} m · {qtdSegmentos ?? "-"} segmento(s)
             {linkMapa && (
               <>
                 {" · "}
@@ -437,7 +437,7 @@ export function CardSobreposicao({
               {responsavel.id === usuario.id && " (você)"}
             </>
           ) : (
-            "Sem responsável — quem decidir primeiro assume a análise"
+            "Sem responsável, quem decidir primeiro assume a análise"
           )}
         </span>
 
@@ -450,7 +450,7 @@ export function CardSobreposicao({
               onChange={(e) => trocarResponsavel(e.target.value)}
               className="rounded-lg border border-black/10 bg-plane px-2 py-1 text-xs text-ink-secondary focus:border-series-1 focus:outline-none disabled:opacity-50"
             >
-              {!responsavel && <option value="">— escolher —</option>}
+              {!responsavel && <option value="">Escolher</option>}
               {equipe.map((p) => (
                 <option key={p.id} value={p.id}>
                   {p.nome}

@@ -78,7 +78,7 @@ export default async function AdminPage() {
         </section>
 
         <section className="rounded-xl border border-black/5 bg-surface p-5 shadow-card">
-          <h2 className="mb-3 text-sm font-semibold text-ink-primary">Unidade/Quantidade — gravação no SIMO</h2>
+          <h2 className="mb-3 text-sm font-semibold text-ink-primary">Unidade/Quantidade: gravação no SIMO</h2>
           <p className="mb-3 text-xs text-ink-muted">
             Sugestões aprovadas em{" "}
             <a href="/unidade-quantidade" className="text-series-1 hover:underline">
@@ -93,7 +93,7 @@ export default async function AdminPage() {
 
       <div className="mt-4 grid grid-cols-1 gap-4 lg:grid-cols-2">
         <section className="rounded-xl border border-black/5 bg-surface p-5 shadow-card">
-          <h2 className="mb-3 text-sm font-semibold text-ink-primary">Produtividade — gravação no SIMO</h2>
+          <h2 className="mb-3 text-sm font-semibold text-ink-primary">Produtividade: gravação no SIMO</h2>
           <table className="w-full text-sm">
             <thead>
               <tr className="text-left text-xs text-ink-muted">
@@ -136,7 +136,7 @@ export default async function AdminPage() {
                   )}
                   <div className="min-w-0">
                     <p className="truncate text-ink-secondary">
-                      <IdAcaoLink id={l.id_acao} /> · {l.nome_acao} — {l.unidade_antiga || "vazio"} → {l.unidade_nova}
+                      <IdAcaoLink id={l.id_acao} /> · {l.nome_acao}: {l.unidade_antiga || "vazio"} → {l.unidade_nova}
                     </p>
                     <p className="text-xs text-ink-muted">
                       {nomeExecutor} · {new Date(l.executado_em).toLocaleString("pt-BR")}

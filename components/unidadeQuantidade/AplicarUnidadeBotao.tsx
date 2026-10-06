@@ -63,7 +63,7 @@ export function AplicarUnidadeBotao({ pendentes }: { pendentes: number }) {
         <div className="mt-3 rounded-lg border border-black/5 bg-plane p-3">
           <p className="mb-2 text-xs font-medium text-ink-secondary">
             {ultimoResultado.sucesso} gravada(s), {ultimoResultado.falha} a verificar
-            {ultimoResultado.restantes > 0 ? ` — ${ultimoResultado.restantes} restante(s), rode de novo pra continuar.` : "."}
+            {ultimoResultado.restantes > 0 ? `, ${ultimoResultado.restantes} restante(s), rode de novo pra continuar.` : "."}
           </p>
           <ul className="max-h-64 space-y-1.5 overflow-y-auto">
             {ultimoResultado.detalhes.map((d) => {
@@ -77,11 +77,11 @@ export function AplicarUnidadeBotao({ pendentes }: { pendentes: number }) {
                   )}
                   <div className="min-w-0">
                     <p className="truncate text-ink-primary">
-                      <IdAcaoLink id={d.idAcao} /> · {d.nomeAcao || "—"}
+                      <IdAcaoLink id={d.idAcao} /> · {d.nomeAcao || "-"}
                     </p>
                     <p className="text-ink-muted">
                       → {d.unidade}
-                      {d.quantidade ? ` (${d.quantidade})` : ""} — {d.resultado}
+                      {d.quantidade ? ` (${d.quantidade})` : ""}: {d.resultado}
                     </p>
                   </div>
                 </li>

@@ -96,7 +96,7 @@ export default async function SobreposicoesPage({
   const linhasCsv = (linhasRpc ?? []) as LinhaSobreposicao[];
 
   // O CSV do Mapa de Obras é uma foto do dia da exportação e só traz o
-  // "Número do Contrato no SIAFE" digitado — o contrato de fato vinculado
+  // "Número do Contrato no SIAFE" digitado, o contrato de fato vinculado
   // fica em numero_automatico (é ele que a tela mostra). Contrato e status
   // vêm da base sincronizada (atual); o valor do CSV só vale se a ação não
   // for encontrada na base.
@@ -141,7 +141,7 @@ export default async function SobreposicoesPage({
         sobreposicoesPendentes: totalPendentes ?? 0,
       }}
       titulo="Sobreposições"
-      subtitulo={`${totalFiltrado} local(is) — ${{ pendente: "aguardando revisão", ok: "sem problema", problema: "com problema", solucionado: "solucionado" }[statusAtual]}`}
+      subtitulo={`${totalFiltrado} local(is), ${{ pendente: "aguardando revisão", ok: "sem problema", problema: "com problema", solucionado: "solucionado" }[statusAtual]}`}
     >
       <div className="mb-4">
         <UploadCsvSobreposicoes />
@@ -179,7 +179,7 @@ export default async function SobreposicoesPage({
             observacaoInicial={l.observacao}
             solucionadoPor={l.solucionado_por_nome ? { nome: l.solucionado_por_nome, em: l.solucionado_em } : null}
             solucao={l.solucao}
-            responsavelInicial={l.responsavel_id ? { id: l.responsavel_id, nome: l.responsavel_nome ?? "—" } : null}
+            responsavelInicial={l.responsavel_id ? { id: l.responsavel_id, nome: l.responsavel_nome ?? "-" } : null}
             usuario={usuario}
             ehAdmin={ehAdmin}
             equipe={equipe}

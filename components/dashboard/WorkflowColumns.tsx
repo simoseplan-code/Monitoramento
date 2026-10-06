@@ -15,7 +15,7 @@ export function WorkflowColumns({ colunas }: { colunas: Coluna[] }) {
       <div className="mb-4 flex items-start justify-between gap-2">
         <div>
           <h3 className="text-sm font-semibold text-ink-primary">Status das ações</h3>
-          <p className="text-xs text-ink-muted">Situação de cada ação no SIMO — só as criadas de 2023 em diante</p>
+          <p className="text-xs text-ink-muted">Situação de cada ação no SIMO, só as criadas de 2023 em diante</p>
         </div>
         <AjudaCard texto="Mostra quantas ações existem em cada status do SIMO (Em desenvolvimento, Concluído, Cancelado, etc.), só as criadas de 2023 em diante e a porcentagem sobre o total." />
       </div>
