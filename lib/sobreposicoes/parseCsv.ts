@@ -20,6 +20,8 @@ export type ObraNoLocal = {
   // provisório quando ainda não há definitivo).
   percentual?: number | null;
   concluido_em?: string | null;
+  // Estágio atual da ação (base sincronizada), mostrado antes do status.
+  estagio?: string | null;
 };
 
 export type SobreposicaoImportada = {
