@@ -4,6 +4,12 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getClientIp } from "@/lib/ip";
 import { verificarTurnstile } from "@/lib/turnstile";
 
+// Com SUPABASE_CAPTCHA_ATIVO=1 o captcha passa a ser conferido pelo PRÓPRIO Supabase
+// (Authentication → Attack Protection), o que também barra quem tenta senhas direto na
+// API pública, sem passar por aqui. O token do checkbox só vale uma vez, então nesse
+// modo ele é repassado ao Supabase em vez de ser conferido duas vezes.
+const CAPTCHA_NO_SUPABASE = process.env.SUPABASE_CAPTCHA_ATIVO === "1";
+
 const MAX_TENTATIVAS = 5;
 const BLOQUEIO_MINUTOS = 15;
 
@@ -15,12 +21,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Informe email e senha." }, { status: 400 });
   }
 
-  const captcha = await verificarTurnstile(turnstileToken, ip, request.headers.get("host"));
-  if (captcha === "indisponivel") {
-    return NextResponse.json({ error: "Verificação de segurança indisponível no momento. Tente de novo em instantes ou avise o administrador." }, { status: 503 });
-  }
-  if (captcha !== "ok") {
-    return NextResponse.json({ error: "Falha na verificação de segurança. Tente novamente." }, { status: 400 });
+  if (CAPTCHA_NO_SUPABASE) {
+    if (!turnstileToken) {
+      return NextResponse.json({ error: "Falha na verificação de segurança. Tente novamente." }, { status: 400 });
+    }
+  } else {
+    const captcha = await verificarTurnstile(turnstileToken, ip, request.headers.get("host"));
+    if (captcha === "indisponivel") {
+      return NextResponse.json({ error: "Verificação de segurança indisponível no momento. Tente de novo em instantes ou avise o administrador." }, { status: 503 });
+    }
+    if (captcha !== "ok") {
+      return NextResponse.json({ error: "Falha na verificação de segurança. Tente novamente." }, { status: 400 });
+    }
   }
 
   const admin = createAdminClient();
@@ -66,7 +78,16 @@ export async function POST(request: NextRequest) {
     }
   );
 
-  const { data: login, error } = await supabase.auth.signInWithPassword({ email, password: senha });
+  const { data: login, error } = await supabase.auth.signInWithPassword({
+    email,
+    password: senha,
+    ...(CAPTCHA_NO_SUPABASE ? { options: { captchaToken: turnstileToken } } : {}),
+  });
+
+  // Captcha reprovado pelo Supabase: não conta como senha errada.
+  if (error && (error.code === "captcha_failed" || /captcha/i.test(error.message))) {
+    return NextResponse.json({ error: "Falha na verificação de segurança. Tente novamente." }, { status: 400 });
+  }
 
   // Conta bloqueada no Supabase = cadastro ainda não aprovado (ou rejeitado).
   if (error && (error.code === "user_banned" || /banned/i.test(error.message))) {
