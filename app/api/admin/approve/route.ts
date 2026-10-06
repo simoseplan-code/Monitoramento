@@ -11,14 +11,15 @@ export async function POST(request: NextRequest) {
 
   const { data: solicitante } = await supabase
     .from("profiles")
-    .select("is_admin, status")
+    .select("papel, status")
     .eq("id", user.id)
     .single();
-  if (!solicitante?.is_admin || solicitante.status !== "aprovado") {
+  // Aprovar/rejeitar cadastro é alterar acesso: só administrador (chefe não).
+  if (solicitante?.papel !== "admin" || solicitante.status !== "aprovado") {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 
-  const { userId, acao } = await request.json();
+  const { userId, acao, papel } = await request.json();
   if (!userId || !["aprovar", "rejeitar"].includes(acao)) {
     return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
   }
@@ -38,6 +39,7 @@ export async function POST(request: NextRequest) {
   const { error } = await admin
     .from("profiles")
     .update({
+      ...(acao === "aprovar" && ["admin", "chefe", "equipe"].includes(papel) ? { papel } : {}),
       status: acao === "aprovar" ? "aprovado" : "rejeitado",
       approved_by: user.id,
       approved_at: new Date().toISOString(),

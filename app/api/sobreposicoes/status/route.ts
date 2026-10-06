@@ -14,6 +14,10 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
 
+  // Sobreposições é só para admin e chefe (a equipe fica de fora por enquanto).
+  const { data: perfilAcesso } = await supabase.from("profiles").select("is_admin").eq("id", user.id).single();
+  if (!perfilAcesso?.is_admin) return NextResponse.json({ error: "Sem permissão para Sobreposições." }, { status: 403 });
+
   const { chaveLocal, status, observacao } = (await request.json()) as {
     chaveLocal?: string;
     status?: string;
