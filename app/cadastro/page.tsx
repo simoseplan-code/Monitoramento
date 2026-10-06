@@ -74,8 +74,8 @@ export default function CadastroPage() {
         <input
           type="password"
           required
-          minLength={8}
-          placeholder="Senha (mín. 8 caracteres)"
+          minLength={10}
+          placeholder="Senha (mín. 10 caracteres)"
           value={senha}
           onChange={(e) => setSenha(e.target.value)}
           className="rounded border border-slate-300 px-3 py-2"

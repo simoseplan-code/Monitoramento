@@ -13,8 +13,8 @@ export async function POST(request: NextRequest) {
   if (!nome || !email || !senha) {
     return NextResponse.json({ error: "Preencha nome, email e senha." }, { status: 400 });
   }
-  if (String(senha).length < 8) {
-    return NextResponse.json({ error: "A senha precisa ter pelo menos 8 caracteres." }, { status: 400 });
+  if (String(senha).length < 10) {
+    return NextResponse.json({ error: "A senha precisa ter pelo menos 10 caracteres." }, { status: 400 });
   }
 
   const captcha = await verificarTurnstile(turnstileToken, ip, request.headers.get("host"));
