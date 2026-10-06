@@ -177,7 +177,12 @@ async function lerFormularioSimo(cookie: string, id: string): Promise<{ payload:
   if (!resp.ok) throw new Error(`Falha ao ler o formulário da ação ${id} no SIMO (HTTP ${resp.status}).`);
 
   const buffer = Buffer.from(await resp.arrayBuffer());
-  const htmlBruto = new TextDecoder("iso-8859-1").decode(buffer);
+  // Latin-1 de verdade (1 byte = 1 caractere, sem perda): reenviar cada caractere
+  // como o mesmo byte devolve o texto IDÊNTICO ao SIMO, seja a página UTF-8 ou
+  // ISO. NÃO usar TextDecoder("iso-8859-1"): no Node ele é Windows-1252 e troca
+  // os bytes 0x80-0x9F (2º byte de Ç, Ã, Â, É... maiúsculos em UTF-8) por outros
+  // caracteres, o que gravava "PRA???A" no nome da ação.
+  const htmlBruto = buffer.toString("latin1");
   const html = removerTemplatesHtml(htmlBruto);
 
   if (html.indexOf('name="general[measure_unit]"') === -1) throw new SomenteLeituraError(id);
@@ -266,7 +271,7 @@ export async function salvarUnidadeQuantidade(
   });
 
   const buffer = Buffer.from(await resp.arrayBuffer());
-  const texto = new TextDecoder("iso-8859-1").decode(buffer);
+  const texto = buffer.toString("latin1");
   return { httpCode: resp.status, texto };
 }
 
