@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, Building2, Check, ChevronDown, ChevronRight, Undo2 } from "lucide-react";
+import { AlertTriangle, Building2, Check, CheckCheck, ChevronDown, ChevronRight, Undo2 } from "lucide-react";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
 import { BotaoDownload } from "@/components/BotaoDownload";
 
@@ -32,8 +32,11 @@ const ITENS = [
 export function PendenciasPorOrgao({ grupos, usuarioId, ehAdmin }: { grupos: GrupoOrgao[]; usuarioId: string; ehAdmin: boolean }) {
   const router = useRouter();
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
-  const [voltando, setVoltando] = useState<string | null>(null);
+  const [processando, setProcessando] = useState<string | null>(null);
+  // Qual confirmação está aberta: "a:ID" (uma ação) ou "g:ÓRGÃO" (o órgão todo).
+  const [confirmando, setConfirmando] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   function alternar(orgao: string) {
     setAbertos((atual) => {
@@ -44,23 +47,48 @@ export function PendenciasPorOrgao({ grupos, usuarioId, ehAdmin }: { grupos: Gru
     });
   }
 
-  async function voltarParaAnalise(idAcao: string) {
-    setVoltando(idAcao);
+  async function executar(chave: string, ids: string[], acao: "voltar" | "resolver") {
+    setProcessando(chave);
     setErro(null);
+    setAviso(null);
     try {
       const resp = await fetch("/api/revisao/encaminhar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids: [idAcao], acao: "voltar" }),
+        body: JSON.stringify({ ids, acao }),
       });
-      const json = (await resp.json().catch(() => ({}))) as { error?: string; feitas?: number; ignoradas?: { motivo: string }[] };
-      if (!resp.ok) setErro(json.error ?? "Não foi possível devolver para a análise.");
-      else if ((json.feitas ?? 0) === 0) setErro(`Não foi possível devolver: ${json.ignoradas?.[0]?.motivo ?? "sem permissão"}.`);
-      else router.refresh();
+      const json = (await resp.json().catch(() => ({}))) as {
+        error?: string;
+        feitas?: number;
+        concluidas?: number;
+        devolvidas?: number;
+        ignoradas?: { id: string; motivo: string }[];
+      };
+      if (!resp.ok) {
+        setErro(json.error ?? "Não foi possível salvar.");
+        return;
+      }
+      const ignoradas = json.ignoradas ?? [];
+      const listaIgnoradas = ignoradas.map((x) => x.id + " (" + x.motivo + ")").join("; ");
+      if ((json.feitas ?? 0) === 0) {
+        setErro("Nada foi alterado" + (ignoradas.length ? ": " + listaIgnoradas : "") + ".");
+        return;
+      }
+      if (acao === "resolver") {
+        setAviso(
+          (json.concluidas ?? 0) + " ação(ões) concluída(s)." +
+            ((json.devolvidas ?? 0) > 0 ? " " + json.devolvidas + " voltou(aram) para a análise porque ainda têm item não analisado." : "") +
+            (ignoradas.length ? " Não alteradas: " + listaIgnoradas + "." : "")
+        );
+      } else if (ignoradas.length) {
+        setErro("Não devolvidas: " + listaIgnoradas + ".");
+      }
+      router.refresh();
     } catch {
       setErro("Sem conexão com o servidor.");
     } finally {
-      setVoltando(null);
+      setProcessando(null);
+      setConfirmando(null);
     }
   }
 
@@ -99,6 +127,7 @@ export function PendenciasPorOrgao({ grupos, usuarioId, ehAdmin }: { grupos: Gru
       </div>
 
       {erro && <p className="rounded-lg bg-status-critical-bg px-3 py-2 text-xs text-status-critical">{erro}</p>}
+      {aviso && <p className="rounded-lg bg-status-good-bg px-3 py-2 text-xs text-status-good">{aviso}</p>}
 
       {grupos.map((g) => {
         const aberto = abertos.has(g.orgao);
@@ -113,12 +142,39 @@ export function PendenciasPorOrgao({ grupos, usuarioId, ehAdmin }: { grupos: Gru
                   {g.acoes.length} pendência{g.acoes.length > 1 ? "s" : ""}
                 </span>
               </button>
+              <div className="flex flex-wrap items-center gap-2">
+              {confirmando === `g:${g.orgao}` ? (
+                <span className="flex items-center gap-1.5 rounded-full bg-status-good-bg px-2 py-1 text-xs font-medium text-status-good">
+                  {g.orgao} resolveu todas as {g.acoes.length} pendência(s)? As ações serão concluídas.
+                  <button
+                    onClick={() => executar(`g:${g.orgao}`, g.acoes.map((a) => a.idAcao), "resolver")}
+                    disabled={processando !== null}
+                    className="rounded-full bg-status-good px-2 py-0.5 text-white disabled:opacity-50"
+                  >
+                    {processando === `g:${g.orgao}` ? "..." : "Sim"}
+                  </button>
+                  <button onClick={() => setConfirmando(null)} className="rounded-full px-1.5 text-ink-muted hover:text-ink-primary">
+                    Não
+                  </button>
+                </span>
+              ) : (
+                <button
+                  onClick={() => setConfirmando(`g:${g.orgao}`)}
+                  disabled={processando !== null}
+                  className="flex items-center gap-1.5 rounded-full bg-status-good px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                  title="Marca os itens pendentes como resolvidos e conclui a análise de todas as ações deste órgão"
+                >
+                  <CheckCheck size={13} />
+                  Órgão resolveu tudo
+                </button>
+              )}
               <BotaoDownload
                 href={`/api/relatorios/pendencias?orgao=${encodeURIComponent(g.orgao)}`}
                 rotulo="PDF deste órgão"
                 arquivoPadrao={`pendencias-${g.orgao}.pdf`}
                 className="border border-black/10 text-ink-secondary hover:bg-plane"
               />
+              </div>
             </div>
 
             {aberto && (
@@ -139,15 +195,42 @@ export function PendenciasPorOrgao({ grupos, usuarioId, ehAdmin }: { grupos: Gru
                           </p>
                         </div>
                         {pode && (
-                          <button
-                            onClick={() => voltarParaAnalise(a.idAcao)}
-                            disabled={voltando === a.idAcao}
-                            className="flex shrink-0 items-center gap-1.5 rounded-full border border-black/10 px-3 py-1.5 text-xs font-medium text-ink-secondary hover:bg-plane disabled:opacity-50"
-                            title="Devolve a ação para a fila de análise (ex.: o órgão já resolveu)"
-                          >
-                            <Undo2 size={13} />
-                            {voltando === a.idAcao ? "Voltando..." : "Voltar para análise"}
-                          </button>
+                          <div className="flex shrink-0 flex-wrap items-center gap-2">
+                            {confirmando === `a:${a.idAcao}` ? (
+                              <span className="flex items-center gap-1.5 rounded-full bg-status-good-bg px-2 py-1 text-xs font-medium text-status-good">
+                                Órgão resolveu? A ação será concluída.
+                                <button
+                                  onClick={() => executar(`a:${a.idAcao}`, [a.idAcao], "resolver")}
+                                  disabled={processando !== null}
+                                  className="rounded-full bg-status-good px-2 py-0.5 text-white disabled:opacity-50"
+                                >
+                                  {processando === `a:${a.idAcao}` ? "..." : "Sim"}
+                                </button>
+                                <button onClick={() => setConfirmando(null)} className="rounded-full px-1.5 text-ink-muted hover:text-ink-primary">
+                                  Não
+                                </button>
+                              </span>
+                            ) : (
+                              <button
+                                onClick={() => setConfirmando(`a:${a.idAcao}`)}
+                                disabled={processando !== null}
+                                className="flex items-center gap-1.5 rounded-full bg-status-good px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+                                title="Marca os itens pendentes como resolvidos e conclui a análise"
+                              >
+                                <CheckCheck size={13} />
+                                Órgão resolveu
+                              </button>
+                            )}
+                            <button
+                              onClick={() => executar(`v:${a.idAcao}`, [a.idAcao], "voltar")}
+                              disabled={processando !== null}
+                              className="flex items-center gap-1.5 rounded-full border border-black/10 px-3 py-1.5 text-xs font-medium text-ink-secondary hover:bg-plane disabled:opacity-50"
+                              title="Devolve a ação para a fila de análise sem concluir"
+                            >
+                              <Undo2 size={13} />
+                              {processando === `v:${a.idAcao}` ? "Voltando..." : "Voltar para análise"}
+                            </button>
+                          </div>
                         )}
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2">
