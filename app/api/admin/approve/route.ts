@@ -23,7 +23,18 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
   }
 
+  // Evita o admin se trancar pra fora rejeitando a própria conta.
+  if (userId === user.id) return NextResponse.json({ error: "Você não pode alterar o próprio cadastro." }, { status: 400 });
+
   const admin = createAdminClient();
+
+  // Primeiro o acesso no Supabase Auth, depois o status: se algo falhar no meio, a
+  // pessoa continua na lista de pendentes e dá pra tentar de novo.
+  const { error: erroAcesso } = await admin.auth.admin.updateUserById(userId, {
+    ban_duration: acao === "aprovar" ? "none" : "876000h",
+  });
+  if (erroAcesso) return NextResponse.json({ error: "Falha ao ajustar o acesso da conta. Tente de novo." }, { status: 500 });
+
   const { error } = await admin
     .from("profiles")
     .update({

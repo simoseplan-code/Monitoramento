@@ -3,6 +3,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { getClientIp } from "@/lib/ip";
 import { verificarTurnstile } from "@/lib/turnstile";
 
+// ~100 anos: na prática, bloqueado até alguém aprovar.
+const BLOQUEIO_PENDENTE = "876000h";
+
 export async function POST(request: NextRequest) {
   const ip = getClientIp(request);
   const { nome, email, senha, turnstileToken } = await request.json();
@@ -33,15 +36,25 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Muitas tentativas. Aguarde alguns minutos." }, { status: 429 });
   }
 
-  const { error } = await admin.auth.admin.createUser({
+  const { data: criado, error } = await admin.auth.admin.createUser({
     email,
     password: senha,
     email_confirm: true, // confirmação por email desligada: aprovação manual é quem valida a identidade
     user_metadata: { nome },
   });
 
-  if (error) {
+  if (error || !criado.user) {
     return NextResponse.json({ error: "Não foi possível criar o cadastro. O email já pode estar em uso." }, { status: 400 });
+  }
+
+  // A conta nasce BLOQUEADA no Supabase Auth até um admin aprovar: sem login não
+  // existe sessão, então quem ainda não foi aprovado não consegue nem chamar a
+  // API do banco direto. Se o bloqueio falhar, desfaz o cadastro (nunca deixa uma
+  // conta pendente destravada).
+  const { error: erroBloqueio } = await admin.auth.admin.updateUserById(criado.user.id, { ban_duration: BLOQUEIO_PENDENTE });
+  if (erroBloqueio) {
+    await admin.auth.admin.deleteUser(criado.user.id);
+    return NextResponse.json({ error: "Não foi possível concluir o cadastro agora. Tente novamente." }, { status: 500 });
   }
 
   return NextResponse.json({ ok: true });

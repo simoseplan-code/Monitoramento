@@ -68,6 +68,19 @@ export async function POST(request: NextRequest) {
 
   const { data: login, error } = await supabase.auth.signInWithPassword({ email, password: senha });
 
+  // Conta bloqueada no Supabase = cadastro ainda não aprovado (ou rejeitado).
+  if (error && (error.code === "user_banned" || /banned/i.test(error.message))) {
+    return NextResponse.json(
+      {
+        error:
+          profile?.status === "rejeitado"
+            ? "Seu cadastro não foi aprovado. Procure o administrador."
+            : "Seu cadastro está aguardando aprovação do administrador. Você poderá entrar assim que for liberado.",
+      },
+      { status: 403 }
+    );
+  }
+
   if (error) {
     if (profile) {
       const tentativas = (profile.failed_login_attempts ?? 0) + 1;
