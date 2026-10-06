@@ -146,7 +146,7 @@ async function dadosNovasAcoes(admin: ReturnType<typeof createAdminClient>, nome
   for (const o of obras) {
     const r = rev.get(o.id_acao);
     const v = [r?.kml_anexado ?? "pendente", r?.sem_duplicacao ?? "pendente", r?.documentos_obrigatorios ?? "pendente"];
-    const concluida = !!r?.concluido;
+    const concluida = !!r?.concluido || v.every((x) => x === "confirmado");
     const laranja = v.includes("aguardando_atualizacao");
     const iniciada = v.some((x) => x !== "pendente");
 
@@ -310,19 +310,48 @@ async function dadosTermos(admin: ReturnType<typeof createAdminClient>): Promise
 
 async function dadosUnidadeVinculacao(admin: ReturnType<typeof createAdminClient>, nomes: Map<string, string>): Promise<DadosUnidadeVinculacao> {
   const [sug, vinc] = await Promise.all([
-    buscarTudo<{ aprovado: boolean; aprovado_por: string | null; aplicado_em: string | null; aplicado_com_sucesso: boolean | null }>((de, ate) =>
-      admin.from("obras_unidade_sugestao").select("aprovado, aprovado_por, aplicado_em, aplicado_com_sucesso").order("id_acao").range(de, ate)
+    buscarTudo<{ id_acao: string; aprovado: boolean; aprovado_por: string | null; aplicado_em: string | null; aplicado_com_sucesso: boolean | null }>((de, ate) =>
+      admin.from("obras_unidade_sugestao").select("id_acao, aprovado, aprovado_por, aplicado_em, aplicado_com_sucesso").order("id_acao").range(de, ate)
     ),
     buscarTudo<{ resultado: string; executado_por: string | null }>((de, ate) =>
       admin.from("obras_vinculacao_log").select("resultado, executado_por").order("id", { ascending: true }).range(de, ate)
     ),
   ]);
+  // Mesmas regras das telas: o que "aguarda aprovação" é só o que o menu conta (ação de 2023
+  // em diante que ainda não está concluída no SIMO); "aprovadas a gravar" é o que o admin
+  // vê para gravar. Falha de gravação não marca aplicado_em: vem do último registro do log.
+  const idsParaEscopo = sug.filter((x) => !x.aprovado && !x.aplicado_em).map((x) => x.id_acao);
+  const idsAprovadasAbertas = sug.filter((x) => x.aprovado && !x.aplicado_em).map((x) => x.id_acao);
+  const emEscopo = new Set<string>();
+  for (let i = 0; i < idsParaEscopo.length; i += 400) {
+    const { data: obrasEscopo } = await admin
+      .from("obras")
+      .select("id_acao, data_criacao, status")
+      .in("id_acao", idsParaEscopo.slice(i, i + 400));
+    for (const o of obrasEscopo ?? []) {
+      const ano = o.data_criacao ? Number(String(o.data_criacao).slice(0, 4)) : 0;
+      const concluida = ["concluído", "concluido"].includes(String(o.status ?? "").toLowerCase());
+      if (ano >= 2023 && !concluida) emEscopo.add(o.id_acao as string);
+    }
+  }
+  const ultimaTentativa = new Map<string, boolean>();
+  for (let i = 0; i < idsAprovadasAbertas.length; i += 400) {
+    const { data: tentativas } = await admin
+      .from("obras_unidade_log")
+      .select("id_acao, resultado, executado_em")
+      .in("id_acao", idsAprovadasAbertas.slice(i, i + 400))
+      .order("executado_em", { ascending: true });
+    for (const t of tentativas ?? []) ultimaTentativa.set(t.id_acao as string, /^sucesso/i.test(String(t.resultado)));
+  }
+  const falhasUnidade = idsAprovadasAbertas.filter((id) => ultimaTentativa.get(id) === false).length;
+  const aguardandoAprovacao = idsParaEscopo.filter((id) => emEscopo.has(id)).length;
+
   const out: DadosUnidadeVinculacao = {
-    unidadeFila: sug.length,
-    unidadeAguardandoAprovacao: sug.filter((s) => !s.aprovado).length,
-    unidadeAprovadas: sug.filter((s) => s.aprovado && !s.aplicado_em).length,
-    unidadeGravadas: sug.filter((s) => s.aplicado_em && s.aplicado_com_sucesso).length,
-    unidadeFalhas: sug.filter((s) => s.aplicado_em && !s.aplicado_com_sucesso).length,
+    unidadeFila: aguardandoAprovacao + idsAprovadasAbertas.length,
+    unidadeAguardandoAprovacao: aguardandoAprovacao,
+    unidadeAprovadas: idsAprovadasAbertas.length - falhasUnidade,
+    unidadeGravadas: sug.filter((x) => x.aplicado_em && x.aplicado_com_sucesso).length,
+    unidadeFalhas: falhasUnidade,
     vincTentativas: vinc.length,
     vincSucesso: vinc.filter((v) => /^sucesso/i.test(v.resultado)).length,
     vincFalha: vinc.filter((v) => !/^sucesso/i.test(v.resultado)).length,

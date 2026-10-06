@@ -48,6 +48,8 @@ export async function POST(request: NextRequest) {
       responsavel_id: resp.responsavelId,
       revisado_por: resp.responsavelId,
       revisado_em: completo ? new Date().toISOString() : null,
+      // Se um item deixa de estar confirmado, a análise não está mais concluída.
+      ...(completo ? {} : { concluido: false, concluido_em: null, concluido_por: null }),
       atualizado_em: new Date().toISOString(),
     },
     { onConflict: "id_acao" }

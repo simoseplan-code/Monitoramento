@@ -37,12 +37,19 @@ export async function executarAplicacaoUnidade(executadoPor: string): Promise<Re
 
   const { data: aprovadas, error } = await admin
     .from("obras_unidade_sugestao")
-    .select("id_acao, unidade_atual, quantidade_atual, unidade_sugerida, quantidade_sugerida, unidade_final, quantidade_final, sem_quantidade, obras(nome_acao)")
+    .select("id_acao, unidade_atual, quantidade_atual, unidade_sugerida, quantidade_sugerida, unidade_final, quantidade_final, sem_quantidade")
     .eq("aprovado", true)
     .is("aplicado_em", null);
   if (error) throw new Error(`Falha ao buscar sugestões aprovadas: ${error.message}`);
   if (!aprovadas || aprovadas.length === 0) {
     return { sucesso: 0, falha: 0, restantes: 0, detalhes: [] };
+  }
+
+  const nomesPorId = new Map<string, string>();
+  const idsAprovadas = aprovadas.map((a) => a.id_acao as string);
+  for (let i = 0; i < idsAprovadas.length; i += 400) {
+    const { data: obrasNomes } = await admin.from("obras").select("id_acao, nome_acao").in("id_acao", idsAprovadas.slice(i, i + 400));
+    for (const o of obrasNomes ?? []) nomesPorId.set(o.id_acao as string, (o.nome_acao as string) ?? "");
   }
 
   let cookie = await loginSimo();
@@ -60,7 +67,7 @@ export async function executarAplicacaoUnidade(executadoPor: string): Promise<Re
     if (Date.now() - inicio > LIMITE_TEMPO_MS) break;
     processadas++;
 
-    const nomeAcao = (linha as unknown as { obras: { nome_acao: string } | null }).obras?.nome_acao ?? "";
+    const nomeAcao = nomesPorId.get(linha.id_acao as string) ?? "";
     // O valor FINAL é o que a equipe aprovou de verdade — pode ter sido
     // editado na tela em cima da sugestão original (unidade_sugerida é
     // só a proposta do motor, nunca o que vai pro SIMO).

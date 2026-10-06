@@ -111,7 +111,8 @@ async function abasNovasAcoes(admin: Admin, nomes: Map<string, string>): Promise
     const kml = r?.kml_anexado ?? "pendente";
     const dup = r?.sem_duplicacao ?? "pendente";
     const docs = r?.documentos_obrigatorios ?? "pendente";
-    const concluida = !!r?.concluido;
+    // Mesma regra do Desempenho e do menu: flag de conclusão OU os 3 itens confirmados.
+    const concluida = !!r?.concluido || [kml, dup, docs].every((v) => v === "confirmado");
     const algumLaranja = [kml, dup, docs].includes("aguardando_atualizacao");
     const iniciada = [kml, dup, docs].some((v) => v !== "pendente");
     const situacao = concluida ? "Concluída" : algumLaranja ? "Em análise, com pendência" : iniciada ? "Em análise" : "Não iniciada";

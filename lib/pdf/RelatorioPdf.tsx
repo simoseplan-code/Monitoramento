@@ -283,11 +283,11 @@ function PaginaGestao({ d }: { d: DadosRelatorioPdf }) {
             ["Sobreposições (locais)", so.total, so.ok + so.solucionado, so.pendente + so.problema, pct(so.ok + so.solucionado, so.total)],
             ["Termos (TEI e rescisão)", te.total, te.corrigido, te.pendente + te.problema, pct(te.corrigido, te.total)],
             [
-              "Unidade/Quantidade (fila)",
-              d.unidadeVinculacao.unidadeFila,
+              "Unidade/Quantidade (2023+)",
+              d.unidadeVinculacao.unidadeFila + d.unidadeVinculacao.unidadeGravadas,
               d.unidadeVinculacao.unidadeGravadas,
-              d.unidadeVinculacao.unidadeFila - d.unidadeVinculacao.unidadeGravadas,
-              pct(d.unidadeVinculacao.unidadeGravadas, d.unidadeVinculacao.unidadeFila),
+              d.unidadeVinculacao.unidadeFila,
+              pct(d.unidadeVinculacao.unidadeGravadas, d.unidadeVinculacao.unidadeFila + d.unidadeVinculacao.unidadeGravadas),
             ],
           ]}
         />
