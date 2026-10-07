@@ -10,6 +10,11 @@ const ABAS = [
   { valor: "solucionado", rotulo: "Solucionado", ativa: "bg-series-7 text-white" },
 ] as const;
 
+const GRUPOS = [
+  { valor: "andamento", rotulo: "Em andamento", dica: "Locais com pelo menos uma obra ainda não concluída" },
+  { valor: "concluidas", rotulo: "Concluída × Concluída", dica: "Locais em que todas as obras estão com status Concluído" },
+] as const;
+
 export function FiltrosSobreposicoes({
   statusAtual,
   contagens,
@@ -21,6 +26,8 @@ export function FiltrosSobreposicoes({
   tipologias,
   anos,
   ocultarEstradaVicinalAtual,
+  grupoAtual,
+  pendentesPorGrupo,
 }: {
   statusAtual: string;
   contagens: { pendente: number; ok: number; problema: number; solucionado: number };
@@ -32,12 +39,14 @@ export function FiltrosSobreposicoes({
   tipologias: string[];
   anos: number[];
   ocultarEstradaVicinalAtual: boolean;
+  grupoAtual: "andamento" | "concluidas";
+  pendentesPorGrupo: Record<string, number>;
 }) {
   const router = useRouter();
 
   // Os botões de status são links de verdade (href) pra o botão direito oferecer
   // "abrir em nova aba"; os selects continuam navegando por aplicar().
-  function hrefPara(overrides: { status?: string; orgao?: string; ano?: string; tipologia?: string; tipologiaTodas?: string; ocultarEstradaVicinal?: boolean }): string {
+  function hrefPara(overrides: { status?: string; orgao?: string; ano?: string; tipologia?: string; tipologiaTodas?: string; ocultarEstradaVicinal?: boolean; grupo?: string }): string {
     const params = new URLSearchParams();
     const statusValor = overrides.status ?? statusAtual;
     const orgaoValor = overrides.orgao ?? orgaoAtual;
@@ -45,6 +54,8 @@ export function FiltrosSobreposicoes({
     const tipologiaValor = overrides.tipologia ?? tipologiaAtual;
     const tipologiaTodasValor = overrides.tipologiaTodas ?? tipologiaTodasAtual;
     const ocultarValor = overrides.ocultarEstradaVicinal ?? ocultarEstradaVicinalAtual;
+    const grupoValor = overrides.grupo ?? grupoAtual;
+    if (grupoValor === "concluidas") params.set("grupo", "concluidas");
     if (statusValor !== "pendente") params.set("status", statusValor);
     if (orgaoValor) params.set("orgao", orgaoValor);
     if (anoValor) params.set("ano", anoValor);
@@ -54,11 +65,29 @@ export function FiltrosSobreposicoes({
     return `/sobreposicoes${params.toString() ? `?${params.toString()}` : ""}`;
   }
 
-  function aplicar(overrides: { status?: string; orgao?: string; ano?: string; tipologia?: string; tipologiaTodas?: string; ocultarEstradaVicinal?: boolean }) {
+  function aplicar(overrides: { status?: string; orgao?: string; ano?: string; tipologia?: string; tipologiaTodas?: string; ocultarEstradaVicinal?: boolean; grupo?: string }) {
     router.push(hrefPara(overrides));
   }
 
   return (
+    <div className="space-y-3">
+    <div className="flex flex-wrap gap-2">
+      {GRUPOS.map((g) => {
+        const ativo = grupoAtual === g.valor;
+        return (
+          <Link
+            key={g.valor}
+            href={hrefPara({ grupo: g.valor, status: "pendente" })}
+            title={g.dica}
+            className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+              ativo ? "border border-series-1 bg-series-1/10 text-series-1" : "border border-black/10 bg-surface text-ink-secondary hover:bg-plane"
+            }`}
+          >
+            {g.rotulo} <span className="tabular font-normal opacity-80">({pendentesPorGrupo[g.valor] ?? 0} aguardando)</span>
+          </Link>
+        );
+      })}
+    </div>
     <div className="flex flex-wrap items-center gap-4 rounded-xl border border-black/5 bg-surface p-4 shadow-card">
       <div className="flex flex-wrap gap-2">
         {ABAS.map((a) => {
@@ -140,6 +169,7 @@ export function FiltrosSobreposicoes({
         />
         Mostrar Estrada Vicinal × Estrada Vicinal
       </label>
+    </div>
     </div>
   );
 }

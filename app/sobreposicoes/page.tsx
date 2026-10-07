@@ -34,9 +34,11 @@ type LinhaSobreposicao = {
 export default async function SobreposicoesPage({
   searchParams,
 }: {
-  searchParams: Promise<{ status?: string; orgao?: string; ano?: string; tipologia?: string; tipologiaTodas?: string; ocultarEstradaVicinal?: string; pagina?: string }>;
+  searchParams: Promise<{ status?: string; orgao?: string; ano?: string; tipologia?: string; tipologiaTodas?: string; ocultarEstradaVicinal?: string; grupo?: string; pagina?: string }>;
 }) {
-  const { status, orgao, ano, tipologia, tipologiaTodas, ocultarEstradaVicinal, pagina } = await searchParams;
+  const { status, orgao, ano, tipologia, tipologiaTodas, ocultarEstradaVicinal, grupo, pagina } = await searchParams;
+  // Análise separada: locais com todas as obras concluídas ficam num grupo próprio.
+  const grupoAtual = grupo === "concluidas" ? "concluidas" : "andamento";
   const statusAtual = status === "ok" || status === "problema" || status === "solucionado" ? status : "pendente";
   const anoFiltro = ano ? parseInt(ano, 10) : null;
   const ocultarEstradaVicinalAtual = ocultarEstradaVicinal === "1";
@@ -54,6 +56,7 @@ export default async function SobreposicoesPage({
     novasAcoesPendentes,
     { count: totalPendentes },
     { data: contagensRpc },
+    { data: contagensOutroGrupo },
     { data: linhasRpc },
     { data: orgaosRpc },
     { data: anosRpc },
@@ -72,6 +75,16 @@ export default async function SobreposicoesPage({
       ocultar_estrada_vicinal: ocultarEstradaVicinalAtual,
       tipologia_filtro: tipologia || null,
       tipologia_todas_filtro: tipologiaTodas || null,
+      grupo_situacao: grupoAtual,
+    }),
+    // Só para mostrar quantos aguardam revisão no outro grupo.
+    supabase.rpc("sobreposicoes_contagens", {
+      orgao_filtro: orgao || null,
+      ano_filtro: anoFiltro,
+      ocultar_estrada_vicinal: ocultarEstradaVicinalAtual,
+      tipologia_filtro: tipologia || null,
+      tipologia_todas_filtro: tipologiaTodas || null,
+      grupo_situacao: grupoAtual === "concluidas" ? "andamento" : "concluidas",
     }),
     supabase.rpc("sobreposicoes_lista", {
       filtro_status: statusAtual,
@@ -80,6 +93,7 @@ export default async function SobreposicoesPage({
       ocultar_estrada_vicinal: ocultarEstradaVicinalAtual,
       tipologia_filtro: tipologia || null,
       tipologia_todas_filtro: tipologiaTodas || null,
+      grupo_situacao: grupoAtual,
       pagina: paginaAtual,
       tamanho: PAGE_SIZE,
     }),
@@ -141,7 +155,7 @@ export default async function SobreposicoesPage({
         sobreposicoesPendentes: totalPendentes ?? 0,
       }}
       titulo="Sobreposições"
-      subtitulo={`${totalFiltrado} local(is), ${{ pendente: "aguardando revisão", ok: "sem problema", problema: "com problema", solucionado: "solucionado" }[statusAtual]}`}
+      subtitulo={`${grupoAtual === "concluidas" ? "Concluída × Concluída" : "Em andamento"}: ${totalFiltrado} local(is), ${{ pendente: "aguardando revisão", ok: "sem problema", problema: "com problema", solucionado: "solucionado" }[statusAtual]}`}
     >
       <div className="mb-4">
         <UploadCsvSobreposicoes />
@@ -159,6 +173,11 @@ export default async function SobreposicoesPage({
           tipologias={tipologiasDisponiveis}
           anos={anosDisponiveis}
           ocultarEstradaVicinalAtual={ocultarEstradaVicinalAtual}
+          grupoAtual={grupoAtual}
+          pendentesPorGrupo={{
+            [grupoAtual]: Number(contagensRpc?.[0]?.pendente ?? 0),
+            [grupoAtual === "concluidas" ? "andamento" : "concluidas"]: Number(contagensOutroGrupo?.[0]?.pendente ?? 0),
+          }}
         />
       </div>
 
@@ -203,6 +222,7 @@ export default async function SobreposicoesPage({
             orgao,
             ano,
             tipologia,
+            grupo: grupoAtual === "concluidas" ? "concluidas" : undefined,
             tipologiaTodas,
             ocultarEstradaVicinal: ocultarEstradaVicinalAtual ? "1" : undefined,
           }}
