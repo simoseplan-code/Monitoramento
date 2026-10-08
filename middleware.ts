@@ -64,16 +64,35 @@ export async function middleware(request: NextRequest) {
   }
 
   // Usuário logado: verifica status de aprovação para liberar áreas internas.
-  const { data: profile } = await supabase
+  let { data: profile } = await supabase
     .from("profiles")
-    .select("status, is_admin")
+    .select("status, is_admin, trocar_senha")
     .eq("id", user.id)
     .single();
+  // Banco ainda sem a coluna trocar_senha (migration 0063 não rodada): não trava ninguém.
+  if (!profile) {
+    const { data } = await supabase.from("profiles").select("status, is_admin").eq("id", user.id).single();
+    profile = data ? { ...data, trocar_senha: false } : null;
+  }
 
   if (!profile || profile.status !== "aprovado") {
     if (pathname.startsWith("/pendente")) return response;
     const url = request.nextUrl.clone();
     url.pathname = "/pendente";
+    return NextResponse.redirect(url);
+  }
+
+  // Senha resetada pelo admin: só libera o painel depois de criar a nova senha.
+  if (profile.trocar_senha) {
+    if (pathname.startsWith("/trocar-senha")) return response;
+    const url = request.nextUrl.clone();
+    url.pathname = "/trocar-senha";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+  if (pathname.startsWith("/trocar-senha")) {
+    const url = request.nextUrl.clone();
+    url.pathname = "/";
     return NextResponse.redirect(url);
   }
 

@@ -5,6 +5,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { AprovarBotoes } from "./AprovarBotoes";
 import { PapelSelect } from "./PapelSelect";
+import { ResetarSenhaBotao } from "./ResetarSenhaBotao";
 
 type Membro = {
   id: string;
@@ -113,6 +114,7 @@ export default async function EquipePage() {
                 <th className="px-3 py-2">Cargo</th>
                 <th className="px-3 py-2">Função</th>
                 <th className="px-3 py-2 text-right">Ativo desde</th>
+                {souAdmin && <th className="px-3 py-2">Senha</th>}
               </tr>
             </thead>
             <tbody>
@@ -139,12 +141,13 @@ export default async function EquipePage() {
                     <td className="tabular px-3 py-2 text-right text-ink-secondary">
                       {new Date(m.approved_at ?? m.created_at).toLocaleDateString("pt-BR")}
                     </td>
+                    {souAdmin && <td className="px-3 py-2">{!euMesmo && <ResetarSenhaBotao userId={m.id} nome={m.nome} />}</td>}
                   </tr>
                 );
               })}
               {membros.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-3 py-8 text-center text-sm text-ink-muted">
+                  <td colSpan={souAdmin ? 6 : 5} className="px-3 py-8 text-center text-sm text-ink-muted">
                     Nenhuma pessoa ativa.
                   </td>
                 </tr>
