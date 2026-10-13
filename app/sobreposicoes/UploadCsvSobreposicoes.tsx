@@ -57,10 +57,10 @@ export function UploadCsvSobreposicoes() {
         setResultado({
           tipo: "ok",
           texto:
-            `${dados.total} local(is) no arquivo, ${dados.novos} novo(s), ${dados.jaExistiam} já estavam cadastrados (decisão preservada)` +
-            (dados.carregadosAutomaticamente > 0
-              ? `, ${dados.carregadosAutomaticamente} reconhecido(s) como já revisado(s) antes (mesma combinação de obras, chave diferente).`
-              : "."),
+            `${dados.total} local(is) no arquivo: ${dados.novos} novo(s), ${dados.jaExistiam} já existiam` +
+            (dados.analiseReaproveitada > 0 ? `, ${dados.analiseReaproveitada} com análise anterior reaproveitada` : "") +
+            `. ${dados.removidos} antigo(s) sem análise removido(s)` +
+            (dados.analisadosMantidos > 0 ? `, ${dados.analisadosMantidos} já analisado(s) mantido(s) mesmo fora do arquivo.` : "."),
         });
         router.refresh();
       }
@@ -79,8 +79,8 @@ export function UploadCsvSobreposicoes() {
         <div>
           <p className="text-sm font-semibold text-ink-primary">Importar CSV de sobreposições</p>
           <p className="text-xs text-ink-muted">
-            Gerado no Mapa de Obras, aba &quot;Sobreposição de Trechos&quot; → Exportar CSV. Locais já revisados
-            mantêm a decisão, só os novos entram como pendentes.
+            Gerado no Mapa de Obras, aba &quot;Sobreposição de Trechos&quot; → Exportar CSV. O arquivo substitui a lista atual;
+            locais que já tiveram análise são mantidos.
           </p>
         </div>
         <label className="flex shrink-0 cursor-pointer items-center gap-2 rounded-lg bg-series-1 px-4 py-2 text-xs font-semibold text-white hover:opacity-90">

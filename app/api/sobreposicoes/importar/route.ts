@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { csvParaSobreposicoes, type ObraNoLocal } from "@/lib/sobreposicoes/parseCsv";
 
 // Combinação estável dos IDs das obras de um local, ordenados, ao
@@ -10,6 +11,8 @@ import { csvParaSobreposicoes, type ObraNoLocal } from "@/lib/sobreposicoes/pars
 // chave exata é nova. Mesma lógica de supabase/migrations/0020 (coluna
 // gerada por SQL), mantida em JS aqui só pra montar a consulta de
 // combinações já revisadas antes do upsert.
+export const maxDuration = 60;
+
 function chaveObras(obras: ObraNoLocal[]): string {
   return obras
     .map((o) => o.id)
@@ -44,43 +47,42 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "Nenhum local sobreposto encontrado nesse CSV." }, { status: 400 });
   }
 
-  // Quais chaves já existem, pra reportar quantas são realmente novas
-  // (as já vistas só têm os dados atualizados, status/revisão nunca é
-  // sobrescrito aqui, porque a coluna nem entra no "update set" abaixo).
-  const chaves = locais.map((l) => l.chave_local);
-  const { data: existentes } = await supabase.from("sobreposicoes").select("chave_local").in("chave_local", chaves);
-  const jaExistiam = new Set((existentes ?? []).map((r) => r.chave_local));
-
-  // Pros locais que são NOVOS (chave_local nunca vista), busca se a
-  // MESMA combinação de obras já foi revisada sob uma chave_local
-  // diferente (drift de coordenada entre exportações), se achar, a
-  // decisão já tomada é reaplicada agora, em vez do local reaparecer
-  // como pendente de novo.
-  const locaisNovos = locais.filter((l) => !jaExistiam.has(l.chave_local));
-  const chaveObrasPorLocal = new Map(locaisNovos.map((l) => [l.chave_local, chaveObras(l.obras)]));
-  const chavesObrasNovas = Array.from(new Set(Array.from(chaveObrasPorLocal.values()).filter(Boolean)));
-
-  const decisaoPorChaveObras = new Map<
-    string,
-    { status: string; observacao: string | null; revisado_por: string | null; revisado_em: string | null }
-  >();
-  if (chavesObrasNovas.length > 0) {
-    const { data: revisadosAntes } = await supabase
+  // Tudo o que já está cadastrado (poucos milhares de linhas, lido em páginas):
+  // consultar pelas chaves do CSV estourava o tamanho da URL com milhares de locais.
+  type Existente = {
+    chave_local: string;
+    chave_obras: string | null;
+    status: string;
+    observacao: string | null;
+    responsavel_id: string | null;
+  };
+  const existentes: Existente[] = [];
+  for (let de = 0; ; de += 1000) {
+    const { data, error } = await supabase
       .from("sobreposicoes")
-      .select("chave_obras, status, observacao, revisado_por, revisado_em")
-      .in("chave_obras", chavesObrasNovas)
-      .neq("status", "pendente")
-      .order("revisado_em", { ascending: false });
-    (revisadosAntes ?? []).forEach((r) => {
-      if (r.chave_obras && !decisaoPorChaveObras.has(r.chave_obras)) {
-        decisaoPorChaveObras.set(r.chave_obras, {
-          status: r.status,
-          observacao: r.observacao,
-          revisado_por: r.revisado_por,
-          revisado_em: r.revisado_em,
-        });
-      }
-    });
+      .select("chave_local, chave_obras, status, observacao, responsavel_id")
+      .order("chave_local")
+      .range(de, de + 999);
+    if (error) {
+      console.error("importar sobreposicoes (leitura):", error);
+      return NextResponse.json({ error: "Falha ao ler as sobreposições atuais." }, { status: 500 });
+    }
+    existentes.push(...((data ?? []) as Existente[]));
+    if (!data || data.length < 1000) break;
+  }
+
+  const noCsv = new Set(locais.map((l) => l.chave_local));
+  const jaExistiam = new Set(existentes.map((r) => r.chave_local).filter((c) => noCsv.has(c)));
+  const teveAnalise = (r: Existente) => r.status !== "pendente" || !!r.responsavel_id || !!r.observacao?.trim();
+
+  // Locais analisados que não vêm no CSV novo, por combinação de obras: se a mesma
+  // combinação aparece no CSV com outra chave (ex.: outra tolerância ou coordenada
+  // arredondada), a análise MUDA para a chave nova, sem duplicar o local.
+  const analisadoForaDoCsv = new Map<string, Existente>();
+  for (const r of existentes) {
+    if (!noCsv.has(r.chave_local) && teveAnalise(r) && r.chave_obras && !analisadoForaDoCsv.has(r.chave_obras)) {
+      analisadoForaDoCsv.set(r.chave_obras, r);
+    }
   }
 
   const camposBase = (l: (typeof locais)[number]) => ({
@@ -98,48 +100,76 @@ export async function POST(request: NextRequest) {
     atualizado_em: new Date().toISOString(),
   });
 
-  // Locais já conhecidos: nunca inclui status/observacao/revisado_* no
-  // objeto, assim o upsert não sobrescreve uma decisão já tomada.
-  const linhasExistentes = locais.filter((l) => jaExistiam.has(l.chave_local)).map(camposBase);
+  const locaisNovos = locais.filter((l) => !jaExistiam.has(l.chave_local));
+  const reaproveitados: { antiga: string; novo: (typeof locais)[number] }[] = [];
+  const realmenteNovos: (typeof locais)[number][] = [];
+  for (const l of locaisNovos) {
+    const combinacao = chaveObras(l.obras);
+    const antigo = combinacao ? analisadoForaDoCsv.get(combinacao) : undefined;
+    if (antigo) {
+      analisadoForaDoCsv.delete(combinacao);
+      reaproveitados.push({ antiga: antigo.chave_local, novo: l });
+    } else {
+      realmenteNovos.push(l);
+    }
+  }
 
-  // Locais novos: se a combinação de obras já tinha decisão registrada
-  // sob outra chave, entra direto com essa decisão, carimbado como
-  // "carregado adiante", não como se alguém tivesse revisado agora.
-  const linhasNovas = locaisNovos.map((l) => {
-    const decisao = decisaoPorChaveObras.get(chaveObrasPorLocal.get(l.chave_local) || "");
-    if (!decisao) return camposBase(l);
-    return {
-      ...camposBase(l),
-      status: decisao.status,
-      observacao: decisao.observacao
-        ? decisao.observacao
-        : "Carregado automaticamente: mesma combinação de obras já revisada antes sob outra chave.",
-      revisado_por: decisao.revisado_por,
-      revisado_em: decisao.revisado_em,
-    };
-  });
-
+  const admin = createAdminClient();
   const erros: string[] = [];
-  if (linhasExistentes.length > 0) {
-    const { error } = await supabase.from("sobreposicoes").upsert(linhasExistentes, { onConflict: "chave_local" });
+
+  // 1) Análises que mudam de chave: atualiza a linha antiga (status, responsável,
+  //    observação e solução ficam como estão; só a chave e os dados do mapa mudam).
+  for (const r of reaproveitados) {
+    const { error } = await admin.from("sobreposicoes").update(camposBase(r.novo)).eq("chave_local", r.antiga);
     if (error) erros.push(error.message);
   }
-  if (linhasNovas.length > 0) {
-    const { error } = await supabase.from("sobreposicoes").upsert(linhasNovas, { onConflict: "chave_local" });
+
+  // 2) Locais que já existiam com a mesma chave: só os dados do mapa são atualizados
+  //    (status/revisão nunca entram aqui, então a decisão nunca é sobrescrita).
+  const linhasExistentes = locais.filter((l) => jaExistiam.has(l.chave_local)).map(camposBase);
+  for (let i = 0; i < linhasExistentes.length; i += 500) {
+    const { error } = await supabase.from("sobreposicoes").upsert(linhasExistentes.slice(i, i + 500), { onConflict: "chave_local" });
     if (error) erros.push(error.message);
   }
+
+  // 3) Locais novos entram como pendentes.
+  const linhasNovas = realmenteNovos.map(camposBase);
+  for (let i = 0; i < linhasNovas.length; i += 500) {
+    const { error } = await supabase.from("sobreposicoes").upsert(linhasNovas.slice(i, i + 500), { onConflict: "chave_local" });
+    if (error) erros.push(error.message);
+  }
+
   if (erros.length > 0) {
     console.error("importar sobreposicoes:", erros);
     return NextResponse.json({ error: "Falha ao salvar no banco." }, { status: 500 });
   }
 
-  const carregadosAutomaticamente = linhasNovas.filter((l) => "status" in l && l.status !== "pendente").length;
-  const novos = locaisNovos.length;
+  // 4) Substituição: o que não veio no CSV e nunca foi analisado sai da lista.
+  //    Quem já teve análise (decisão, responsável ou observação) fica.
+  const remover = existentes
+    .filter((r) => !noCsv.has(r.chave_local) && !teveAnalise(r))
+    .map((r) => r.chave_local);
+  for (let i = 0; i < remover.length; i += 200) {
+    const { error } = await admin
+      .from("sobreposicoes")
+      .delete()
+      .in("chave_local", remover.slice(i, i + 200))
+      .eq("status", "pendente")
+      .is("responsavel_id", null);
+    if (error) {
+      console.error("importar sobreposicoes (remoção):", error);
+      return NextResponse.json({ error: "Locais importados, mas falhou ao remover os antigos. Importe de novo." }, { status: 500 });
+    }
+  }
+
+  const mantidosForaDoCsv = existentes.filter((r) => !noCsv.has(r.chave_local) && teveAnalise(r)).length - reaproveitados.length;
   return NextResponse.json({
     ok: true,
     total: locais.length,
-    novos,
-    jaExistiam: locais.length - novos,
-    carregadosAutomaticamente,
+    novos: realmenteNovos.length,
+    jaExistiam: jaExistiam.size,
+    analiseReaproveitada: reaproveitados.length,
+    removidos: remover.length,
+    analisadosMantidos: mantidosForaDoCsv,
   });
 }
