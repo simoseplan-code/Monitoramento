@@ -163,6 +163,10 @@ export async function POST(request: NextRequest) {
     }
   }
 
+  // Recalcula órgãos/anos/tipologias/situação de cada local (é o que os filtros usam).
+  const { error: erroDerivados } = await admin.rpc("sobreposicoes_atualizar_derivados");
+  if (erroDerivados) console.error("importar sobreposicoes (derivados):", erroDerivados);
+
   const mantidosForaDoCsv = existentes.filter((r) => !noCsv.has(r.chave_local) && teveAnalise(r)).length - reaproveitados.length;
   return NextResponse.json({
     ok: true,

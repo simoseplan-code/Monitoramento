@@ -158,6 +158,11 @@ export async function executarSyncObras(): Promise<{ linhas: number }> {
     ]);
     if (resDelete.error) throw new Error(`Falha ao remover ações obsoletas: ${resDelete.error.message}`);
 
+    // Status, tipologia e data das ações mudam a cada sync: os filtros de Sobreposições
+    // usam esses dados pré-calculados por local.
+    const { error: erroSobreposicoes } = await admin.rpc("sobreposicoes_atualizar_derivados");
+    if (erroSobreposicoes) console.error("sync: derivados de sobreposições:", erroSobreposicoes.message);
+
     await log.fim({
       sucesso: true,
       linhas_processadas: obras.length,
