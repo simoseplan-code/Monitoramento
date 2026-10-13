@@ -3,7 +3,7 @@
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Map as MapIcon, X } from "lucide-react";
-import type { Map as MapaLeaflet } from "leaflet";
+import type { FeatureGroup, Map as MapaLeaflet } from "leaflet";
 import { wktParaLinhas } from "@/lib/sobreposicoes/geometria";
 
 type ObraLegenda = { id: string | null; nome: string; orgao: string | null };
@@ -12,6 +12,8 @@ type Dados = { sobreposta: string[]; tracados: { id_acao: string; wkt: string }[
 // Uma cor por obra (a primeira é a principal); o trecho sobreposto fica em vermelho por cima.
 const CORES_OBRAS = ["#2563eb", "#f59e0b", "#7c3aed", "#0d9488", "#db2777"];
 const COR_SOBREPOSTA = "#dc2626";
+const SOBREPOSTA = "sobreposta";
+const chaveObra = (o: ObraLegenda) => o.id ?? o.nome;
 
 export function MapaSobreposicaoBotao({ chaveLocal, obras }: { chaveLocal: string; obras: ObraLegenda[] }) {
   const [aberto, setAberto] = useState(false);
@@ -30,6 +32,27 @@ function MapaModal({ chaveLocal, obras, aoFechar }: { chaveLocal: string; obras:
   // As obras só servem para cor/legenda: não devem recarregar o mapa a cada render.
   const obrasRef = useRef(obras);
   const [estado, setEstado] = useState<"carregando" | "ok" | "sem_geometria" | "erro">("carregando");
+  // Uma camada por linha da legenda, para ligar/desligar cada traço.
+  const mapaRef = useRef<MapaLeaflet | null>(null);
+  const camadasRef = useRef(new Map<string, FeatureGroup>());
+  const [ocultas, setOcultas] = useState<Set<string>>(new Set());
+
+  function alternar(chave: string) {
+    const mapa = mapaRef.current;
+    const camada = camadasRef.current.get(chave);
+    if (!mapa || !camada) return;
+    const novas = new Set(ocultas);
+    if (novas.has(chave)) {
+      novas.delete(chave);
+      camada.addTo(mapa);
+      // A sobreposição fica sempre por cima dos traçados.
+      camadasRef.current.get(SOBREPOSTA)?.bringToFront();
+    } else {
+      novas.add(chave);
+      mapa.removeLayer(camada);
+    }
+    setOcultas(novas);
+  }
 
   useEffect(() => {
     const fechar = (e: KeyboardEvent) => e.key === "Escape" && aoFechar();
@@ -63,15 +86,21 @@ function MapaModal({ chaveLocal, obras, aoFechar }: { chaveLocal: string; obras:
           attribution: "&copy; OpenStreetMap",
         }).addTo(mapa);
 
-        const grupo = L.featureGroup().addTo(mapa);
+        mapaRef.current = mapa;
+        camadasRef.current.clear();
+        const grupo = L.featureGroup();
         obrasRef.current.forEach((o, i) => {
           const tracado = dados.tracados.find((t) => t.id_acao === o.id);
           if (!tracado) return;
+          const camada = L.featureGroup().addTo(mapa!);
           L.polyline(wktParaLinhas(tracado.wkt), { color: CORES_OBRAS[i % CORES_OBRAS.length], weight: 4, opacity: 0.75 })
             .bindTooltip(`${o.orgao ?? ""} · ID ${o.id}`, { sticky: true })
+            .addTo(camada)
             .addTo(grupo);
+          camadasRef.current.set(chaveObra(o), camada);
         });
         const camadaSobreposta = L.featureGroup().addTo(mapa);
+        camadasRef.current.set(SOBREPOSTA, camadaSobreposta);
         L.polyline(sobreposta, { color: COR_SOBREPOSTA, weight: 8, opacity: 0.9 })
           .bindTooltip("Trecho sobreposto", { sticky: true })
           .addTo(camadaSobreposta);
@@ -88,6 +117,7 @@ function MapaModal({ chaveLocal, obras, aoFechar }: { chaveLocal: string; obras:
     return () => {
       cancelado = true;
       mapa?.remove();
+      mapaRef.current = null;
     };
   }, [chaveLocal]);
 
@@ -101,17 +131,21 @@ function MapaModal({ chaveLocal, obras, aoFechar }: { chaveLocal: string; obras:
           <div className="min-w-0 space-y-1">
             <p className="text-sm font-semibold text-ink-primary">Trecho sobreposto</p>
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-secondary">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="inline-block h-1.5 w-5 rounded" style={{ background: COR_SOBREPOSTA }} /> Sobreposição
-              </span>
-              {obras.map((o, i) => (
-                <span key={o.id ?? o.nome} className="inline-flex min-w-0 items-center gap-1.5" title={o.nome}>
-                  <span className="inline-block h-1 w-5 shrink-0 rounded" style={{ background: CORES_OBRAS[i % CORES_OBRAS.length] }} />
-                  <span className="truncate">
-                    {o.orgao} · ID {o.id}
-                  </span>
-                </span>
-              ))}
+              {[{ chave: SOBREPOSTA, cor: COR_SOBREPOSTA, rotulo: "Sobreposição", titulo: "Trecho sobreposto", grossa: true }, ...obras.map((o, i) => ({ chave: chaveObra(o), cor: CORES_OBRAS[i % CORES_OBRAS.length], rotulo: `${o.orgao ?? ""} · ID ${o.id}`, titulo: o.nome, grossa: false }))].map((item) => {
+                const disponivel = estado === "ok" && camadasRef.current.has(item.chave);
+                const visivel = disponivel && !ocultas.has(item.chave);
+                return (
+                  <label
+                    key={item.chave}
+                    title={disponivel ? `${item.titulo} (clique para mostrar/esconder)` : `${item.titulo} (sem traçado no arquivo)`}
+                    className={`inline-flex min-w-0 select-none items-center gap-1.5 ${disponivel ? "cursor-pointer" : "opacity-50"}`}
+                  >
+                    <input type="checkbox" checked={visivel} disabled={!disponivel} onChange={() => alternar(item.chave)} className="h-3.5 w-3.5" />
+                    <span className={`inline-block w-5 shrink-0 rounded ${item.grossa ? "h-1.5" : "h-1"}`} style={{ background: item.cor, opacity: visivel ? 1 : 0.3 }} />
+                    <span className={`truncate ${visivel ? "" : "line-through"}`}>{item.rotulo}</span>
+                  </label>
+                );
+              })}
             </div>
           </div>
           <button onClick={aoFechar} className="rounded-lg p-1 text-ink-muted hover:bg-plane" aria-label="Fechar">
