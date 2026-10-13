@@ -121,7 +121,7 @@ export async function POST(request: NextRequest) {
   //    observação e solução ficam como estão; só a chave e os dados do mapa mudam).
   for (const r of reaproveitados) {
     const { error } = await admin.from("sobreposicoes").update(camposBase(r.novo)).eq("chave_local", r.antiga);
-    if (error) erros.push(error.message);
+    if (error) erros.push(`trocar chave: ${error.message}`);
   }
 
   // 2) Locais que já existiam com a mesma chave: só os dados do mapa são atualizados
@@ -129,19 +129,20 @@ export async function POST(request: NextRequest) {
   const linhasExistentes = locais.filter((l) => jaExistiam.has(l.chave_local)).map(camposBase);
   for (let i = 0; i < linhasExistentes.length; i += 500) {
     const { error } = await supabase.from("sobreposicoes").upsert(linhasExistentes.slice(i, i + 500), { onConflict: "chave_local" });
-    if (error) erros.push(error.message);
+    if (error) erros.push(`gravar locais: ${error.message}`);
   }
 
   // 3) Locais novos entram como pendentes.
   const linhasNovas = realmenteNovos.map(camposBase);
   for (let i = 0; i < linhasNovas.length; i += 500) {
     const { error } = await supabase.from("sobreposicoes").upsert(linhasNovas.slice(i, i + 500), { onConflict: "chave_local" });
-    if (error) erros.push(error.message);
+    if (error) erros.push(`gravar locais: ${error.message}`);
   }
 
   if (erros.length > 0) {
     console.error("importar sobreposicoes:", erros);
-    return NextResponse.json({ error: "Falha ao salvar no banco." }, { status: 500 });
+    // Tela só de admin/chefe: mostra o motivo para dar para corrigir sem abrir o log da Vercel.
+    return NextResponse.json({ error: `Falha ao salvar no banco: ${erros[0]}` }, { status: 500 });
   }
 
   // 4) Substituição: o que não veio no CSV e nunca foi analisado sai da lista.
