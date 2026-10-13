@@ -55,9 +55,9 @@ export default async function SobreposicoesPage({
     { count: pendentesAprovacao },
     novasAcoesPendentes,
     { count: totalPendentes },
-    { data: contagensRpc },
+    { data: contagensRpc, error: erroContagens },
     { data: contagensOutroGrupo },
-    { data: linhasRpc },
+    { data: linhasRpc, error: erroLista },
     { data: orgaosRpc },
     { data: anosRpc },
     { data: tipologiasRpc },
@@ -160,6 +160,12 @@ export default async function SobreposicoesPage({
       <div className="mb-4">
         <UploadCsvSobreposicoes />
       </div>
+
+      {(erroLista || erroContagens) && (
+        <p className="mb-4 rounded-lg bg-status-critical/10 px-3 py-2 text-xs text-status-critical">
+          Falha ao carregar a lista: {(erroLista ?? erroContagens)?.message}
+        </p>
+      )}
 
       <div className="mb-4">
         <FiltrosSobreposicoes
