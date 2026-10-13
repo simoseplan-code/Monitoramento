@@ -5,6 +5,7 @@ import { useState } from "react";
 import { CheckCircle2, AlertTriangle, Undo2, MapPin, Star, Lock, UserRound, BadgeCheck } from "lucide-react";
 import type { ObraNoLocal } from "@/lib/sobreposicoes/parseCsv";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
+import { MapaSobreposicaoBotao } from "./MapaSobreposicao";
 
 type StatusRevisao = "pendente" | "ok" | "problema" | "solucionado";
 type PessoaEquipe = { id: string; nome: string };
@@ -206,6 +207,8 @@ export function CardSobreposicao({
                 </a>
               </>
             )}
+            {" · "}
+            <MapaSobreposicaoBotao chaveLocal={chaveLocal} obras={ordenarComPrincipalPrimeiro(obras)} />
           </p>
         </div>
 

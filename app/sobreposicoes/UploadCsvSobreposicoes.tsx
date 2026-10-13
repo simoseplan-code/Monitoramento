@@ -3,11 +3,13 @@
 import { useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Upload, Loader2 } from "lucide-react";
+import { emLotes, separarGeometria } from "@/lib/sobreposicoes/geometria";
 
 export function UploadCsvSobreposicoes() {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const [enviando, setEnviando] = useState(false);
+  const [etapa, setEtapa] = useState<string | null>(null);
   const [resultado, setResultado] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
 
   async function aoEscolherArquivo(e: React.ChangeEvent<HTMLInputElement>) {
@@ -16,7 +18,11 @@ export function UploadCsvSobreposicoes() {
     setEnviando(true);
     setResultado(null);
     try {
-      const csv = await arquivo.text();
+      setEtapa("Lendo o arquivo...");
+      // A geometria (WKT) é separada aqui, sem repetição: o arquivo inteiro passa de
+      // 100 MB e o servidor só aceita alguns MB por envio.
+      const { csvLeve: csv, geomPorLocal, tracadoPorObra } = separarGeometria(await arquivo.text());
+      setEtapa("Importando os locais...");
       const res = await fetch("/api/sobreposicoes/importar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -26,6 +32,28 @@ export function UploadCsvSobreposicoes() {
       if (!res.ok) {
         setResultado({ tipo: "erro", texto: dados.error ?? "Falha ao importar." });
       } else {
+        const lotes = [
+          ...emLotes(Array.from(geomPorLocal, ([chave, geoms]) => ({ chave, geoms }))).map((locais) => ({ locais })),
+          ...emLotes(Array.from(tracadoPorObra, ([id, wkt]) => ({ id, wkt }))).map((tracados) => ({ tracados })),
+        ];
+        let falhaMapa: string | null = null;
+        for (let i = 0; i < lotes.length; i++) {
+          setEtapa(`Enviando o mapa (${i + 1} de ${lotes.length})...`);
+          const r = await fetch("/api/sobreposicoes/geometria", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(lotes[i]),
+          });
+          if (!r.ok) {
+            falhaMapa = ((await r.json().catch(() => ({}))) as { error?: string }).error ?? "Falha ao enviar o mapa.";
+            break;
+          }
+        }
+        if (falhaMapa) {
+          setResultado({ tipo: "erro", texto: `Locais importados, mas o mapa não foi salvo: ${falhaMapa} Importe o arquivo de novo.` });
+          router.refresh();
+          return;
+        }
         setResultado({
           tipo: "ok",
           texto:
@@ -40,6 +68,7 @@ export function UploadCsvSobreposicoes() {
       setResultado({ tipo: "erro", texto: "Não consegui ler o arquivo." });
     } finally {
       setEnviando(false);
+      setEtapa(null);
       if (inputRef.current) inputRef.current.value = "";
     }
   }
@@ -56,7 +85,7 @@ export function UploadCsvSobreposicoes() {
         </div>
         <label className="flex shrink-0 cursor-pointer items-center gap-2 rounded-lg bg-series-1 px-4 py-2 text-xs font-semibold text-white hover:opacity-90">
           {enviando ? <Loader2 size={14} className="animate-spin" /> : <Upload size={14} />}
-          {enviando ? "Importando..." : "Escolher CSV"}
+          {enviando ? etapa ?? "Importando..." : "Escolher CSV"}
           <input ref={inputRef} type="file" accept=".csv" onChange={aoEscolherArquivo} disabled={enviando} className="hidden" />
         </label>
       </div>

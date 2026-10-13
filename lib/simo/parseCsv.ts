@@ -64,15 +64,20 @@ export function parseCsvLinhas(texto: string): string[][] {
   for (let i = 0; i < texto2.length; i++) {
     const c = texto2[i];
     if (dentroAspas) {
-      if (c === '"') {
-        if (texto2[i + 1] === '"') {
-          campoAtual += '"';
-          i++;
-        } else {
-          dentroAspas = false;
-        }
+      // Copia de uma vez até a próxima aspa (campos de geometria têm centenas de KB;
+      // somar caractere por caractere deixava a leitura de um CSV grande lenta).
+      const proxima = texto2.indexOf('"', i);
+      if (proxima === -1) {
+        campoAtual += texto2.slice(i);
+        break;
+      }
+      campoAtual += texto2.slice(i, proxima);
+      i = proxima;
+      if (texto2[i + 1] === '"') {
+        campoAtual += '"';
+        i++;
       } else {
-        campoAtual += c;
+        dentroAspas = false;
       }
     } else if (c === '"') {
       dentroAspas = true;
