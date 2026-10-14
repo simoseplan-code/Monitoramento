@@ -20,7 +20,7 @@ export type AcaoPendente = {
   dataCriacao: string | null;
   responsavel: string | null;
   encaminhadaEm: string;
-  itens: string[];
+  itens: { texto: string; comentario: string | null }[];
 };
 export type OrgaoPendente = { orgao: string; acoes: AcaoPendente[] };
 
@@ -103,9 +103,12 @@ export function PendenciasPdf({ orgaos, geradoEm }: { orgaos: OrgaoPendente[]; g
               <Text style={{ width: 56, fontSize: 8, color: C.texto2 }}>{dia(a.dataCriacao)}</Text>
               <View style={{ flex: 2.2 }}>
                 {a.itens.map((item) => (
-                  <View key={item} style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 2 }}>
+                  <View key={item.texto} style={{ flexDirection: "row", alignItems: "flex-start", marginBottom: 3 }}>
                     <View style={{ width: 5, height: 5, borderRadius: 3, backgroundColor: C.aviso, marginRight: 5, marginTop: 2.5 }} />
-                    <Text style={{ flex: 1, fontSize: 8, color: C.texto }}>{item}</Text>
+                    <View style={{ flex: 1 }}>
+                      <Text style={{ fontSize: 8, color: C.texto }}>{item.texto}</Text>
+                      {item.comentario ? <Text style={{ fontSize: 7.5, color: C.texto2, marginTop: 1, lineHeight: 1.3 }}>{item.comentario}</Text> : null}
+                    </View>
                   </View>
                 ))}
               </View>

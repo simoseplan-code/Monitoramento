@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { Lock, UserRound } from "lucide-react";
 import { ChecklistItem } from "./ChecklistItem";
+import { ComentarioPendencia } from "./ComentarioPendencia";
 import { ConcluirBotao } from "./ConcluirBotao";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
 
@@ -22,6 +23,7 @@ export function CardNovaAcao({
   orgao,
   dataCriacao,
   statusInicial,
+  obsInicial,
   concluido,
   responsavelInicial,
   usuario,
@@ -40,6 +42,7 @@ export function CardNovaAcao({
     sem_duplicacao: Status;
     documentos_obrigatorios: Status;
   };
+  obsInicial: Record<"kml_anexado" | "sem_duplicacao" | "documentos_obrigatorios", string | null>;
   concluido: boolean;
   responsavelInicial: PessoaEquipe | null;
   usuario: PessoaEquipe;
@@ -53,6 +56,13 @@ export function CardNovaAcao({
   // card na hora, sem pedir pro Next.js re-renderizar a página inteira
   // (que numa lista de dezenas de ações ficava perceptivelmente lento).
   const [status, setStatus] = useState(statusInicial);
+  // Comentário de cada item pendente; abre direto para digitar quando o item acabou de ser marcado.
+  const [obs, setObs] = useState<Record<string, string>>({
+    kml_anexado: obsInicial.kml_anexado ?? "",
+    sem_duplicacao: obsInicial.sem_duplicacao ?? "",
+    documentos_obrigatorios: obsInicial.documentos_obrigatorios ?? "",
+  });
+  const [recemPendente, setRecemPendente] = useState<Set<string>>(new Set());
   const [responsavel, setResponsavel] = useState<PessoaEquipe | null>(responsavelInicial);
   const [erro, setErro] = useState<string | null>(null);
   const [trocando, setTrocando] = useState(false);
@@ -146,12 +156,39 @@ export function CardNovaAcao({
             onSalvo={(novoStatus) => {
               setErro(null);
               setStatus((s) => ({ ...s, [c.campo]: novoStatus }));
+              if (novoStatus === "aguardando_atualizacao") setRecemPendente((r) => new Set(r).add(c.campo));
+              else {
+                setObs((o) => ({ ...o, [c.campo]: "" }));
+                setRecemPendente((r) => {
+                  const n = new Set(r);
+                  n.delete(c.campo);
+                  return n;
+                });
+              }
             }}
             onErro={setErro}
             onResponsavel={aoSalvarResponsavel}
           />
         ))}
       </div>
+
+      {!concluido && CHECKS.some((c) => status[c.campo] === "aguardando_atualizacao") && (
+        <div className="mt-3 space-y-1.5">
+          {CHECKS.filter((c) => status[c.campo] === "aguardando_atualizacao").map((c) => (
+            <ComentarioPendencia
+              key={c.campo}
+              idAcao={idAcao}
+              campo={c.campo}
+              label={c.label}
+              valor={obs[c.campo]}
+              abrirAgora={recemPendente.has(c.campo)}
+              bloqueado={bloqueado}
+              onSalvo={(texto) => setObs((o) => ({ ...o, [c.campo]: texto }))}
+              onErro={setErro}
+            />
+          ))}
+        </div>
+      )}
 
       <div className="mt-3 flex flex-wrap items-center justify-between gap-2 text-xs">
         <span className="flex items-center gap-1.5 text-ink-muted">

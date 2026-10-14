@@ -15,6 +15,7 @@ export type ItemLista = {
   concluido: boolean;
   responsavel: PessoaEquipe | null;
   status: { kml_anexado: Status; sem_duplicacao: Status; documentos_obrigatorios: Status };
+  obs: { kml_anexado: string | null; sem_duplicacao: string | null; documentos_obrigatorios: string | null };
 };
 
 export function ListaNovasAcoes({
@@ -117,6 +118,7 @@ export function ListaNovasAcoes({
           ehAdmin={ehAdmin}
           equipe={equipe}
           statusInicial={i.status}
+          obsInicial={i.obs}
           selecionada={marcadas.has(i.idAcao)}
           onSelecionar={selecionar}
           onPendencia={registrarPendencia}

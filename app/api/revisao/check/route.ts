@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { registrarAnalise } from "@/lib/analisesLog";
 import { resolverResponsavel } from "@/lib/responsavelAnalise";
+import { limparTexto } from "@/lib/seguranca";
 
 const CAMPOS_VALIDOS = ["kml_anexado", "sem_duplicacao", "documentos_obrigatorios"] as const;
 type Campo = (typeof CAMPOS_VALIDOS)[number];
@@ -17,7 +18,7 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
 
-  const { idAcao, campo, status } = (await request.json()) as { idAcao?: string; campo?: string; status?: string };
+  const { idAcao, campo, status, comentario } = (await request.json()) as { idAcao?: string; campo?: string; status?: string; comentario?: unknown };
 
   if (!idAcao || !CAMPOS_VALIDOS.includes(campo as Campo) || !STATUS_VALIDOS.includes(status as Status)) {
     return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
@@ -28,7 +29,7 @@ export async function POST(request: NextRequest) {
 
   const { data: atual } = await supabase
     .from("obras_revisao")
-    .select("kml_anexado, sem_duplicacao, documentos_obrigatorios")
+    .select("kml_anexado, sem_duplicacao, documentos_obrigatorios, kml_obs, duplicacao_obs, documentos_obs")
     .eq("id_acao", idAcao)
     .maybeSingle();
 
@@ -41,10 +42,24 @@ export async function POST(request: NextRequest) {
 
   const completo = Object.values(proximo).every((v) => v === "confirmado");
 
+  // Comentário do item (o que aconteceu): só existe enquanto o item está pendente.
+  // Sem comentário novo, mantém o que já estava; saindo de pendente, apaga.
+  const colunaObs = ({ kml_anexado: "kml_obs", sem_duplicacao: "duplicacao_obs", documentos_obrigatorios: "documentos_obs" } as const)[campo as Campo];
+  const obsAtual = (atual as Record<string, string | null> | null)?.[colunaObs] ?? null;
+  const obsNovo =
+    status !== "aguardando_atualizacao"
+      ? null
+      : comentario !== undefined
+        ? limparTexto(comentario, 300)
+        : atual?.[campo as Campo] === "aguardando_atualizacao"
+          ? obsAtual
+          : null;
+
   const { error } = await supabase.from("obras_revisao").upsert(
     {
       id_acao: idAcao,
       ...proximo,
+      [colunaObs]: obsNovo,
       responsavel_id: resp.responsavelId,
       revisado_por: resp.responsavelId,
       revisado_em: completo ? new Date().toISOString() : null,
@@ -67,5 +82,5 @@ export async function POST(request: NextRequest) {
     status as string,
     campo as string
   );
-  return NextResponse.json({ ok: true, completo, responsavelId: resp.responsavelId });
+  return NextResponse.json({ ok: true, completo, responsavelId: resp.responsavelId, comentario: obsNovo });
 }

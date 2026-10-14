@@ -19,6 +19,7 @@ export type AcaoEncaminhada = {
   encaminhadaPor: string | null;
   responsavelId: string | null;
   responsavelNome: string | null;
+  obs: { kml: string | null; duplicacao: string | null; documentos: string | null };
 };
 
 export type GrupoOrgao = { orgao: string; acoes: AcaoEncaminhada[] };
@@ -252,6 +253,11 @@ export function PendenciasPorOrgao({ grupos, usuarioId, ehAdmin }: { grupos: Gru
                           );
                         })}
                       </div>
+                      {ITENS.filter((i) => a[i.chave] === "aguardando_atualizacao" && a.obs[i.chave]).map((i) => (
+                        <p key={i.chave} className="mt-1.5 text-xs text-ink-secondary">
+                          <span className="font-medium text-status-warning">{i.rotulo}:</span> {a.obs[i.chave]}
+                        </p>
+                      ))}
                     </li>
                   );
                 })}

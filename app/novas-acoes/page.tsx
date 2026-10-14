@@ -34,6 +34,9 @@ type LinhaNovaAcao = {
   concluido: boolean;
   responsavel_id: string | null;
   responsavel_nome: string | null;
+  kml_obs: string | null;
+  duplicacao_obs: string | null;
+  documentos_obs: string | null;
   total_geral: number;
 };
 
@@ -96,6 +99,9 @@ export default async function NovasAcoesPage({
     encaminhada_por_nome: string | null;
     responsavel_id: string | null;
     responsavel_nome: string | null;
+    kml_obs: string | null;
+    duplicacao_obs: string | null;
+    documentos_obs: string | null;
   };
   const encaminhadas = (encaminhadasRpc ?? []) as LinhaEncaminhada[];
   const grupos: GrupoOrgao[] = [];
@@ -116,6 +122,7 @@ export default async function NovasAcoesPage({
       encaminhadaPor: e.encaminhada_por_nome,
       responsavelId: e.responsavel_id,
       responsavelNome: e.responsavel_nome,
+      obs: { kml: e.kml_obs, duplicacao: e.duplicacao_obs, documentos: e.documentos_obs },
     });
   }
   const excluidas = (excluidasRpc ?? []) as LinhaExcluida[];
@@ -212,6 +219,7 @@ export default async function NovasAcoesPage({
               sem_duplicacao: o.sem_duplicacao,
               documentos_obrigatorios: o.documentos_obrigatorios,
             },
+            obs: { kml_anexado: o.kml_obs, sem_duplicacao: o.duplicacao_obs, documentos_obrigatorios: o.documentos_obs },
           }))}
         />
 

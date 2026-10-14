@@ -25,6 +25,9 @@ type Linha = {
   documentos_obrigatorios: string;
   encaminhada_em: string;
   responsavel_nome: string | null;
+  kml_obs: string | null;
+  duplicacao_obs: string | null;
+  documentos_obs: string | null;
 };
 
 export default async function handler(req: NextApiRequest, res: NextApiResponse) {
@@ -62,10 +65,10 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     for (const l of (data ?? []) as Linha[]) {
       if (orgaoPedido && l.orgao !== orgaoPedido) continue;
       // Só o que foi marcado como pendente (aguardando atualização).
-      const itens: string[] = [];
-      if (l.kml_anexado === "aguardando_atualizacao") itens.push(TEXTO_ITEM.kml);
-      if (l.sem_duplicacao === "aguardando_atualizacao") itens.push(TEXTO_ITEM.duplicacao);
-      if (l.documentos_obrigatorios === "aguardando_atualizacao") itens.push(TEXTO_ITEM.documentos);
+      const itens: OrgaoPendente["acoes"][number]["itens"] = [];
+      if (l.kml_anexado === "aguardando_atualizacao") itens.push({ texto: TEXTO_ITEM.kml, comentario: l.kml_obs });
+      if (l.sem_duplicacao === "aguardando_atualizacao") itens.push({ texto: TEXTO_ITEM.duplicacao, comentario: l.duplicacao_obs });
+      if (l.documentos_obrigatorios === "aguardando_atualizacao") itens.push({ texto: TEXTO_ITEM.documentos, comentario: l.documentos_obs });
       if (itens.length === 0) continue;
 
       const g = porOrgao.get(l.orgao) ?? { orgao: l.orgao, acoes: [] };
