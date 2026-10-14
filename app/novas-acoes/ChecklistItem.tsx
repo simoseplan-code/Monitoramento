@@ -4,7 +4,7 @@ import { useState } from "react";
 import { Check, AlertTriangle } from "lucide-react";
 
 type Status = "pendente" | "confirmado" | "aguardando_atualizacao";
-type Campo = "kml_anexado" | "sem_duplicacao" | "documentos_obrigatorios";
+type Campo = string;
 
 const PILL_BASE = "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors";
 
@@ -17,6 +17,7 @@ export function ChecklistItem({
   onErro,
   onResponsavel,
   bloqueado = false,
+  endpoint = "/api/revisao/check",
 }: {
   idAcao: string;
   campo: Campo;
@@ -26,6 +27,7 @@ export function ChecklistItem({
   onErro: (mensagem: string) => void;
   onResponsavel: (responsavelId: string) => void;
   bloqueado?: boolean;
+  endpoint?: string;
 }) {
   // "fechado" = pill normal | "escolhendo" = mostra as opções | "confirmando_x" = pede a segunda confirmação
   const [etapa, setEtapa] = useState<"fechado" | "escolhendo" | "confirmando_confirmado" | "confirmando_aguardando">(
@@ -42,7 +44,7 @@ export function ChecklistItem({
     onSalvo(novoStatus);
     setEtapa("fechado");
     try {
-      const resp = await fetch("/api/revisao/check", {
+      const resp = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ idAcao, campo, status: novoStatus }),

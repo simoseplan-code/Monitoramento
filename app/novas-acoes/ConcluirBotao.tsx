@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { CheckCheck, Undo2 } from "lucide-react";
 
-export function ConcluirBotao({ idAcao, concluido }: { idAcao: string; concluido: boolean }) {
+export function ConcluirBotao({ idAcao, concluido, endpoint = "/api/revisao/concluir" }: { idAcao: string; concluido: boolean; endpoint?: string }) {
   const router = useRouter();
   const [confirmando, setConfirmando] = useState(false);
   const [salvando, setSalvando] = useState(false);
@@ -12,7 +12,7 @@ export function ConcluirBotao({ idAcao, concluido }: { idAcao: string; concluido
   async function salvar(valor: boolean) {
     setSalvando(true);
     try {
-      await fetch("/api/revisao/concluir", {
+      await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ idAcao, concluido: valor }),

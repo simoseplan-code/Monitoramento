@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { MessageSquarePlus, Pencil } from "lucide-react";
 
-type Campo = "kml_anexado" | "sem_duplicacao" | "documentos_obrigatorios";
+type Campo = string;
 
 // Comentário curto de um item marcado como pendente ("o que aconteceu"). Aparece na aba de
 // pendências e no PDF do órgão. Itens já confirmados não têm comentário.
@@ -16,6 +16,7 @@ export function ComentarioPendencia({
   bloqueado,
   onSalvo,
   onErro,
+  endpoint = "/api/revisao/check",
 }: {
   idAcao: string;
   campo: Campo;
@@ -25,6 +26,7 @@ export function ComentarioPendencia({
   bloqueado: boolean;
   onSalvo: (texto: string) => void;
   onErro: (mensagem: string) => void;
+  endpoint?: string;
 }) {
   const [editando, setEditando] = useState(abrirAgora);
   const [texto, setTexto] = useState(valor);
@@ -33,7 +35,7 @@ export function ComentarioPendencia({
   async function salvar() {
     setSalvando(true);
     try {
-      const resp = await fetch("/api/revisao/check", {
+      const resp = await fetch(endpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ idAcao, campo, status: "aguardando_atualizacao", comentario: texto }),
