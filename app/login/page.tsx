@@ -60,6 +60,9 @@ export default function LoginPage() {
           className="rounded border border-slate-300 px-3 py-2"
         />
         <Turnstile onToken={setToken} />
+        <Link href="/esqueci-senha" className="-mt-2 self-end text-sm text-slate-500 underline">
+          Esqueci minha senha
+        </Link>
         {erro && <p className="text-sm text-red-600">{erro}</p>}
         <button
           type="submit"

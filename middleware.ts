@@ -3,7 +3,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { sessaoExpirada } from "@/lib/sessao";
 import { origemConfiavel } from "@/lib/seguranca";
 
-const ROTAS_PUBLICAS = ["/login", "/cadastro", "/pendente"];
+const ROTAS_PUBLICAS = ["/login", "/cadastro", "/pendente", "/esqueci-senha"];
 
 export async function middleware(request: NextRequest) {
   // Rotas de API cuidam da própria autenticação/rate limit.
@@ -13,6 +13,11 @@ export async function middleware(request: NextRequest) {
     if (altera && !origemConfiavel(request.headers.get("origin"), request.headers.get("host"))) {
       return NextResponse.json({ error: "Origem não permitida." }, { status: 403 });
     }
+    return NextResponse.next();
+  }
+
+  // Link do e-mail de recuperação: a rota valida o código e abre a sessão por conta própria.
+  if (request.nextUrl.pathname.startsWith("/auth/confirmar")) {
     return NextResponse.next();
   }
 
@@ -52,7 +57,10 @@ export async function middleware(request: NextRequest) {
   }
 
   // Sessão velha demais: encerra e manda pro login (ver lib/sessao.ts).
-  if (sessaoExpirada(user.last_sign_in_at)) {
+  // A tela de nova senha (aberta pelo link do e-mail) não passa pela expiração de sessão:
+  // quem esqueceu a senha costuma ter o último login velho. A troca em si exige a marca
+  // assinada gravada pelo link, então uma sessão antiga sozinha não consegue trocar a senha.
+  if (!pathname.startsWith("/redefinir-senha") && sessaoExpirada(user.last_sign_in_at)) {
     await supabase.auth.signOut();
     const url = request.nextUrl.clone();
     url.pathname = "/login";
