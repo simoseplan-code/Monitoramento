@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { AlertTriangle, Building2, Check, CheckCheck, ChevronDown, ChevronRight, Undo2 } from "lucide-react";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
 import { BotaoDownload } from "@/components/BotaoDownload";
+import { ComentarioPendencia } from "./ComentarioPendencia";
 
 type Status = "pendente" | "confirmado" | "aguardando_atualizacao";
 
@@ -25,9 +26,9 @@ export type AcaoEncaminhada = {
 export type GrupoOrgao = { orgao: string; acoes: AcaoEncaminhada[] };
 
 const ITENS = [
-  { chave: "kml" as const, rotulo: "KML anexado" },
-  { chave: "duplicacao" as const, rotulo: "Sem duplicação" },
-  { chave: "documentos" as const, rotulo: "Documentos obrigatórios" },
+  { chave: "kml" as const, rotulo: "KML anexado", campo: "kml_anexado" as const },
+  { chave: "duplicacao" as const, rotulo: "Sem duplicação", campo: "sem_duplicacao" as const },
+  { chave: "documentos" as const, rotulo: "Documentos obrigatórios", campo: "documentos_obrigatorios" as const },
 ];
 
 export function PendenciasPorOrgao({ grupos, usuarioId, ehAdmin }: { grupos: GrupoOrgao[]; usuarioId: string; ehAdmin: boolean }) {
@@ -38,6 +39,8 @@ export function PendenciasPorOrgao({ grupos, usuarioId, ehAdmin }: { grupos: Gru
   const [confirmando, setConfirmando] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
+  // Comentários editados aqui, por ação e item (valem até a página recarregar).
+  const [obsEditada, setObsEditada] = useState<Record<string, string>>({});
 
   function alternar(orgao: string) {
     setAbertos((atual) => {
@@ -253,11 +256,21 @@ export function PendenciasPorOrgao({ grupos, usuarioId, ehAdmin }: { grupos: Gru
                           );
                         })}
                       </div>
-                      {ITENS.filter((i) => a[i.chave] === "aguardando_atualizacao" && a.obs[i.chave]).map((i) => (
-                        <p key={i.chave} className="mt-1.5 text-xs text-ink-secondary">
-                          <span className="font-medium text-status-warning">{i.rotulo}:</span> {a.obs[i.chave]}
-                        </p>
-                      ))}
+                      <div className="mt-2 space-y-1.5">
+                        {ITENS.filter((i) => a[i.chave] === "aguardando_atualizacao").map((i) => (
+                          <ComentarioPendencia
+                            key={i.chave}
+                            idAcao={a.idAcao}
+                            campo={i.campo}
+                            label={i.rotulo}
+                            valor={obsEditada[`${a.idAcao}:${i.chave}`] ?? a.obs[i.chave] ?? ""}
+                            abrirAgora={false}
+                            bloqueado={!ehAdmin && !!a.responsavelId && a.responsavelId !== usuarioId}
+                            onSalvo={(texto) => setObsEditada((o) => ({ ...o, [`${a.idAcao}:${i.chave}`]: texto }))}
+                            onErro={setErro}
+                          />
+                        ))}
+                      </div>
                     </li>
                   );
                 })}
