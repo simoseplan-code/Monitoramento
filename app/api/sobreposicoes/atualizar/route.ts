@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { detectarSobreposicoes, TOLERANCIA_PADRAO_M, type FeicaoLinha } from "@/lib/sobreposicoes/detectar";
 import { aplicarLocais, ErroImportacao } from "@/lib/sobreposicoes/importar";
+import { feicoesDeKmlGuardado } from "@/lib/sobreposicoes/kmlGuardados";
 
 export const runtime = "nodejs";
 export const maxDuration = 300;
@@ -45,7 +46,21 @@ export async function POST(request: NextRequest) {
     const geo = (await resp.json()) as { features?: FeicaoLinha[] };
     if (!Array.isArray(geo.features) || geo.features.length === 0) return NextResponse.json({ error: "O arquivo de traçados veio vazio." }, { status: 502 });
 
-    const det = detectarSobreposicoes(geo.features, TOLERANCIA_PADRAO_M);
+    // Ações que têm KML guardado mas ainda não estão no arquivo do mapa (ação nova, em execução...)
+    // também entram na detecção. Se o ID já está no mapa, o do mapa vale.
+    const admin = createAdminClient();
+    const idsNoMapa = new Set<string>();
+    for (const f of geo.features) {
+      const id = f.properties?.["ID da Ação"];
+      if (id != null && f.geometry) idsNoMapa.add(String(id));
+    }
+    const extras = await feicoesDeKmlGuardado(admin, idsNoMapa).catch((e) => {
+      // Falha ao ler os KMLs guardados não impede a atualização pelo mapa.
+      console.error("atualizar sobreposicoes (kml guardados):", e instanceof Error ? e.message : e);
+      return { feicoes: [] as FeicaoLinha[], acoes: 0 };
+    });
+
+    const det = detectarSobreposicoes([...geo.features, ...extras.feicoes], TOLERANCIA_PADRAO_M);
     // Trava de segurança: uma detecção que "achou quase nada" quase sempre é arquivo ruim, e
     // aplicar isso removeria locais por engano.
     if (det.locais.length < 100) {
@@ -62,23 +77,23 @@ export async function POST(request: NextRequest) {
     }
 
     const resumo = await aplicarLocais(supabase, det.locais, simular);
-    if (simular) return NextResponse.json({ ok: true, simulacao: true, toleranciaM: TOLERANCIA_PADRAO_M, ...resumo, acoesComTracado: det.tracadoPorObra.size });
+    if (simular) return NextResponse.json({ ok: true, simulacao: true, toleranciaM: TOLERANCIA_PADRAO_M, ...resumo, acoesComTracado: det.tracadoPorObra.size, acoesDeKml: extras.acoes });
 
     // Desenho: trecho sobreposto de cada local e traçado completo de cada ação.
-    const admin = createAdminClient();
     const locais = Array.from(det.geomPorLocal, ([chave, geoms]) => ({ chave, geoms }));
     for (let i = 0; i < locais.length; i += 300) {
       const { error } = await admin.rpc("sobreposicoes_salvar_geometria", { dados: locais.slice(i, i + 300) });
       if (error) throw new ErroImportacao(`Locais atualizados, mas falhou ao salvar o desenho: ${error.message}`);
     }
     const agora = new Date().toISOString();
-    const tracados = Array.from(det.tracadoPorObra, ([id, wkt]) => ({ id_acao: id, wkt, atualizado_em: agora, ...(caixaDoWkt(wkt) ?? {}) }));
+    // Só o traçado de quem está no mapa vai para obras_tracado; o das ações só com KML guardado fica em kml_arquivos.
+    const tracados = Array.from(det.tracadoPorObra).filter(([id]) => idsNoMapa.has(id)).map(([id, wkt]) => ({ id_acao: id, wkt, atualizado_em: agora, ...(caixaDoWkt(wkt) ?? {}) }));
     for (let i = 0; i < tracados.length; i += 100) {
       const { error } = await admin.from("obras_tracado").upsert(tracados.slice(i, i + 100), { onConflict: "id_acao" });
       if (error) throw new ErroImportacao(`Locais atualizados, mas falhou ao salvar os traçados: ${error.message}`);
     }
 
-    return NextResponse.json({ ok: true, simulacao: false, toleranciaM: TOLERANCIA_PADRAO_M, ...resumo, acoesComTracado: tracados.length });
+    return NextResponse.json({ ok: true, simulacao: false, toleranciaM: TOLERANCIA_PADRAO_M, ...resumo, acoesComTracado: tracados.length, acoesDeKml: extras.acoes });
   } catch (e) {
     if (e instanceof ErroImportacao) return NextResponse.json({ error: e.message }, { status: 500 });
     console.error("atualizar sobreposicoes:", e);

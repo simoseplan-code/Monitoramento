@@ -25,8 +25,16 @@ export async function GET(request: NextRequest) {
     ? await supabase.from("obras_tracado").select("id_acao, wkt").in("id_acao", ids)
     : { data: [] as { id_acao: string; wkt: string }[] };
 
+  // Ação que só tem KML guardado (ainda não está no mapa): usa o traçado do KML.
+  const lista = [...(tracados ?? [])];
+  const faltam = ids.filter((id) => !lista.some((t) => t.id_acao === id));
+  if (faltam.length > 0) {
+    const { data: kmls } = await supabase.from("kml_arquivos").select("id_acao, wkt").eq("situacao", "baixado").not("wkt", "is", null).in("id_acao", faltam);
+    for (const k of kmls ?? []) lista.push({ id_acao: k.id_acao, wkt: k.wkt as string });
+  }
+
   return NextResponse.json(
-    { sobreposta: (local.geom_sobreposta ?? []) as string[], tracados: tracados ?? [] },
+    { sobreposta: (local.geom_sobreposta ?? []) as string[], tracados: lista },
     { headers: { "Cache-Control": "private, max-age=300" } }
   );
 }

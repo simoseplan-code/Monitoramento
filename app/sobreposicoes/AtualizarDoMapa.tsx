@@ -14,6 +14,7 @@ type Resumo = {
   removidos: number;
   analisadosMantidos: number;
   acoesComTracado: number;
+  acoesDeKml?: number;
 };
 
 const n = (v: number) => v.toLocaleString("pt-BR");
@@ -78,7 +79,7 @@ export function AtualizarDoMapa() {
         <div>
           <p className="text-sm font-semibold text-ink-primary">Atualizar direto do mapa</p>
           <p className="text-xs text-ink-muted">
-            Usa os mesmos traçados que o mapa publica todo dia, com tolerância de 15 m, sem CSV. Antes de gravar, mostra o que vai mudar.
+            Usa os mesmos traçados que o mapa publica todo dia, mais os KMLs já guardados das ações que ainda não estão no mapa, com tolerância de 15 m, sem CSV. Antes de gravar, mostra o que vai mudar.
             O que já foi analisado nunca é apagado.
           </p>
         </div>
@@ -97,7 +98,8 @@ export function AtualizarDoMapa() {
           <p className="font-semibold text-ink-primary">Isto é só uma prévia. Nada foi gravado ainda. Se confirmar:</p>
           <ul className="list-disc space-y-0.5 pl-5">
             <li>
-              <strong>{n(previa.total)}</strong> locais detectados em {n(previa.acoesComTracado)} ações.
+              <strong>{n(previa.total)}</strong> locais detectados em {n(previa.acoesComTracado)} ações do mapa
+              {previa.acoesDeKml ? <> e em <strong>{n(previa.acoesDeKml)}</strong> ação(ões) que só têm KML guardado</> : null}.
             </li>
             <li>
               <strong>{n(previa.novos)}</strong> entram como novos (aguardando revisão).
