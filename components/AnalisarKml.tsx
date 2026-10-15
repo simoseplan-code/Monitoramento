@@ -29,6 +29,7 @@ function JanelaKml({ idAcao, nomeAcao, aoFechar }: { idAcao: string; nomeAcao?: 
   const [analisando, setAnalisando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [resultado, setResultado] = useState<ResultadoKml | null>(null);
+  const [semKml, setSemKml] = useState(false);
 
   useEffect(() => {
     const fechar = (e: KeyboardEvent) => e.key === "Escape" && aoFechar();
@@ -36,25 +37,34 @@ function JanelaKml({ idAcao, nomeAcao, aoFechar }: { idAcao: string; nomeAcao?: 
     return () => window.removeEventListener("keydown", fechar);
   }, [aoFechar]);
 
-  async function enviar(arquivo: File | undefined) {
-    if (!arquivo) return;
+  // Sem arquivo, o servidor baixa o KML anexado à ação direto do SIMO (pelo ID).
+  async function analisar(arquivo?: File) {
     setAnalisando(true);
     setErro(null);
+    setSemKml(false);
     setResultado(null);
     try {
       const form = new FormData();
-      form.append("arquivo", arquivo);
+      if (arquivo) form.append("arquivo", arquivo);
       form.append("idAcao", idAcao);
       const resp = await fetch("/api/kml/analisar", { method: "POST", body: form });
-      const json = (await resp.json().catch(() => ({}))) as { error?: string; resultado?: ResultadoKml };
-      if (!resp.ok || !json.resultado) setErro(json.error ?? "Não foi possível analisar o arquivo.");
-      else setResultado(json.resultado);
+      const json = (await resp.json().catch(() => ({}))) as { error?: string; resultado?: ResultadoKml; semKml?: boolean };
+      if (!resp.ok || !json.resultado) {
+        setErro(json.error ?? "Não foi possível analisar o arquivo.");
+        setSemKml(!!json.semKml);
+      } else setResultado(json.resultado);
     } catch {
       setErro("Sem conexão com o servidor.");
     } finally {
       setAnalisando(false);
     }
   }
+
+  // Ao abrir, já baixa o KML da ação no SIMO e analisa.
+  useEffect(() => {
+    analisar();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4" onClick={aoFechar}>
@@ -70,22 +80,31 @@ function JanelaKml({ idAcao, nomeAcao, aoFechar }: { idAcao: string; nomeAcao?: 
         </div>
 
         <div className="space-y-4 overflow-y-auto p-5">
+          {analisando && (
+            <p className="flex items-center justify-center gap-2 rounded-xl bg-plane px-4 py-6 text-xs text-ink-secondary">
+              <Loader2 size={16} className="animate-spin" /> Baixando o KML da ação no SIMO e analisando...
+            </p>
+          )}
+
+          {erro && (
+            <p className={`rounded-lg px-3 py-2 text-xs ${semKml ? "bg-status-warning-bg text-status-warning" : "bg-status-critical/10 text-status-critical"}`}>
+              {semKml ? "Não encontrei KML anexado a essa ação no SIMO (aba Trechos). Se ele existir, baixe e envie manualmente abaixo." : erro}
+            </p>
+          )}
+
+          {resultado && <Resultado r={resultado} />}
+
           <label
             onDragOver={(e) => e.preventDefault()}
             onDrop={(e) => {
               e.preventDefault();
-              enviar(e.dataTransfer.files?.[0]);
+              analisar(e.dataTransfer.files?.[0]);
             }}
-            className="flex cursor-pointer flex-col items-center gap-1 rounded-xl border-2 border-dashed border-black/10 px-4 py-5 text-center text-xs text-ink-muted hover:bg-plane"
+            className="flex cursor-pointer flex-col items-center gap-1 rounded-xl border border-dashed border-black/10 px-4 py-3 text-center text-[11px] text-ink-muted hover:bg-plane"
           >
-            {analisando ? <Loader2 size={18} className="animate-spin" /> : <FileSearch size={18} />}
-            <span className="font-medium text-ink-secondary">{analisando ? "Analisando..." : "Escolha ou solte aqui o KML (ou KMZ) da ação"}</span>
-            <span>Baixe o arquivo anexado no SIMO e envie aqui. Até 4 MB.</span>
-            <input type="file" accept=".kml,.kmz" className="hidden" disabled={analisando} onChange={(e) => enviar(e.target.files?.[0])} />
+            <span className="font-medium text-ink-secondary">Analisar outro arquivo: escolha ou solte aqui um KML/KMZ (até 4 MB)</span>
+            <input type="file" accept=".kml,.kmz" className="hidden" disabled={analisando} onChange={(e) => analisar(e.target.files?.[0])} />
           </label>
-
-          {erro && <p className="rounded-lg bg-status-critical/10 px-3 py-2 text-xs text-status-critical">{erro}</p>}
-          {resultado && <Resultado r={resultado} />}
         </div>
       </div>
     </div>
