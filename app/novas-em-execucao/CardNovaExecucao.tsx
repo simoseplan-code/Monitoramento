@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Lock, UserRound } from "lucide-react";
 import { ChecklistItem } from "@/app/novas-acoes/ChecklistItem";
 import { ComentarioPendencia } from "@/app/novas-acoes/ComentarioPendencia";
@@ -8,7 +8,8 @@ import { ConcluirBotao } from "@/app/novas-acoes/ConcluirBotao";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
 import { ITENS_EXECUCAO, type StatusItem } from "@/lib/execucao";
 
-type Pessoa = { id: string; nome: string };
+export type PessoaExec = { id: string; nome: string };
+type Pessoa = PessoaExec;
 
 export function CardNovaExecucao({
   idAcao,
@@ -23,6 +24,9 @@ export function CardNovaExecucao({
   usuario,
   ehAdmin,
   equipe,
+  selecionada = false,
+  onSelecionar,
+  onPendencia,
 }: {
   idAcao: string;
   nomeAcao: string;
@@ -36,6 +40,9 @@ export function CardNovaExecucao({
   usuario: Pessoa;
   ehAdmin: boolean;
   equipe: Pessoa[];
+  selecionada?: boolean;
+  onSelecionar?: (idAcao: string, marcada: boolean) => void;
+  onPendencia?: (idAcao: string, temPendencia: boolean) => void;
 }) {
   const [itens, setItens] = useState<Record<string, StatusItem>>(
     Object.fromEntries(ITENS_EXECUCAO.map((i) => [i.campo, (itensInicial[i.campo] as StatusItem) ?? "pendente"]))
@@ -49,6 +56,14 @@ export function CardNovaExecucao({
   const tudoConfirmado = ITENS_EXECUCAO.every((i) => itens[i.campo] === "confirmado");
   const bloqueado = !!responsavel && responsavel.id !== usuario.id && !ehAdmin;
   const pendentes = ITENS_EXECUCAO.filter((i) => itens[i.campo] === "aguardando_atualizacao");
+
+  // Só dá para marcar (e encaminhar ao órgão) ação com algum item pendente.
+  const temPendencia = pendentes.length > 0 && !concluido;
+  useEffect(() => {
+    onPendencia?.(idAcao, temPendencia);
+    if (!temPendencia && selecionada) onSelecionar?.(idAcao, false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [temPendencia]);
 
   function aoSalvarResponsavel(id: string) {
     if (responsavel?.id === id) return;
@@ -90,7 +105,30 @@ export function CardNovaExecucao({
             {estagioAnterior ? ` (estava em ${estagioAnterior})` : " (ação nova)"}
           </p>
         </div>
-        {!bloqueado && (tudoConfirmado || concluido) && <ConcluirBotao idAcao={idAcao} concluido={concluido} endpoint="/api/execucao/concluir" />}
+        <div className="flex shrink-0 items-center gap-3">
+          {!bloqueado && (tudoConfirmado || concluido) && <ConcluirBotao idAcao={idAcao} concluido={concluido} endpoint="/api/execucao/concluir" />}
+          {temPendencia && onSelecionar && (
+            <label
+              className={`flex cursor-pointer items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+                selecionada ? "border-status-warning bg-status-warning-bg text-status-warning" : "border-black/10 text-ink-muted hover:bg-plane"
+              } ${bloqueado ? "cursor-not-allowed opacity-50" : ""}`}
+              title={
+                bloqueado
+                  ? "Só o responsável pela análise ou um administrador pode encaminhar"
+                  : "Marcar para encaminhar ao órgão (aguardando solução de pendência)"
+              }
+            >
+              <input
+                type="checkbox"
+                checked={selecionada}
+                disabled={bloqueado}
+                onChange={(e) => onSelecionar(idAcao, e.target.checked)}
+                className="h-3.5 w-3.5 accent-status-warning"
+              />
+              Marcar
+            </label>
+          )}
+        </div>
       </div>
 
       <div className="flex flex-wrap gap-2">

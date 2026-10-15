@@ -12,26 +12,40 @@ type Status = "pendente" | "confirmado" | "aguardando_atualizacao";
 export type AcaoEncaminhada = {
   idAcao: string;
   nomeAcao: string;
-  dataCriacao: string | null;
-  kml: Status;
-  duplicacao: Status;
-  documentos: Status;
+  /** Trecho da linha de detalhes, ex.: "criada em 09/10/2026". */
+  info: string | null;
+  itens: Record<string, Status>;
   encaminhadaEm: string;
   encaminhadaPor: string | null;
   responsavelId: string | null;
   responsavelNome: string | null;
-  obs: { kml: string | null; duplicacao: string | null; documentos: string | null };
+  obs: Record<string, string | null>;
 };
 
 export type GrupoOrgao = { orgao: string; acoes: AcaoEncaminhada[] };
 
-const ITENS = [
-  { chave: "kml" as const, rotulo: "KML anexado", campo: "kml_anexado" as const },
-  { chave: "duplicacao" as const, rotulo: "Sem duplicação", campo: "sem_duplicacao" as const },
-  { chave: "documentos" as const, rotulo: "Documentos obrigatórios", campo: "documentos_obrigatorios" as const },
-];
+// Uma configuração por análise (Novas Ações, Novas em Execução): itens conferidos e rotas.
+export type ConfigPendencias = {
+  itens: { campo: string; rotulo: string }[];
+  encaminharEndpoint: string;
+  checkEndpoint: string;
+  pdfHref: string;
+  pdfNome: string;
+  abaOrigem: string;
+};
 
-export function PendenciasPorOrgao({ grupos, usuarioId, ehAdmin }: { grupos: GrupoOrgao[]; usuarioId: string; ehAdmin: boolean }) {
+export function PendenciasPorOrgao({
+  grupos,
+  usuarioId,
+  ehAdmin,
+  config,
+}: {
+  grupos: GrupoOrgao[];
+  usuarioId: string;
+  ehAdmin: boolean;
+  config: ConfigPendencias;
+}) {
+  const ITENS = config.itens;
   const router = useRouter();
   const [abertos, setAbertos] = useState<Set<string>>(new Set());
   const [processando, setProcessando] = useState<string | null>(null);
@@ -56,7 +70,7 @@ export function PendenciasPorOrgao({ grupos, usuarioId, ehAdmin }: { grupos: Gru
     setErro(null);
     setAviso(null);
     try {
-      const resp = await fetch("/api/revisao/encaminhar", {
+      const resp = await fetch(config.encaminharEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ ids, acao }),
@@ -100,7 +114,7 @@ export function PendenciasPorOrgao({ grupos, usuarioId, ehAdmin }: { grupos: Gru
     return (
       <div className="rounded-xl border border-black/5 bg-surface p-10 text-center shadow-card">
         <p className="text-sm text-ink-muted">Nenhuma ação aguardando solução de pendência.</p>
-        <p className="mt-1 text-xs text-ink-muted">Na aba "Em análise", marque as ações com item pendente e use "Encaminhar".</p>
+        <p className="mt-1 text-xs text-ink-muted">Na aba "{config.abaOrigem}", marque as ações com item pendente e use "Encaminhar".</p>
       </div>
     );
   }
@@ -122,9 +136,9 @@ export function PendenciasPorOrgao({ grupos, usuarioId, ehAdmin }: { grupos: Gru
             {todosAbertos ? "Recolher todos" : "Expandir todos"}
           </button>
           <BotaoDownload
-            href="/api/relatorios/pendencias"
+            href={config.pdfHref}
             rotulo="PDF de todos os órgãos"
-            arquivoPadrao="pendencias.pdf"
+            arquivoPadrao={`${config.pdfNome}.pdf`}
             className="bg-series-2 text-white hover:opacity-90"
           />
         </div>
@@ -173,9 +187,9 @@ export function PendenciasPorOrgao({ grupos, usuarioId, ehAdmin }: { grupos: Gru
                 </button>
               )}
               <BotaoDownload
-                href={`/api/relatorios/pendencias?orgao=${encodeURIComponent(g.orgao)}`}
+                href={`${config.pdfHref}${config.pdfHref.includes("?") ? "&" : "?"}orgao=${encodeURIComponent(g.orgao)}`}
                 rotulo="PDF deste órgão"
-                arquivoPadrao={`pendencias-${g.orgao}.pdf`}
+                arquivoPadrao={`${config.pdfNome}-${g.orgao}.pdf`}
                 className="border border-black/10 text-ink-secondary hover:bg-plane"
               />
               </div>
@@ -192,7 +206,7 @@ export function PendenciasPorOrgao({ grupos, usuarioId, ehAdmin }: { grupos: Gru
                           <p className="text-sm font-medium text-ink-primary">{a.nomeAcao}</p>
                           <p className="text-xs text-ink-muted">
                             <IdAcaoLink id={a.idAcao} />
-                            {a.dataCriacao ? ` · criada em ${new Date(a.dataCriacao + "T00:00:00").toLocaleDateString("pt-BR")}` : ""} · encaminhada em{" "}
+                            {a.info ? ` · ${a.info}` : ""} · encaminhada em{" "}
                             {new Date(a.encaminhadaEm).toLocaleDateString("pt-BR")}
                             {a.encaminhadaPor ? ` por ${a.encaminhadaPor}` : ""}
                             {a.responsavelNome ? ` · responsável: ${a.responsavelNome}` : ""}
@@ -239,7 +253,7 @@ export function PendenciasPorOrgao({ grupos, usuarioId, ehAdmin }: { grupos: Gru
                       </div>
                       <div className="mt-2 flex flex-wrap gap-2">
                         {ITENS.map((i) => {
-                          const st = a[i.chave];
+                          const st = a.itens[i.campo];
                           const cor =
                             st === "aguardando_atualizacao"
                               ? "bg-status-warning-bg text-status-warning"
@@ -247,7 +261,7 @@ export function PendenciasPorOrgao({ grupos, usuarioId, ehAdmin }: { grupos: Gru
                                 ? "bg-status-good-bg text-status-good opacity-70"
                                 : "border border-black/10 text-ink-muted";
                           return (
-                            <span key={i.chave} className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${cor}`}>
+                            <span key={i.campo} className={`flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium ${cor}`}>
                               {st === "aguardando_atualizacao" && <AlertTriangle size={12} strokeWidth={2.5} />}
                               {st === "confirmado" && <Check size={12} strokeWidth={3} />}
                               {i.rotulo}
@@ -257,16 +271,17 @@ export function PendenciasPorOrgao({ grupos, usuarioId, ehAdmin }: { grupos: Gru
                         })}
                       </div>
                       <div className="mt-2 space-y-1.5">
-                        {ITENS.filter((i) => a[i.chave] === "aguardando_atualizacao").map((i) => (
+                        {ITENS.filter((i) => a.itens[i.campo] === "aguardando_atualizacao").map((i) => (
                           <ComentarioPendencia
-                            key={i.chave}
+                            key={i.campo}
                             idAcao={a.idAcao}
                             campo={i.campo}
                             label={i.rotulo}
-                            valor={obsEditada[`${a.idAcao}:${i.chave}`] ?? a.obs[i.chave] ?? ""}
+                            valor={obsEditada[`${a.idAcao}:${i.campo}`] ?? a.obs[i.campo] ?? ""}
+                            endpoint={config.checkEndpoint}
                             abrirAgora={false}
                             bloqueado={!ehAdmin && !!a.responsavelId && a.responsavelId !== usuarioId}
-                            onSalvo={(texto) => setObsEditada((o) => ({ ...o, [`${a.idAcao}:${i.chave}`]: texto }))}
+                            onSalvo={(texto) => setObsEditada((o) => ({ ...o, [`${a.idAcao}:${i.campo}`]: texto }))}
                             onErro={setErro}
                           />
                         ))}

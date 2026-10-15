@@ -3,6 +3,7 @@ import type { NextApiRequest, NextApiResponse } from "next";
 import { createServerClient, serializeCookieHeader, type CookieOptions } from "@supabase/ssr";
 import { renderToBuffer } from "@react-pdf/renderer";
 import { PendenciasPdf, type OrgaoPendente } from "@/lib/pdf/PendenciasPdf";
+import { ITENS_EXECUCAO } from "@/lib/execucao";
 
 // Pages Router de propósito (mesmo motivo de pdf.ts): o gerador de PDF usa o React
 // instalado, e o App Router do Next usa um React próprio.
@@ -14,6 +15,23 @@ const TEXTO_ITEM = {
   duplicacao: "Possível duplicação com outra ação",
   documentos: "Documentos obrigatórios não inseridos",
 } as const;
+
+const TEXTO_EXECUCAO: Record<string, string> = {
+  documentos_obrigatorios: "Documentos obrigatórios não inseridos",
+  emissao_os: "Ordem de Serviço (O.S.) não emitida",
+  cronograma: "Cronograma físico-financeiro ausente ou com problema",
+};
+
+type LinhaExecucao = {
+  id_acao: string;
+  nome_acao: string;
+  orgao: string;
+  virou_em: string | null;
+  itens: Record<string, string> | null;
+  obs: Record<string, string | null> | null;
+  encaminhada_em: string;
+  responsavel_nome: string | null;
+};
 
 type Linha = {
   id_acao: string;
@@ -57,12 +75,28 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const orgaoPedido = (Array.isArray(req.query.orgao) ? req.query.orgao[0] : req.query.orgao)?.trim();
 
+  const execucao = (Array.isArray(req.query.modulo) ? req.query.modulo[0] : req.query.modulo) === "execucao";
+
   try {
-    const { data, error } = await supabase.rpc("novas_acoes_encaminhadas");
+    const { data, error } = await supabase.rpc(execucao ? "novas_execucao_encaminhadas" : "novas_acoes_encaminhadas");
     if (error) throw new Error(error.message);
 
     const porOrgao = new Map<string, OrgaoPendente>();
-    for (const l of (data ?? []) as Linha[]) {
+    if (execucao) {
+      // Novas em Execução: itens vêm num jsonb (chave do item -> status) e os comentários em outro.
+      for (const l of (data ?? []) as LinhaExecucao[]) {
+        if (orgaoPedido && l.orgao !== orgaoPedido) continue;
+        const itens = ITENS_EXECUCAO.filter((i) => l.itens?.[i.campo] === "aguardando_atualizacao").map((i) => ({
+          texto: TEXTO_EXECUCAO[i.campo],
+          comentario: l.obs?.[i.campo] ?? null,
+        }));
+        if (itens.length === 0) continue;
+        const g = porOrgao.get(l.orgao) ?? { orgao: l.orgao, acoes: [] };
+        porOrgao.set(l.orgao, g);
+        g.acoes.push({ idAcao: l.id_acao, nomeAcao: l.nome_acao, dataCriacao: l.virou_em, responsavel: l.responsavel_nome, encaminhadaEm: l.encaminhada_em, itens });
+      }
+    }
+    for (const l of execucao ? [] : ((data ?? []) as Linha[])) {
       if (orgaoPedido && l.orgao !== orgaoPedido) continue;
       // Só o que foi marcado como pendente (aguardando atualização).
       const itens: OrgaoPendente["acoes"][number]["itens"] = [];
@@ -87,12 +121,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (orgaos.length === 0) return res.status(404).json({ error: "Não há ações aguardando solução de pendência." });
 
     const geradoEm = new Date().toLocaleString("pt-BR", { timeZone: "America/Fortaleza", dateStyle: "short", timeStyle: "short" });
-    const buffer = await renderToBuffer(createElement(PendenciasPdf, { orgaos, geradoEm }) as Parameters<typeof renderToBuffer>[0]);
+    const buffer = await renderToBuffer(createElement(PendenciasPdf, execucao ? { orgaos, geradoEm, rotuloData: "EM EXECUÇÃO DESDE", tituloModulo: "Novas em Execução" } : { orgaos, geradoEm }) as Parameters<typeof renderToBuffer>[0]);
 
     const hoje = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
     const nomeOrgao = orgaoPedido ? `-${orgaoPedido.replace(/[^A-Za-z0-9]+/g, "_")}` : "-todos-os-orgaos";
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="pendencias${nomeOrgao}-${hoje}.pdf"`);
+    res.setHeader("Content-Disposition", `attachment; filename="pendencias${execucao ? "-execucao" : ""}${nomeOrgao}-${hoje}.pdf"`);
     res.setHeader("Cache-Control", "no-store");
     return res.status(200).send(buffer);
   } catch (e) {

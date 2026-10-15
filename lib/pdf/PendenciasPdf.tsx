@@ -70,14 +70,25 @@ function Rodape({ geradoEm }: { geradoEm: string }) {
 
 // Uma seção (um ou mais páginas) por órgão: só as ações encaminhadas e, em cada
 // uma, só os itens que foram marcados como pendentes.
-export function PendenciasPdf({ orgaos, geradoEm }: { orgaos: OrgaoPendente[]; geradoEm: string }) {
+export function PendenciasPdf({
+  orgaos,
+  geradoEm,
+  rotuloData = "CRIADA EM",
+  tituloModulo,
+}: {
+  orgaos: OrgaoPendente[];
+  geradoEm: string;
+  /** Cabeçalho da coluna de data (ex.: "EM EXECUÇÃO DESDE" em Novas em Execução). */
+  rotuloData?: string;
+  tituloModulo?: string;
+}) {
   return (
     <Document title="Pendências por órgão: Monitoramento de Obras" author="Monitoramento de Obras">
       {orgaos.map((o) => (
         <Page key={o.orgao} size="A4" style={s.pagina}>
           <Cabecalho
             titulo={`Pendências: ${o.orgao}`}
-            subtitulo={`${o.acoes.length} ação(ões) aguardando solução de pendência`}
+            subtitulo={`${o.acoes.length} ação(ões) aguardando solução de pendência${tituloModulo ? ` · ${tituloModulo}` : ""}`}
             geradoEm={geradoEm}
           />
           <Text style={s.intro}>
@@ -88,7 +99,7 @@ export function PendenciasPdf({ orgaos, geradoEm }: { orgaos: OrgaoPendente[]; g
           <View style={s.linhaCab}>
             <Text style={[s.cab, { width: 46 }]}>ID</Text>
             <Text style={[s.cab, { flex: 3 }]}>AÇÃO</Text>
-            <Text style={[s.cab, { width: 56 }]}>CRIADA EM</Text>
+            <Text style={[s.cab, { width: 56 }]}>{rotuloData}</Text>
             <Text style={[s.cab, { flex: 2.2 }]}>PENDÊNCIA(S)</Text>
           </View>
 

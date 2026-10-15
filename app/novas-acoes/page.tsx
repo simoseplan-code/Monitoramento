@@ -2,11 +2,24 @@ import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import Link from "next/link";
 import { ListaNovasAcoes } from "./ListaNovasAcoes";
-import { PendenciasPorOrgao, type AcaoEncaminhada, type GrupoOrgao } from "./PendenciasPorOrgao";
+import { PendenciasPorOrgao, type ConfigPendencias, type GrupoOrgao } from "./PendenciasPorOrgao";
 import { CardAcaoExcluida } from "./CardAcaoExcluida";
 import { FiltrosNovasAcoes } from "./FiltrosNovasAcoes";
 import { Paginacao } from "@/components/Paginacao";
 import { DATA_INICIO_REVISAO, contarNovasAcoesPendentes } from "@/lib/novasAcoes";
+
+const CONFIG_PENDENCIAS_NOVAS_ACOES: ConfigPendencias = {
+  itens: [
+    { campo: "kml_anexado", rotulo: "KML anexado" },
+    { campo: "sem_duplicacao", rotulo: "Sem duplicação" },
+    { campo: "documentos_obrigatorios", rotulo: "Documentos obrigatórios" },
+  ],
+  encaminharEndpoint: "/api/revisao/encaminhar",
+  checkEndpoint: "/api/revisao/check",
+  pdfHref: "/api/relatorios/pendencias",
+  pdfNome: "pendencias",
+  abaOrigem: "Em análise",
+};
 
 const PAGE_SIZE = 50;
 
@@ -92,9 +105,9 @@ export default async function NovasAcoesPage({
     nome_acao: string;
     orgao: string;
     data_criacao: string | null;
-    kml_anexado: AcaoEncaminhada["kml"];
-    sem_duplicacao: AcaoEncaminhada["duplicacao"];
-    documentos_obrigatorios: AcaoEncaminhada["documentos"];
+    kml_anexado: "pendente" | "confirmado" | "aguardando_atualizacao";
+    sem_duplicacao: "pendente" | "confirmado" | "aguardando_atualizacao";
+    documentos_obrigatorios: "pendente" | "confirmado" | "aguardando_atualizacao";
     encaminhada_em: string;
     encaminhada_por_nome: string | null;
     responsavel_id: string | null;
@@ -114,15 +127,13 @@ export default async function NovasAcoesPage({
     g.acoes.push({
       idAcao: e.id_acao,
       nomeAcao: e.nome_acao,
-      dataCriacao: e.data_criacao,
-      kml: e.kml_anexado,
-      duplicacao: e.sem_duplicacao,
-      documentos: e.documentos_obrigatorios,
+      info: e.data_criacao ? `criada em ${new Date(e.data_criacao + "T00:00:00").toLocaleDateString("pt-BR")}` : null,
+      itens: { kml_anexado: e.kml_anexado, sem_duplicacao: e.sem_duplicacao, documentos_obrigatorios: e.documentos_obrigatorios },
       encaminhadaEm: e.encaminhada_em,
       encaminhadaPor: e.encaminhada_por_nome,
       responsavelId: e.responsavel_id,
       responsavelNome: e.responsavel_nome,
-      obs: { kml: e.kml_obs, duplicacao: e.duplicacao_obs, documentos: e.documentos_obs },
+      obs: { kml_anexado: e.kml_obs, sem_duplicacao: e.duplicacao_obs, documentos_obrigatorios: e.documentos_obs },
     });
   }
   const excluidas = (excluidasRpc ?? []) as LinhaExcluida[];
@@ -166,7 +177,7 @@ export default async function NovasAcoesPage({
       </div>
 
       {abaPendencias ? (
-        <PendenciasPorOrgao grupos={grupos} usuarioId={usuario.id} ehAdmin={ehAdmin} />
+        <PendenciasPorOrgao grupos={grupos} usuarioId={usuario.id} ehAdmin={ehAdmin} config={CONFIG_PENDENCIAS_NOVAS_ACOES} />
       ) : (
       <>
       <div className="mb-4">
