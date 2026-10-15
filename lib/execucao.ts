@@ -6,6 +6,7 @@ export const ITENS_EXECUCAO = [
   { campo: "documentos_obrigatorios", label: "Vinculação com SIAFE" },
   { campo: "emissao_os", label: "Emissão da O.S." },
   { campo: "cronograma", label: "Cronograma Fis/Fin" },
+  { campo: "documentos_medicao", label: "Documentos de medição (se houver)" },
 ] as const;
 
 export type CampoExecucao = (typeof ITENS_EXECUCAO)[number]["campo"];

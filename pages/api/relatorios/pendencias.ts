@@ -21,6 +21,7 @@ const TEXTO_EXECUCAO: Record<string, string> = {
   documentos_obrigatorios: "Vinculação com o SIAFE pendente",
   emissao_os: "Ordem de Serviço (O.S.) não emitida",
   cronograma: "Cronograma físico-financeiro ausente ou com problema",
+  documentos_medicao: "Documentos de medição pendentes",
 };
 
 type LinhaExecucao = {
