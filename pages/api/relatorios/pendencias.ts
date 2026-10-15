@@ -17,6 +17,7 @@ const TEXTO_ITEM = {
 } as const;
 
 const TEXTO_EXECUCAO: Record<string, string> = {
+  kml_anexado: "KML não anexado ou com problema",
   documentos_obrigatorios: "Vinculação com o SIAFE pendente",
   emissao_os: "Ordem de Serviço (O.S.) não emitida",
   cronograma: "Cronograma físico-financeiro ausente ou com problema",
