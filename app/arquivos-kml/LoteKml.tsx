@@ -15,7 +15,7 @@ function lerIds(texto: string): string[] {
   return Array.from(new Set(ids));
 }
 
-export function LoteKml({ importadosSemArquivo = [] }: { importadosSemArquivo?: string[] }) {
+export function LoteKml() {
   const router = useRouter();
   const [texto, setTexto] = useState("");
   const [forcar, setForcar] = useState(false);
@@ -83,17 +83,6 @@ export function LoteKml({ importadosSemArquivo = [] }: { importadosSemArquivo?: 
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div className="flex flex-col gap-1.5">
-          {importadosSemArquivo.length > 0 && (
-            <button
-              type="button"
-              onClick={() => setTexto(importadosSemArquivo.join(", "))}
-              disabled={rodando}
-              className="w-fit rounded-lg border border-black/10 px-3 py-1.5 text-xs font-medium text-ink-secondary hover:bg-plane disabled:opacity-50"
-              title="Cola no campo os IDs que já têm traçado vindo do mapa mas ainda não têm o arquivo KML guardado"
-            >
-              Preencher com os {importadosSemArquivo.length.toLocaleString("pt-BR")} importados do mapa que ainda não baixei
-            </button>
-          )}
           <label className="flex items-center gap-2 text-xs text-ink-secondary">
           <input type="checkbox" checked={forcar} onChange={(e) => setForcar(e.target.checked)} disabled={rodando} className="h-3.5 w-3.5" />
           Baixar de novo mesmo os que já tenho guardados (substitui o arquivo guardado)

@@ -73,8 +73,6 @@ export default async function ArquivosKmlPage({
   const baixadosSet = new Set((todosKml ?? []).filter((r) => r.situacao === "baixado").map((r) => r.id_acao as string));
   const verificadas = new Set([...idsKml, ...importadosIds]);
   const naoVerificadas = Math.max(0, Number(resumo.total_acoes) - verificadas.size);
-  // Importados que ainda não têm o arquivo KML guardado: dá para baixar em lote.
-  const importadosSemArquivo = importadosIds.filter((id) => !baixadosSet.has(id));
   const ehAdmin = !!profile?.is_admin;
 
   // ---- lista da aba escolhida ----
@@ -147,7 +145,7 @@ export default async function ArquivosKmlPage({
               abaixo). Na primeira vez o painel baixa, guarda e analisa; nas próximas abre direto a análise, sem ir ao SIMO.
             </li>
             <li>
-              <strong>KML importado</strong>: o traçado que já veio da atualização do mapa (a mesma base das Sobreposições). O painel já tem o desenho dessas ações, mas ainda não tem o arquivo KML delas, por isso o botão só fica verde depois que o arquivo for baixado.
+              <strong>KML importado</strong>: o traçado que já veio da atualização do mapa (a mesma base das Sobreposições). O painel já tem o desenho dessas ações, então não precisa baixar o KML delas só para comparar. O botão Analisar KML só fica verde quando o arquivo KML da ação for baixado (por exemplo, para ver município e bairros).
             </li>
             <li>
               O botão <strong className="text-status-good">verde</strong> significa que o arquivo KML da ação já está guardado. O botão <strong>branco</strong> significa que ainda não foi baixado.
@@ -175,7 +173,7 @@ export default async function ArquivosKmlPage({
         <section className="rounded-xl border border-black/5 bg-surface p-5 shadow-card">
           <h2 className="mb-1 text-sm font-semibold text-ink-primary">Buscar KMLs em lote</h2>
           <ol className="mb-3 list-decimal space-y-1 pl-5 text-xs text-ink-secondary">
-            <li>Cole abaixo os IDs das ações que você sabe que têm KML no SIMO (um por linha ou separados por vírgula). Ou use o atalho para preencher com os importados do mapa que ainda não foram baixados.</li>
+            <li>Cole abaixo os IDs das ações que você sabe que têm KML no SIMO (um por linha ou separados por vírgula).</li>
             <li>Clique em <strong>Buscar KMLs no SIMO</strong>. O painel baixa e guarda um por um, mostrando o andamento. Deixe a tela aberta até terminar.</li>
             <li>No fim, os baixados aparecem na lista abaixo e os botões nos cards ficam verdes. Os que o SIMO não tem vão para "Sem KML no SIMO".</li>
           </ol>
@@ -183,7 +181,7 @@ export default async function ArquivosKmlPage({
             Leva em torno de 1 a 3 segundos por ação. Se parar ou fechar a tela no meio, o que já foi baixado continua guardado e é só colar os IDs de novo (os que já estão guardados são pulados).
           </p>
           {ehAdmin ? (
-            <LoteKml importadosSemArquivo={importadosSemArquivo} />
+            <LoteKml />
           ) : (
             <p className="rounded-lg bg-plane px-3 py-2 text-xs text-ink-secondary">A busca em lote é só para administrador e chefe, porque acessa o SIMO. Para uma ação isolada, use o botão Analisar KML no card.</p>
           )}
@@ -251,7 +249,7 @@ export default async function ArquivosKmlPage({
                         {celulaAcao(l.id_acao)}
                         <td className="tabular px-3 py-2 text-right">{l.km != null ? `${l.km.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} km` : "-"}</td>
                         <td className="px-3 py-2">
-                          {baixadosSet.has(l.id_acao) ? <span className="font-medium text-status-good">Guardado</span> : <span className="text-ink-muted">Ainda não baixado</span>}
+                          {baixadosSet.has(l.id_acao) ? <span className="font-medium text-status-good">Arquivo guardado</span> : <span className="text-ink-muted">Traçado do mapa</span>}
                         </td>
                         <td className="px-3 py-2 text-right text-ink-secondary">{data(l.atualizado_em)}</td>
                       </tr>
