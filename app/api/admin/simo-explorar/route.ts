@@ -88,6 +88,51 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // ?id=...&formulario=1: lê o formulário de edição da ação (o mesmo que o SIMO abre ao
+  // clicar em "editar"; a aba "Trechos" com o KML anexado fica nele) e mostra onde aparece
+  // "kml" e os links de download. ?bruto=PALAVRA muda a palavra procurada.
+  if (idValido && request.nextUrl.searchParams.get("formulario") === "1") {
+    try {
+      let cookie = await loginSimo();
+      const abertura = await fetch(`${SIMO}/cahier/action/projects/show/id/${id}`, { headers: { Cookie: cookie }, redirect: "manual", signal: AbortSignal.timeout(30_000) });
+      const novos = abertura.headers.getSetCookie?.() ?? [];
+      if (novos.length) cookie = [cookie, ...novos.map((c) => c.split(";")[0])].join("; ");
+      await abertura.arrayBuffer();
+      const resp = await fetch(`${SIMO}/cahier/action/projects/information/`, {
+        method: "POST",
+        headers: {
+          Cookie: cookie,
+          "Content-Type": "application/x-www-form-urlencoded",
+          Referer: `${SIMO}/cahier/action/projects/show/id/${id}`,
+          "X-Requested-With": "XMLHttpRequest",
+        },
+        body: new URLSearchParams({ id, edit: "true" }),
+        signal: AbortSignal.timeout(40_000),
+      });
+      const html = Buffer.from(await resp.arrayBuffer()).toString("latin1");
+      const palavra = (request.nextUrl.searchParams.get("bruto") ?? "kml").toLowerCase();
+      const ocorrencias: { posicao: number; trecho: string }[] = [];
+      const minusculo = html.toLowerCase();
+      for (let i = minusculo.indexOf(palavra); i >= 0 && ocorrencias.length < 6; i = minusculo.indexOf(palavra, i + 400)) {
+        ocorrencias.push({ posicao: i, trecho: html.slice(Math.max(0, i - 500), i + 700) });
+      }
+      return NextResponse.json({
+        id,
+        status: resp.status,
+        tipo: resp.headers.get("content-type"),
+        tamanho: html.length,
+        somenteLeitura: html.indexOf('name="general[measure_unit]"') === -1,
+        palavra,
+        totalDeOcorrencias: (minusculo.match(new RegExp(palavra.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "g")) ?? []).length,
+        linksDeDownload: links(html).filter((l) => /baixar|download|kml|excerpt/i.test(l.href + l.texto)).slice(0, 30),
+        abas: [...html.matchAll(/(?:href|data-tab|id)=["']#?([a-z_-]*excerpt[a-z_-]*)["']/gi)].map((m) => m[1]).slice(0, 20),
+        ocorrencias,
+      });
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : "Falha ao consultar o SIMO." }, { status: 502 });
+    }
+  }
+
   if (idValido && !caminho) caminho = `/cahier/action/projects/show/id/${id}`;
   // Só caminhos do próprio SIMO (host fixo), nunca um endereço vindo de fora.
   if (!caminho.startsWith("/cahier/") || caminho.includes("..") || caminho.includes("://") || caminho.length > 400) {
