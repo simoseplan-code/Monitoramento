@@ -75,7 +75,7 @@ export async function POST(request: NextRequest) {
   }
 }
 
-const TOLERANCIA_M = 10;
+const TOLERANCIA_M = 15; // padrão único: o mesmo das Sobreposições
 
 // A comparação é feita na hora, só leitura: nada do KML analisado é guardado. A base de
 // traçados (hoje vinda do CSV de Sobreposições) é a mesma para toda a equipe.
@@ -87,9 +87,16 @@ async function compararComABase(
   const linhas = linhasDoResultado(resultado);
   if (linhas.length === 0 || !resultado.caixa) return;
 
+
   // Leitura pelo servidor: a tabela é restrita (Sobreposições é só para admin/chefe), mas o
   // resumo de "quais ações se sobrepõem" vale para qualquer pessoa aprovada.
-  const { data: tracados } = await createAdminClient().from("obras_tracado").select("id_acao, wkt");
+  // Só os traçados que cruzam a caixa deste KML (os sem caixa, antigos, entram sempre).
+  const c = resultado.caixa;
+  const folga = 0.002;
+  const { data: tracados } = await createAdminClient()
+    .from("obras_tracado")
+    .select("id_acao, wkt")
+    .or(`min_lon.is.null,and(min_lon.lte.${c.leste + folga},max_lon.gte.${c.oeste - folga},min_lat.lte.${c.norte + folga},max_lat.gte.${c.sul - folga})`);
   const base: TracadoBase[] = (tracados ?? [])
     .filter((tr) => tr.id_acao !== idAcao)
     .map((tr) => ({ idAcao: tr.id_acao, fonte: "sobreposicoes" as const, linhas: wktParaLinhasLonLat(tr.wkt) }));

@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { UploadCsvSobreposicoes } from "./UploadCsvSobreposicoes";
+import { AtualizarDoMapa } from "./AtualizarDoMapa";
 import { CardSobreposicao } from "./CardSobreposicao";
 import { FiltrosSobreposicoes } from "./FiltrosSobreposicoes";
 import { Paginacao } from "@/components/Paginacao";
@@ -157,7 +158,8 @@ export default async function SobreposicoesPage({
       titulo="Sobreposições"
       subtitulo={`${grupoAtual === "concluidas" ? "Concluída × Concluída" : "Em andamento"}: ${totalFiltrado} local(is), ${{ pendente: "aguardando revisão", ok: "sem problema", problema: "com problema", solucionado: "solucionado" }[statusAtual]}`}
     >
-      <div className="mb-4">
+      <div className="mb-4 space-y-3">
+        <AtualizarDoMapa />
         <UploadCsvSobreposicoes />
       </div>
 

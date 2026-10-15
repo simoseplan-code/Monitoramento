@@ -77,7 +77,7 @@ export function UploadCsvSobreposicoes() {
     <div className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
-          <p className="text-sm font-semibold text-ink-primary">Importar CSV de sobreposições</p>
+          <p className="text-sm font-semibold text-ink-primary">Ou importar um CSV de sobreposições</p>
           <p className="text-xs text-ink-muted">
             Gerado no Mapa de Obras, aba &quot;Sobreposição de Trechos&quot; → Exportar CSV. O arquivo substitui a lista atual;
             locais que já tiveram análise são mantidos.
