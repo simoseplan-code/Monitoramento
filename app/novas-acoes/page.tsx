@@ -75,7 +75,7 @@ export default async function NovasAcoesPage({
     { count: totalAcoes },
     { count: pendentesAprovacao },
     novasAcoesPendentes,
-    { data: linhasRpc },
+    { data: linhasRpc, error: erroLista },
     { data: orgaosRpc },
     { data: aguardandoAtualizacao },
     { data: equipeAtiva },
@@ -189,6 +189,10 @@ export default async function NovasAcoesPage({
           </Link>
         )}
       </div>
+
+      {erroLista && !abaPendencias && (
+        <p className="mb-4 rounded-lg bg-status-critical/10 px-3 py-2 text-xs text-status-critical">Falha ao carregar a lista: {erroLista.message}</p>
+      )}
 
       {abaPendencias ? (
         <PendenciasPorOrgao grupos={grupos} usuarioId={usuario.id} ehAdmin={ehAdmin} config={CONFIG_PENDENCIAS_NOVAS_ACOES} />
