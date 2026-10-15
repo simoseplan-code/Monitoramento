@@ -23,11 +23,13 @@ export async function POST(request: NextRequest) {
     .select("is_admin, status")
     .eq("id", user.id)
     .single();
-  if (!profile?.is_admin || profile.status !== "aprovado") {
+  const { fase } = (await request.json().catch(() => ({}))) as { fase?: string };
+  // Baixar do SIMO e regravar as obras é só do administrador. "Recalcular sugestões" (refaz a
+  // fila de Unidade/Quantidade com os dados já guardados) qualquer pessoa aprovada pode.
+  const permitido = profile?.status === "aprovado" && (profile.is_admin || fase === "sugestoes");
+  if (!permitido) {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
-
-  const { fase } = (await request.json().catch(() => ({}))) as { fase?: string };
 
   try {
     if (fase === "baixar") {

@@ -14,10 +14,11 @@ export async function POST() {
 
   const { data: profile } = await supabase
     .from("profiles")
-    .select("is_admin, status")
+    .select("status")
     .eq("id", user.id)
     .single();
-  if (!profile?.is_admin || profile.status !== "aprovado") {
+  // Qualquer pessoa aprovada grava as sugestões já aprovadas (fica registrado quem gravou).
+  if (profile?.status !== "aprovado") {
     return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   }
 
