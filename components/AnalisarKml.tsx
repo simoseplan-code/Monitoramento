@@ -5,6 +5,9 @@ import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, FileSearch, Info, Loader2, OctagonAlert, X } from "lucide-react";
 import type { Map as MapaLeaflet } from "leaflet";
 import type { ResultadoKml } from "@/lib/kml/analisar";
+import { urlAcaoSimo } from "@/components/IdAcaoLink";
+
+const CORES_OUTRAS = ["#f59e0b", "#0d9488", "#db2777", "#7c3aed", "#65a30d", "#0891b2", "#b45309", "#4f46e5"];
 
 const km = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
 
@@ -88,7 +91,14 @@ function JanelaKml({ idAcao, nomeAcao, aoFechar }: { idAcao: string; nomeAcao?: 
 
           {erro && (
             <p className={`rounded-lg px-3 py-2 text-xs ${semKml ? "bg-status-warning-bg text-status-warning" : "bg-status-critical/10 text-status-critical"}`}>
-              {semKml ? "Não encontrei KML anexado a essa ação no SIMO (aba Trechos). Se ele existir, baixe e envie manualmente abaixo." : erro}
+              {semKml ? (
+                <>
+                  <strong className="block text-sm">KML NÃO ANEXADO. ATENÇÃO: SOLICITE AO ÓRGÃO.</strong>
+                  <span className="mt-0.5 block">Não encontrei KML anexado a essa ação no SIMO (aba Trechos).</span>
+                </>
+              ) : (
+                erro
+              )}
             </p>
           )}
 
@@ -148,6 +158,49 @@ function Resultado({ r }: { r: ResultadoKml }) {
       </div>
 
       {r.mapa.linhas.length + r.mapa.poligonos.length + r.mapa.pontos.length > 0 && <MapaKml r={r} />}
+
+      {r.sobreposicoesNaBase && r.sobreposicoesNaBase.itens.length > 0 && (
+        <section>
+          <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-status-warning">
+            Sobreposição com outras ações da base ({r.sobreposicoesNaBase.itens.length})
+          </h3>
+          <div className="overflow-x-auto rounded-lg border border-status-warning/30">
+            <table className="w-full text-xs">
+              <thead className="bg-status-warning-bg text-left text-status-warning">
+                <tr>
+                  <th className="px-3 py-2">Ação</th>
+                  <th className="px-3 py-2">Órgão</th>
+                  <th className="px-3 py-2">Status</th>
+                  <th className="px-3 py-2 text-right">Trecho em comum</th>
+                  <th className="px-3 py-2 text-right">% deste KML</th>
+                  <th className="px-3 py-2 text-right">% da outra</th>
+                </tr>
+              </thead>
+              <tbody>
+                {r.sobreposicoesNaBase.itens.map((s, i) => (
+                  <tr key={s.idAcao} className="border-t border-black/5">
+                    <td className="px-3 py-1.5">
+                      <span className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ background: CORES_OUTRAS[i % CORES_OUTRAS.length] }} />
+                      <a href={urlAcaoSimo(s.idAcao)} target="_blank" rel="noopener noreferrer" className="font-medium text-series-1 hover:underline">
+                        {s.idAcao}
+                      </a>
+                      <span className="ml-1.5 text-ink-secondary">{s.nome ?? ""}</span>
+                    </td>
+                    <td className="px-3 py-1.5 text-ink-secondary">{s.orgao ?? "-"}</td>
+                    <td className="px-3 py-1.5 text-ink-secondary">{s.status ?? "-"}</td>
+                    <td className="tabular px-3 py-1.5 text-right">{s.metros.toLocaleString("pt-BR")} m</td>
+                    <td className="tabular px-3 py-1.5 text-right">{s.pctDoKml.toLocaleString("pt-BR")}%</td>
+                    <td className="tabular px-3 py-1.5 text-right">{s.pctDaOutra.toLocaleString("pt-BR")}%</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <p className="mt-1 text-[11px] text-ink-muted">
+            Comparado com {r.sobreposicoesNaBase.comparadas.toLocaleString("pt-BR")} ação(ões) da base de traçados (tolerância de {r.sobreposicoesNaBase.toleranciaM} m). A base cresce a cada KML analisado.
+          </p>
+        </section>
+      )}
 
       {r.municipios.length > 0 && (
         <section>
@@ -286,7 +339,10 @@ function MapaKml({ r }: { r: ResultadoKml }) {
       mapa = L.map(divRef.current);
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(mapa);
       const grupo = L.featureGroup().addTo(mapa);
-      for (const l of r.mapa.linhas) L.polyline(l, { color: "#dc2626", weight: 4, opacity: 0.85 }).addTo(grupo);
+      (r.mapa.outras ?? []).forEach((o, i) => {
+        for (const l of o.linhas) L.polyline(l, { color: CORES_OUTRAS[i % CORES_OUTRAS.length], weight: 5, opacity: 0.75, dashArray: "8 6" }).bindTooltip(`Ação ${o.idAcao}`, { sticky: true }).addTo(grupo);
+      });
+      for (const l of r.mapa.linhas) L.polyline(l, { color: "#dc2626", weight: 3, opacity: 0.9 }).addTo(grupo);
       for (const p of r.mapa.poligonos) L.polygon(p, { color: "#7c3aed", weight: 2, fillOpacity: 0.2 }).addTo(grupo);
       for (const p of r.mapa.pontos) L.circleMarker([p.lat, p.lon], { radius: 5, color: "#1d4ed8", weight: 2, fillColor: "#3b82f6", fillOpacity: 0.9 }).bindTooltip(p.nome || "(sem nome)").addTo(grupo);
       const b = grupo.getBounds();

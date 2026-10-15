@@ -26,6 +26,17 @@ export type MunicipioAtingido = {
   percentual: number;
 };
 
+export type SobreposicaoNaBase = {
+  idAcao: string;
+  nome: string | null;
+  orgao: string | null;
+  status: string | null;
+  fonte: "sobreposicoes" | "kml";
+  metros: number;
+  pctDoKml: number;
+  pctDaOutra: number;
+};
+
 export type ResultadoKml = {
   arquivo: string;
   nomeDocumento: string | null;
@@ -41,8 +52,16 @@ export type ResultadoKml = {
   bairros: { nome: string; municipio: string; amostras: number }[];
   gruposDeTrechos: number;
   alertas: Alerta[];
+  /** Trechos deste KML que correm junto de trechos de outras ações já na base. */
+  sobreposicoesNaBase?: { comparadas: number; toleranciaM: number; itens: SobreposicaoNaBase[] } | null;
   nomeAcao: { extensaoKm: number | null; municipios: string[] } | null;
-  mapa: { linhas: [number, number][][]; pontos: { nome: string; lat: number; lon: number }[]; poligonos: [number, number][][] };
+  mapa: {
+    linhas: [number, number][][];
+    pontos: { nome: string; lat: number; lon: number }[];
+    poligonos: [number, number][][];
+    /** Traçado das outras ações que se sobrepõem (id + linhas), para desenhar no mapa. */
+    outras?: { idAcao: string; linhas: [number, number][][] }[];
+  };
 };
 
 // ---------- leitura ----------
@@ -176,7 +195,7 @@ function areaHa(c: Coord[]): number {
 }
 
 /** Pontos ao longo da linha, um a cada `passoM` (sempre inclui o primeiro e o último). */
-function amostrar(c: Coord[], passoM: number): Coord[] {
+export function amostrar(c: Coord[], passoM: number): Coord[] {
   if (c.length <= 1) return [...c];
   const saida: Coord[] = [c[0]];
   let acumulado = 0;
@@ -272,6 +291,13 @@ function simplificar(c: Coord[], max = 400): [number, number][] {
   const ult = c[c.length - 1];
   if (c.length > 1 && (s[s.length - 1][0] !== ult[1] || s[s.length - 1][1] !== ult[0])) s.push([ult[1], ult[0]]);
   return s;
+}
+
+// Linhas completas (sem simplificar) de cada resultado, para comparar com a base sem
+// precisar enviá-las ao navegador.
+const linhasBrutas = new WeakMap<object, Coord[][]>();
+export function linhasDoResultado(r: ResultadoKml): Coord[][] {
+  return linhasBrutas.get(r) ?? [];
 }
 
 export async function analisarKml(buffer: Buffer, arquivo: string, nomeAcao?: string | null): Promise<ResultadoKml> {
@@ -461,7 +487,7 @@ export async function analisarKml(buffer: Buffer, arquivo: string, nomeAcao?: st
     alertas.unshift({ nivel: "info", texto: "Nenhum problema encontrado nas conferências automáticas." });
   }
 
-  return {
+  const resultadoFinal: ResultadoKml = {
     arquivo,
     nomeDocumento,
     contagem: { feicoes: feicoes.length, pontos: pontosF.length, linhas: linhasF.length, poligonos: poligonosF.length, pastas, vertices },
@@ -483,4 +509,6 @@ export async function analisarKml(buffer: Buffer, arquivo: string, nomeAcao?: st
       pontos: pontosF.slice(0, 500).map((f) => ({ nome: f.nome, lat: f.coords[0][1], lon: f.coords[0][0] })),
     },
   };
+  linhasBrutas.set(resultadoFinal, linhasF.map((f) => f.coords));
+  return resultadoFinal;
 }
