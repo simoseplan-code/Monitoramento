@@ -144,11 +144,8 @@ export default async function NovasEmExecucaoPage({
               Concluídas
             </Link>
           )}
-          <Link href="/arquivos-kml" className="ml-auto rounded-full border border-black/10 px-3.5 py-1.5 text-xs font-semibold text-ink-secondary transition-colors hover:bg-plane">
-          Arquivos KML
-        </Link>
           {!abaPendencias && (
-            <form action="/novas-em-execucao" className="flex items-center gap-2">
+            <form action="/novas-em-execucao" className="ml-auto flex items-center gap-2">
               {mostrarConcluidos && <input type="hidden" name="concluidos" value="1" />}
               <input
                 name="busca"

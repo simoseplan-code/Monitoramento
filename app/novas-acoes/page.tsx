@@ -193,9 +193,6 @@ export default async function NovasAcoesPage({
             Concluídas
           </Link>
         )}
-        <Link href="/arquivos-kml" className="ml-auto rounded-full border border-black/10 px-3.5 py-1.5 text-xs font-semibold text-ink-secondary transition-colors hover:bg-plane">
-          Arquivos KML
-        </Link>
       </div>
 
       {erroLista && !abaPendencias && (
