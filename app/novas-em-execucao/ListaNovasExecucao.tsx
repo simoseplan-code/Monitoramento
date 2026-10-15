@@ -14,6 +14,7 @@ export type ItemExecucao = {
   itens: Record<string, string>;
   obs: Record<string, string>;
   concluido: boolean;
+  kmlGuardado?: boolean;
   responsavel: PessoaExec | null;
 };
 
@@ -115,6 +116,7 @@ export function ListaNovasExecucao({
           itensInicial={i.itens}
           obsInicial={i.obs}
           concluido={i.concluido}
+          kmlGuardado={i.kmlGuardado}
           responsavelInicial={i.responsavel}
           usuario={usuario}
           ehAdmin={ehAdmin}

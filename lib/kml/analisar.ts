@@ -512,3 +512,38 @@ export async function analisarKml(buffer: Buffer, arquivo: string, nomeAcao?: st
   linhasBrutas.set(resultadoFinal, linhasF.map((f) => f.coords));
   return resultadoFinal;
 }
+
+// ---------- resumo leve (sem município/bairro), para guardar e comparar ----------
+
+export type ResumoGeometria = {
+  linhas: Coord[][];
+  qtdPontos: number;
+  qtdLinhas: number;
+  qtdPoligonos: number;
+  extensaoKm: number;
+  caixa: { oeste: number; sul: number; leste: number; norte: number } | null;
+};
+
+/** Lê o KML/KMZ e devolve só o que precisa para guardar e comparar traçados. */
+export async function resumoGeometria(buffer: Buffer): Promise<ResumoGeometria> {
+  const { feicoes } = lerKml(await textoDoArquivo(buffer));
+  const linhas = feicoes.filter((f) => f.tipo === "linha").map((f) => f.coords);
+  const todas = feicoes.flatMap((f) => f.coords);
+  let caixa: ResumoGeometria["caixa"] = null;
+  if (todas.length) {
+    caixa = {
+      oeste: Math.min(...todas.map((c) => c[0])),
+      sul: Math.min(...todas.map((c) => c[1])),
+      leste: Math.max(...todas.map((c) => c[0])),
+      norte: Math.max(...todas.map((c) => c[1])),
+    };
+  }
+  return {
+    linhas,
+    qtdPontos: feicoes.filter((f) => f.tipo === "ponto").length,
+    qtdLinhas: linhas.length,
+    qtdPoligonos: feicoes.filter((f) => f.tipo === "poligono").length,
+    extensaoKm: Math.round((linhas.reduce((s, l) => s + comprimentoM(l), 0) / 1000) * 1000) / 1000,
+    caixa,
+  };
+}

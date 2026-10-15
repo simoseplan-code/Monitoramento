@@ -146,6 +146,11 @@ export default async function NovasAcoesPage({
   const usuario = { id: user!.id, nome: profile?.nome ?? "Você" };
 
   const linhas = (linhasRpc ?? []) as LinhaNovaAcao[];
+  // Quais destas ações já têm KML guardado (botão "Analisar KML" fica verde).
+  const { data: kmlGuardados } = linhas.map((l) => l.id_acao).length
+    ? await supabase.from("kml_arquivos").select("id_acao").eq("situacao", "baixado").in("id_acao", linhas.map((l) => l.id_acao))
+    : { data: [] as { id_acao: string }[] };
+  const comKml = new Set((kmlGuardados ?? []).map((r) => r.id_acao));
   const totalGeral = linhas[0]?.total_geral ?? 0;
   const totalPaginas = Math.max(1, Math.ceil(totalGeral / PAGE_SIZE));
   const orgaosDisponiveis = (orgaosRpc ?? []).map((r: { orgao: string }) => r.orgao);
@@ -188,6 +193,9 @@ export default async function NovasAcoesPage({
             Concluídas
           </Link>
         )}
+        <Link href="/arquivos-kml" className="ml-auto rounded-full border border-black/10 px-3.5 py-1.5 text-xs font-semibold text-ink-secondary transition-colors hover:bg-plane">
+          Arquivos KML
+        </Link>
       </div>
 
       {erroLista && !abaPendencias && (
@@ -242,6 +250,7 @@ export default async function NovasAcoesPage({
             orgao: o.orgao,
             dataCriacao: o.data_criacao,
             concluido: o.concluido,
+            kmlGuardado: comKml.has(o.id_acao),
             responsavel: o.responsavel_id ? { id: o.responsavel_id, nome: o.responsavel_nome ?? "-" } : null,
             status: {
               kml_anexado: o.kml_anexado,

@@ -82,6 +82,11 @@ export default async function NovasEmExecucaoPage({
 
   const linhas = (linhasRpc ?? []) as Linha[];
   const totalFiltrado = linhas[0]?.total_geral ?? 0;
+  // Quais destas ações já têm KML guardado (botão "Analisar KML" fica verde).
+  const { data: kmlGuardados } = linhas.map((l) => l.id_acao).length
+    ? await supabase.from("kml_arquivos").select("id_acao").eq("situacao", "baixado").in("id_acao", linhas.map((l) => l.id_acao))
+    : { data: [] as { id_acao: string }[] };
+  const comKml = new Set((kmlGuardados ?? []).map((r) => r.id_acao));
   const totalPaginas = Math.max(1, Math.ceil(totalFiltrado / PAGE_SIZE));
   const pendentes = Number(pendentesRpc ?? 0);
   const ehAdmin = !!profile?.is_admin;
@@ -139,8 +144,11 @@ export default async function NovasEmExecucaoPage({
               Concluídas
             </Link>
           )}
+          <Link href="/arquivos-kml" className="ml-auto rounded-full border border-black/10 px-3.5 py-1.5 text-xs font-semibold text-ink-secondary transition-colors hover:bg-plane">
+          Arquivos KML
+        </Link>
           {!abaPendencias && (
-            <form action="/novas-em-execucao" className="ml-auto flex items-center gap-2">
+            <form action="/novas-em-execucao" className="flex items-center gap-2">
               {mostrarConcluidos && <input type="hidden" name="concluidos" value="1" />}
               <input
                 name="busca"
@@ -174,6 +182,7 @@ export default async function NovasEmExecucaoPage({
               itens: l.itens ?? {},
               obs: l.obs ?? {},
               concluido: l.concluido,
+              kmlGuardado: comKml.has(l.id_acao),
               responsavel: l.responsavel_id ? { id: l.responsavel_id, nome: l.responsavel_nome ?? "-" } : null,
             }))}
           />

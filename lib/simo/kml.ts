@@ -9,15 +9,20 @@ export class SemKmlError extends Error {
   }
 }
 
+/** Entra no SIMO uma vez; o cookie serve para baixar o KML de várias ações em seguida. */
+export async function abrirSessaoSimo(): Promise<string> {
+  return loginSimo();
+}
+
 /**
- * Baixa o KML anexado a uma ação (aba "Trechos" da edição). O endereço de download do SIMO é
- * /cahier/action-projects/download-kml/project_id/{id}; antes disso a ação é aberta na sessão,
- * como uma navegação normal faria.
+ * Baixa o KML anexado a uma ação (aba "Trechos" da edição) usando uma sessão já aberta. O
+ * endereço de download do SIMO é /cahier/action-projects/download-kml/project_id/{id}; antes
+ * disso a ação é aberta na sessão, como uma navegação normal faria.
  */
-export async function baixarKmlDaAcao(idAcao: string): Promise<{ buffer: Buffer; nome: string }> {
+export async function baixarKmlComSessao(cookieBase: string, idAcao: string): Promise<{ buffer: Buffer; nome: string }> {
   if (!/^\d{1,12}$/.test(idAcao)) throw new Error("ID de ação inválido.");
 
-  let cookie = await loginSimo();
+  let cookie = cookieBase;
   const abertura = await fetch(`${SIMO}/cahier/action/projects/show/id/${idAcao}`, {
     headers: { Cookie: cookie },
     redirect: "manual",
@@ -47,6 +52,18 @@ export async function baixarKmlDaAcao(idAcao: string): Promise<{ buffer: Buffer;
 
   const disposicao = resp.headers.get("content-disposition") ?? "";
   const doCabecalho = disposicao.match(/filename\*?=(?:UTF-8'')?"?([^";]+)"?/i)?.[1];
-  const nome = decodeURIComponent(doCabecalho ?? `${idAcao}.${ehZip ? "kmz" : "kml"}`).slice(0, 200);
-  return { buffer, nome };
+  let nome = `${idAcao}.${ehZip ? "kmz" : "kml"}`;
+  if (doCabecalho) {
+    try {
+      nome = decodeURIComponent(doCabecalho);
+    } catch {
+      nome = doCabecalho;
+    }
+  }
+  return { buffer, nome: nome.slice(0, 200) };
+}
+
+/** Baixa o KML de uma ação (abre a própria sessão no SIMO). */
+export async function baixarKmlDaAcao(idAcao: string): Promise<{ buffer: Buffer; nome: string }> {
+  return baixarKmlComSessao(await abrirSessaoSimo(), idAcao);
 }

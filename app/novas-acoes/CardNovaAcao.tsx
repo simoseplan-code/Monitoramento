@@ -26,6 +26,7 @@ export function CardNovaAcao({
   statusInicial,
   obsInicial,
   concluido,
+  kmlGuardado = false,
   responsavelInicial,
   usuario,
   ehAdmin,
@@ -45,6 +46,7 @@ export function CardNovaAcao({
   };
   obsInicial: Record<"kml_anexado" | "sem_duplicacao" | "documentos_obrigatorios", string | null>;
   concluido: boolean;
+  kmlGuardado?: boolean;
   responsavelInicial: PessoaEquipe | null;
   usuario: PessoaEquipe;
   ehAdmin: boolean;
@@ -121,7 +123,7 @@ export function CardNovaAcao({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-3">
-          <AnalisarKmlBotao idAcao={idAcao} nomeAcao={nomeAcao} />
+          <AnalisarKmlBotao idAcao={idAcao} nomeAcao={nomeAcao} kmlGuardado={kmlGuardado} />
           {!bloqueado && (tudoConfirmado || concluido) && <ConcluirBotao idAcao={idAcao} concluido={concluido} />}
           {temPendencia && onSelecionar && (
             <label

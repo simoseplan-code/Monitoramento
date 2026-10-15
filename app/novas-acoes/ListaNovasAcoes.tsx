@@ -13,6 +13,7 @@ export type ItemLista = {
   orgao: string | null;
   dataCriacao: string;
   concluido: boolean;
+  kmlGuardado?: boolean;
   responsavel: PessoaEquipe | null;
   status: { kml_anexado: Status; sem_duplicacao: Status; documentos_obrigatorios: Status };
   obs: { kml_anexado: string | null; sem_duplicacao: string | null; documentos_obrigatorios: string | null };
@@ -113,6 +114,7 @@ export function ListaNovasAcoes({
           orgao={i.orgao}
           dataCriacao={i.dataCriacao}
           concluido={i.concluido}
+          kmlGuardado={i.kmlGuardado}
           responsavelInicial={i.responsavel}
           usuario={usuario}
           ehAdmin={ehAdmin}

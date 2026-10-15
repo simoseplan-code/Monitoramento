@@ -11,28 +11,33 @@ const CORES_OUTRAS = ["#f59e0b", "#0d9488", "#db2777", "#7c3aed", "#65a30d", "#0
 
 const km = (n: number) => n.toLocaleString("pt-BR", { maximumFractionDigits: 2 });
 
-export function AnalisarKmlBotao({ idAcao, nomeAcao }: { idAcao: string; nomeAcao?: string }) {
+export function AnalisarKmlBotao({ idAcao, nomeAcao, kmlGuardado = false }: { idAcao: string; nomeAcao?: string; kmlGuardado?: boolean }) {
   const [aberto, setAberto] = useState(false);
+  // Verde = o KML desta ação já foi baixado e está guardado; branco = ainda não.
+  const [guardado, setGuardado] = useState(kmlGuardado);
   return (
     <>
       <button
         type="button"
         onClick={() => setAberto(true)}
-        title="Analisar o KML anexado à ação"
-        className="flex shrink-0 items-center gap-1.5 rounded-full border border-black/10 px-2.5 py-1 text-xs font-medium text-ink-secondary transition-colors hover:bg-plane"
+        title={guardado ? "KML já guardado: abre direto a análise (sem baixar do SIMO)" : "Baixa o KML anexado no SIMO, guarda e analisa"}
+        className={`flex shrink-0 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors ${
+          guardado ? "border-status-good/30 bg-status-good-bg text-status-good hover:opacity-80" : "border-black/10 text-ink-secondary hover:bg-plane"
+        }`}
       >
-        <FileSearch size={13} /> Analisar KML
+        {guardado ? <CheckCircle2 size={13} /> : <FileSearch size={13} />} Analisar KML
       </button>
-      {aberto && <JanelaKml idAcao={idAcao} nomeAcao={nomeAcao} aoFechar={() => setAberto(false)} />}
+      {aberto && <JanelaKml idAcao={idAcao} nomeAcao={nomeAcao} aoGuardar={() => setGuardado(true)} aoFechar={() => setAberto(false)} />}
     </>
   );
 }
 
-function JanelaKml({ idAcao, nomeAcao, aoFechar }: { idAcao: string; nomeAcao?: string; aoFechar: () => void }) {
+function JanelaKml({ idAcao, nomeAcao, aoGuardar, aoFechar }: { idAcao: string; nomeAcao?: string; aoGuardar: () => void; aoFechar: () => void }) {
   const [analisando, setAnalisando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [resultado, setResultado] = useState<ResultadoKml | null>(null);
   const [semKml, setSemKml] = useState(false);
+  const [origem, setOrigem] = useState<{ tipo: "envio" | "guardado" | "simo" | "simo_sem_guardar"; guardadoEm: string | null } | null>(null);
 
   useEffect(() => {
     const fechar = (e: KeyboardEvent) => e.key === "Escape" && aoFechar();
@@ -40,8 +45,9 @@ function JanelaKml({ idAcao, nomeAcao, aoFechar }: { idAcao: string; nomeAcao?: 
     return () => window.removeEventListener("keydown", fechar);
   }, [aoFechar]);
 
-  // Sem arquivo, o servidor baixa o KML anexado à ação direto do SIMO (pelo ID).
-  async function analisar(arquivo?: File) {
+  // Sem arquivo: usa o KML guardado da ação; se ainda não houver (ou se pedir "baixar de novo"),
+  // o servidor baixa do SIMO pelo ID, guarda e analisa.
+  async function analisar(arquivo?: File, forcar = false) {
     setAnalisando(true);
     setErro(null);
     setSemKml(false);
@@ -50,12 +56,17 @@ function JanelaKml({ idAcao, nomeAcao, aoFechar }: { idAcao: string; nomeAcao?: 
       const form = new FormData();
       if (arquivo) form.append("arquivo", arquivo);
       form.append("idAcao", idAcao);
+      if (forcar) form.append("forcar", "1");
       const resp = await fetch("/api/kml/analisar", { method: "POST", body: form });
-      const json = (await resp.json().catch(() => ({}))) as { error?: string; resultado?: ResultadoKml; semKml?: boolean };
+      const json = (await resp.json().catch(() => ({}))) as { error?: string; resultado?: ResultadoKml; semKml?: boolean; origem?: "envio" | "guardado" | "simo" | "simo_sem_guardar"; guardadoEm?: string | null };
       if (!resp.ok || !json.resultado) {
         setErro(json.error ?? "Não foi possível analisar o arquivo.");
         setSemKml(!!json.semKml);
-      } else setResultado(json.resultado);
+      } else {
+        setResultado(json.resultado);
+        setOrigem({ tipo: json.origem ?? "envio", guardadoEm: json.guardadoEm ?? null });
+        if (json.origem === "guardado" || json.origem === "simo") aoGuardar();
+      }
     } catch {
       setErro("Sem conexão com o servidor.");
     } finally {
@@ -63,7 +74,7 @@ function JanelaKml({ idAcao, nomeAcao, aoFechar }: { idAcao: string; nomeAcao?: 
     }
   }
 
-  // Ao abrir, já baixa o KML da ação no SIMO e analisa.
+  // Ao abrir, já analisa (do KML guardado ou baixando do SIMO).
   useEffect(() => {
     analisar();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -85,7 +96,7 @@ function JanelaKml({ idAcao, nomeAcao, aoFechar }: { idAcao: string; nomeAcao?: 
         <div className="space-y-4 overflow-y-auto p-5">
           {analisando && (
             <p className="flex items-center justify-center gap-2 rounded-xl bg-plane px-4 py-6 text-xs text-ink-secondary">
-              <Loader2 size={16} className="animate-spin" /> Baixando o KML da ação no SIMO e analisando...
+              <Loader2 size={16} className="animate-spin" /> Buscando o KML da ação e analisando...
             </p>
           )}
 
@@ -102,6 +113,21 @@ function JanelaKml({ idAcao, nomeAcao, aoFechar }: { idAcao: string; nomeAcao?: 
             </p>
           )}
 
+          {resultado && origem && (
+            <p className="flex flex-wrap items-center justify-between gap-2 rounded-lg bg-plane px-3 py-2 text-[11px] text-ink-secondary">
+              <span>
+                {origem.tipo === "guardado" && `KML guardado${origem.guardadoEm ? " em " + new Date(origem.guardadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : ""}: não foi preciso baixar do SIMO.`}
+                {origem.tipo === "simo" && "KML baixado agora do SIMO e guardado para as próximas análises."}
+                {origem.tipo === "envio" && "Arquivo enviado por você: analisado, mas não guardado."}
+                {origem.tipo === "simo_sem_guardar" && "KML baixado do SIMO e analisado, mas não foi possível guardá-lo agora (o botão continua branco)."}
+              </span>
+              {origem.tipo === "guardado" && (
+                <button onClick={() => analisar(undefined, true)} disabled={analisando} className="font-semibold text-series-1 hover:underline disabled:opacity-50">
+                  Baixar de novo do SIMO
+                </button>
+              )}
+            </p>
+          )}
           {resultado && <Resultado r={resultado} />}
 
           <label
@@ -171,6 +197,7 @@ function Resultado({ r }: { r: ResultadoKml }) {
                     {s.idAcao}
                   </a>
                   {s.orgao ? ` · ${s.orgao}` : ""} · <span className="font-medium text-ink-primary">{s.metros.toLocaleString("pt-BR")} m em comum</span>
+                  {s.fonte === "kml" && <span className="ml-1 rounded bg-plane px-1 text-[10px] text-ink-muted" title="Traçado vindo do KML guardado (a atualização do mapa ainda não tem esta ação)">KML guardado</span>}
                   {s.nome && <span className="block truncate text-ink-muted" title={s.nome}>{s.nome}</span>}
                 </span>
               </li>

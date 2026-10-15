@@ -21,6 +21,7 @@ export function CardNovaExecucao({
   itensInicial,
   obsInicial,
   concluido,
+  kmlGuardado = false,
   responsavelInicial,
   usuario,
   ehAdmin,
@@ -37,6 +38,7 @@ export function CardNovaExecucao({
   itensInicial: Record<string, string>;
   obsInicial: Record<string, string>;
   concluido: boolean;
+  kmlGuardado?: boolean;
   responsavelInicial: Pessoa | null;
   usuario: Pessoa;
   ehAdmin: boolean;
@@ -107,7 +109,7 @@ export function CardNovaExecucao({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-3">
-          <AnalisarKmlBotao idAcao={idAcao} nomeAcao={nomeAcao} />
+          <AnalisarKmlBotao idAcao={idAcao} nomeAcao={nomeAcao} kmlGuardado={kmlGuardado} />
           {!bloqueado && (tudoConfirmado || concluido) && <ConcluirBotao idAcao={idAcao} concluido={concluido} endpoint="/api/execucao/concluir" />}
           {temPendencia && onSelecionar && (
             <label

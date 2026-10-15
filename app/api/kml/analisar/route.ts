@@ -3,16 +3,20 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { analisarKml, linhasDoResultado } from "@/lib/kml/analisar";
 import { aplicarSobreposicoes, compararComBase, wktParaLinhasLonLat, type TracadoBase } from "@/lib/kml/base";
+import { guardarKml, lerKmlGuardado, registrarFalha } from "@/lib/kml/guardar";
 import { baixarKmlDaAcao, SemKmlError } from "@/lib/simo/kml";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
 const LIMITE_BYTES = 4 * 1024 * 1024; // a Vercel aceita até ~4,5 MB por envio
+const TOLERANCIA_M = 15; // padrão único: o mesmo das Sobreposições
 
 // Analisa o KML de uma ação: contagem de pontos e trechos, extensão, municípios, bairros e
-// conferências com o nome da ação. Sem arquivo, baixa o KML anexado à ação direto do SIMO
-// (pelo ID); com arquivo, analisa o que foi enviado.
+// conferências com o nome da ação e com os traçados de outras ações.
+//  - Com arquivo enviado: analisa o arquivo (não guarda nada).
+//  - Sem arquivo: usa o KML GUARDADO da ação; se ainda não houver (ou se pedir "forcar"),
+//    baixa do SIMO, GUARDA e analisa. Assim a próxima análise já parte do arquivo guardado.
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
   const {
@@ -27,6 +31,7 @@ export async function POST(request: NextRequest) {
   const enviado = form?.get("arquivo");
   const idBruto = form?.get("idAcao");
   const idAcao = typeof idBruto === "string" ? idBruto.trim() : "";
+  const forcar = form?.get("forcar") === "1";
   const arquivo = enviado instanceof File && enviado.size > 0 ? enviado : null;
 
   if (!arquivo && !/^\d{1,12}$/.test(idAcao)) {
@@ -39,12 +44,6 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: "O arquivo precisa ser .kml ou .kmz." }, { status: 400 });
   }
 
-  // Cada download entra no SIMO com o login do painel: limita para ninguém sobrecarregar.
-  if (!arquivo) {
-    const { data: liberado } = await createAdminClient().rpc("check_rate_limit", { p_chave: `kml:${user.id}`, p_limite: 30, p_janela_minutos: 10 });
-    if (!liberado) return NextResponse.json({ error: "Muitas análises seguidas. Aguarde alguns minutos." }, { status: 429 });
-  }
-
   // O nome da ação vem da base (não do navegador), para a conferência de município e extensão.
   let nomeAcao: string | null = null;
   if (/^\d{1,12}$/.test(idAcao)) {
@@ -52,54 +51,96 @@ export async function POST(request: NextRequest) {
     nomeAcao = data?.nome_acao ?? null;
   }
 
-  try {
-    const origem = arquivo
-      ? { buffer: Buffer.from(await arquivo.arrayBuffer()), nome: arquivo.name.slice(0, 200) }
-      : await baixarKmlDaAcao(idAcao);
-    const resultado = await analisarKml(origem.buffer, origem.nome, nomeAcao);
+  const admin = createAdminClient();
+  let origem: "envio" | "guardado" | "simo" | "simo_sem_guardar" = "envio";
+  let guardadoEm: string | null = null;
+  let estagio: "baixando" | "analisando" = "analisando";
 
-    // Compara (pontualmente, sem gravar nada) com a base de traçados das outras ações.
+  try {
+    let buffer: Buffer;
+    let nome: string;
+    if (arquivo) {
+      buffer = Buffer.from(await arquivo.arrayBuffer());
+      nome = arquivo.name.slice(0, 200);
+    } else {
+      const guardado = forcar ? null : await lerKmlGuardado(admin, idAcao);
+      if (guardado) {
+        ({ buffer, nome } = guardado);
+        origem = "guardado";
+        guardadoEm = guardado.baixadoEm;
+      } else {
+        // Cada download entra no SIMO com o login do painel: limita para ninguém sobrecarregar.
+        const { data: liberado } = await admin.rpc("check_rate_limit", { p_chave: `kml:${user.id}`, p_limite: 30, p_janela_minutos: 10 });
+        if (!liberado) return NextResponse.json({ error: "Muitas análises seguidas. Aguarde alguns minutos." }, { status: 429 });
+        estagio = "baixando";
+        ({ buffer, nome } = await baixarKmlDaAcao(idAcao));
+        estagio = "analisando";
+        origem = "simo";
+        // Se guardar falhar (ex.: tabela ainda não criada), a análise segue com o arquivo baixado.
+        try {
+          if (await guardarKml(admin, idAcao, buffer, nome, user.id)) guardadoEm = new Date().toISOString();
+          else origem = "simo_sem_guardar";
+        } catch (e) {
+          console.error("guardar kml:", e instanceof Error ? e.message : e);
+          origem = "simo_sem_guardar";
+        }
+      }
+    }
+
+    const resultado = await analisarKml(buffer, nome, nomeAcao);
+
+    // Compara com os traçados de outras ações. Falha aqui não derruba a análise.
     try {
-      await compararComABase(supabase, resultado, idAcao);
+      await compararComABase(supabase, admin, resultado, idAcao);
     } catch (e) {
       console.error("kml base:", e instanceof Error ? e.message : e);
     }
-    return NextResponse.json({ ok: true, resultado, origem: arquivo ? "envio" : "simo" });
+    return NextResponse.json({ ok: true, resultado, origem, guardadoEm });
   } catch (e) {
-    if (e instanceof SemKmlError) return NextResponse.json({ error: e.message, semKml: true }, { status: 404 });
-    // Mensagens de leitura (KML inválido, KMZ sem .kml) são claras para o usuário.
+    if (e instanceof SemKmlError) {
+      await registrarFalha(admin, idAcao, "sem_kml", e.message).catch(() => undefined);
+      // Pediu para baixar de novo e o SIMO não tem mais: o arquivo que já estava guardado é mantido.
+      if (forcar) return NextResponse.json({ error: "O SIMO não tem mais KML anexado a essa ação. O arquivo guardado antes foi mantido; abra a análise de novo para usar ele." }, { status: 404 });
+      return NextResponse.json({ error: e.message, semKml: true }, { status: 404 });
+    }
     const msg = e instanceof Error ? e.message : "";
+    if (estagio === "baixando") await registrarFalha(admin, idAcao, "erro", msg).catch(() => undefined);
+    // Mensagens de leitura (KML inválido, KMZ sem .kml) são claras para o usuário.
     const amigavel = /KML|KMZ|zip|SIMO/i.test(msg) ? msg : "Não consegui ler esse arquivo. Confira se é um KML ou KMZ válido.";
     console.error("analisar kml:", e);
     return NextResponse.json({ error: amigavel }, { status: 422 });
   }
 }
 
-const TOLERANCIA_M = 15; // padrão único: o mesmo das Sobreposições
-
-// A comparação é feita na hora, só leitura: nada do KML analisado é guardado. A base de
-// traçados (hoje vinda do CSV de Sobreposições) é a mesma para toda a equipe.
+// A comparação é feita na hora, só leitura. Base de traçados das outras ações:
+//  1) obras_tracado: o que vem da ATUALIZAÇÃO do mapa. Sempre vale quando o ID existe aqui;
+//  2) KMLs guardados: só entram para o ID que a atualização NÃO tem.
 async function compararComABase(
   supabase: Awaited<ReturnType<typeof createClient>>,
+  admin: ReturnType<typeof createAdminClient>,
   resultado: Awaited<ReturnType<typeof analisarKml>>,
   idAcao: string
 ): Promise<void> {
   const linhas = linhasDoResultado(resultado);
-  if (linhas.length === 0 || !resultado.caixa) return;
-
-
-  // Leitura pelo servidor: a tabela é restrita (Sobreposições é só para admin/chefe), mas o
-  // resumo de "quais ações se sobrepõem" vale para qualquer pessoa aprovada.
-  // Só os traçados que cruzam a caixa deste KML (os sem caixa, antigos, entram sempre).
   const c = resultado.caixa;
+  if (linhas.length === 0 || !c) return;
   const folga = 0.002;
-  const { data: tracados } = await createAdminClient()
-    .from("obras_tracado")
-    .select("id_acao, wkt")
-    .or(`min_lon.is.null,and(min_lon.lte.${c.leste + folga},max_lon.gte.${c.oeste - folga},min_lat.lte.${c.norte + folga},max_lat.gte.${c.sul - folga})`);
+  const cruzaCaixa = `min_lon.lte.${c.leste + folga},max_lon.gte.${c.oeste - folga},min_lat.lte.${c.norte + folga},max_lat.gte.${c.sul - folga}`;
+
+  // Só os traçados que cruzam a caixa deste KML (os sem caixa, antigos, entram sempre).
+  const { data: tracados } = await admin.from("obras_tracado").select("id_acao, wkt").or(`min_lon.is.null,and(${cruzaCaixa})`);
+  const { data: idsDaAtualizacao } = await admin.from("obras_tracado").select("id_acao");
+  const daAtualizacao = new Set((idsDaAtualizacao ?? []).map((r) => r.id_acao as string));
+
   const base: TracadoBase[] = (tracados ?? [])
     .filter((tr) => tr.id_acao !== idAcao)
     .map((tr) => ({ idAcao: tr.id_acao, fonte: "sobreposicoes" as const, linhas: wktParaLinhasLonLat(tr.wkt) }));
+
+  const { data: kmls } = await admin.from("kml_arquivos").select("id_acao, wkt").eq("situacao", "baixado").not("wkt", "is", null).filter("min_lon", "lte", c.leste + folga).filter("max_lon", "gte", c.oeste - folga).filter("min_lat", "lte", c.norte + folga).filter("max_lat", "gte", c.sul - folga);
+  for (const k of kmls ?? []) {
+    if (k.id_acao === idAcao || daAtualizacao.has(k.id_acao) || !k.wkt) continue;
+    base.push({ idAcao: k.id_acao, fonte: "kml", linhas: wktParaLinhasLonLat(k.wkt) });
+  }
 
   const comparacao = compararComBase(linhas, base, TOLERANCIA_M);
 
