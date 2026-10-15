@@ -49,7 +49,16 @@ export async function POST(request: NextRequest) {
     // Trava de segurança: uma detecção que "achou quase nada" quase sempre é arquivo ruim, e
     // aplicar isso removeria locais por engano.
     if (det.locais.length < 100) {
-      return NextResponse.json({ error: `A detecção encontrou só ${det.locais.length} local(is), muito abaixo do normal. Nada foi alterado.` }, { status: 422 });
+      const e = det.estatisticas;
+      console.error("atualizar sobreposicoes: detecção abaixo do normal", e, "features", geo.features.length);
+      return NextResponse.json(
+        {
+          error:
+            `A detecção encontrou só ${det.locais.length} local(is), muito abaixo do normal. Nada foi alterado. ` +
+            `(linhas lidas: ${geo.features.length}, consideradas: ${e.linhasConsideradas}, pares comparados: ${e.paresComparados}, erros no cálculo: ${e.errosNoCalculo}${e.primeiroErro ? `, primeiro erro: ${e.primeiroErro}` : ""})`,
+        },
+        { status: 422 }
+      );
     }
 
     const resumo = await aplicarLocais(supabase, det.locais, simular);

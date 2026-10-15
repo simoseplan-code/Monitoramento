@@ -34,7 +34,7 @@ const nextConfig = {
     return [{ source: "/:path*", headers: cabecalhosDeSeguranca }];
   },
   // Geradores de PDF/Excel rodam só no servidor e não devem ser empacotados.
-  serverExternalPackages: ["@react-pdf/renderer", "exceljs", "nodemailer"],
+  serverExternalPackages: ["@react-pdf/renderer", "exceljs", "nodemailer", "@turf/bbox", "@turf/length", "@turf/line-overlap"],
   // O pdfkit carrega as fontes padrão (Helvetica etc.) por import dinâmico
   // ("#standard-fonts/..."), que o rastreamento da Vercel não enxerga: sem isto
   // a função em produção falha com "Cannot find module .../Helvetica.cjs".

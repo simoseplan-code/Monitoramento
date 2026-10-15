@@ -67,7 +67,7 @@ export type ResultadoDeteccao = {
   geomPorLocal: Map<string, string[]>;
   /** Traçado completo de cada ação (todos os trechos dela juntos), em WKT. */
   tracadoPorObra: Map<string, string>;
-  estatisticas: { linhasConsideradas: number; paresComparados: number; segmentos: number };
+  estatisticas: { linhasConsideradas: number; paresComparados: number; segmentos: number; errosNoCalculo: number; primeiroErro: string | null };
 };
 
 export function detectarSobreposicoes(features: FeicaoLinha[], toleranciaM = TOLERANCIA_PADRAO_M): ResultadoDeteccao {
@@ -92,6 +92,8 @@ export function detectarSobreposicoes(features: FeicaoLinha[], toleranciaM = TOL
   // Passo 1: sobreposição par a par entre obras diferentes.
   const brutos: Segmento[] = [];
   let pares = 0;
+  let errosNoCalculo = 0;
+  let primeiroErro: string | null = null;
   for (let i = 0; i < comCaixa.length; i++) {
     for (let j = i + 1; j < comCaixa.length; j++) {
       const A = comCaixa[i], B = comCaixa[j];
@@ -103,7 +105,10 @@ export function detectarSobreposicoes(features: FeicaoLinha[], toleranciaM = TOL
       let overlap;
       try {
         overlap = lineOverlap(A.f as Feature<Geometria>, B.f as Feature<Geometria>, { tolerance: tolKm });
-      } catch {
+      } catch (e) {
+        // Erro do cálculo (não é "sem sobreposição"): conta e guarda o primeiro para diagnóstico.
+        errosNoCalculo++;
+        if (!primeiroErro) primeiroErro = e instanceof Error ? e.message : String(e);
         continue;
       }
       if (!overlap?.features?.length) continue;
@@ -239,5 +244,5 @@ export function detectarSobreposicoes(features: FeicaoLinha[], toleranciaM = TOL
     if (w) tracadoPorObra.set(id, w);
   }
 
-  return { locais, geomPorLocal, tracadoPorObra, estatisticas: { linhasConsideradas: comCaixa.length, paresComparados: pares, segmentos: n } };
+  return { locais, geomPorLocal, tracadoPorObra, estatisticas: { linhasConsideradas: comCaixa.length, paresComparados: pares, segmentos: n, errosNoCalculo, primeiroErro } };
 }
