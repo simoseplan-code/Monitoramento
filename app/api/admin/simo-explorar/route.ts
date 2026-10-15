@@ -121,6 +121,14 @@ export async function GET(request: NextRequest) {
 
     if (/html|text\/plain/i.test(tipo) || /^\s*<(!doctype|html)/i.test(textoInicio)) {
       const html = buffer.toString("utf8");
+      // ?bruto=PALAVRA devolve o HTML cru em volta da primeira ocorrência (para ver como a
+      // linha de uma pasta/arquivo é montada: links, onclick, ids).
+      const bruto = request.nextUrl.searchParams.get("bruto");
+      if (bruto) {
+        const pos = html.toLowerCase().indexOf(bruto.toLowerCase());
+        const ini = Math.max(0, pos - 600);
+        return NextResponse.json({ ...base, tamanho: buffer.length, achou: pos >= 0, htmlCru: pos >= 0 ? html.slice(ini, ini + 3500) : null });
+      }
       const todos = links(html);
       const relevantes = todos.filter((l) => PALAVRAS.test(l.href) || PALAVRAS.test(l.texto) || (id && l.href.includes(id)));
       const texto = textoSimples(html);
