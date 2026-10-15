@@ -79,7 +79,7 @@ export function AtualizarDoMapa() {
         <div>
           <p className="text-sm font-semibold text-ink-primary">Atualizar direto do mapa</p>
           <p className="text-xs text-ink-muted">
-            Usa os mesmos traçados que o mapa publica todo dia, mais os KMLs já guardados das ações que ainda não estão no mapa, com tolerância de 15 m, sem CSV. Antes de gravar, mostra o que vai mudar.
+            Usa os mesmos traçados que o mapa publica todo dia, mais os KMLs já guardados das ações que ainda não estão no mapa, com tolerância de 15 m, sem CSV. Roda sozinha todo dia, junto da sincronização do SIMO; o botão serve para atualizar na hora e, antes de gravar, mostra o que vai mudar.
             O que já foi analisado nunca é apagado.
           </p>
         </div>
