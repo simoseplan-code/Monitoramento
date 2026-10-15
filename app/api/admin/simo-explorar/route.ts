@@ -46,14 +46,23 @@ export async function GET(request: NextRequest) {
 
   const id = request.nextUrl.searchParams.get("id") ?? "";
   let caminho = request.nextUrl.searchParams.get("caminho") ?? "";
-  if (/^\d{1,12}$/.test(id) && !caminho) caminho = `/cahier/action/projects/show/id/${id}`;
+  const idValido = /^\d{1,12}$/.test(id);
+  if (idValido && !caminho) caminho = `/cahier/action/projects/show/id/${id}`;
   // Só caminhos do próprio SIMO (host fixo), nunca um endereço vindo de fora.
   if (!caminho.startsWith("/cahier/") || caminho.includes("..") || caminho.includes("://") || caminho.length > 400) {
     return NextResponse.json({ error: "Use ?id=NÚMERO_DA_AÇÃO ou ?caminho=/cahier/..." }, { status: 400 });
   }
 
   try {
-    const cookie = await loginSimo();
+    let cookie = await loginSimo();
+    // As abas da ação (Arquivos, Estágios...) usam endereços sem o ID: o SIMO guarda a ação
+    // aberta na sessão. Com ?id=...&caminho=..., abre a ação primeiro e depois o caminho.
+    if (idValido && !caminho.includes(`/show/id/${id}`)) {
+      const abertura = await fetch(`${SIMO}/cahier/action/projects/show/id/${id}`, { headers: { Cookie: cookie }, redirect: "manual", signal: AbortSignal.timeout(30_000) });
+      const novos = abertura.headers.getSetCookie?.() ?? [];
+      if (novos.length) cookie = [cookie, ...novos.map((c) => c.split(";")[0])].join("; ");
+      await abertura.arrayBuffer();
+    }
     const resp = await fetch(SIMO + caminho, { headers: { Cookie: cookie }, redirect: "manual", signal: AbortSignal.timeout(40_000) });
     const tipo = resp.headers.get("content-type") ?? "";
     const base = {
