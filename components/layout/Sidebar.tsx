@@ -50,6 +50,7 @@ export function Sidebar({
     sugestoesUnidadePendentes?: number;
     vinculacaoPendentes?: number;
     termosPendentes?: number;
+    novasExecucaoPendentes?: number;
   };
 }) {
   const pathname = usePathname();
@@ -59,7 +60,7 @@ export function Sidebar({
     { href: "/", label: "Dashboard Gestão", icon: LayoutGrid },
     { href: "/acoes", label: "Ações", icon: ClipboardList, count: counts.acoes },
     { href: "/novas-acoes", label: "Novas Ações", icon: ClipboardCheck, count: counts.novasAcoesPendentes || undefined },
-    { href: "/novas-em-execucao", label: "Novas em Execução", icon: PlayCircle },
+    { href: "/novas-em-execucao", label: "Novas em Execução", icon: PlayCircle, count: counts.novasExecucaoPendentes || undefined },
     { href: "/vinculacao", label: "Vinculação SIAFE", icon: Link2, count: counts.vinculacaoPendentes || undefined },
     { href: "/termos", label: "Termos (Outros Docs)", icon: FileCheck2, count: counts.termosPendentes || undefined },
     { href: "/sobreposicoes", label: "Sobreposições", icon: Layers, count: counts.sobreposicoesPendentes || undefined, adminOnly: true },

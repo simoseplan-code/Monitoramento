@@ -54,7 +54,7 @@ export default async function NovasEmExecucaoPage({
 }) {
   const { busca, concluidos, pagina, aba } = await searchParams;
   const abaPendencias = aba === "pendencias";
-  const mostrarConcluidos = concluidos === "1";
+  const concluidosPedido = concluidos === "1";
   const paginaAtual = Math.max(1, parseInt(pagina ?? "1", 10) || 1);
   const termo = sanitizarBusca(busca);
 
@@ -62,6 +62,10 @@ export default async function NovasEmExecucaoPage({
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // A aba "Concluídas" é só para admin/chefe: para os demais o parâmetro é ignorado.
+  const { data: acesso } = await supabase.from("profiles").select("is_admin").eq("id", user!.id).single();
+  const mostrarConcluidos = concluidosPedido && !!acesso?.is_admin;
 
   const [{ data: profile }, { count: totalAcoes }, { count: pendentesAprovacao }, novasAcoesPendentes, { data: linhasRpc, error: erroLista }, { data: pendentesRpc }, { data: equipeAtiva }, { data: encaminhadasRpc }] =
     await Promise.all([
@@ -130,9 +134,11 @@ export default async function NovasEmExecucaoPage({
           >
             Aguardando solução de pendência <span className="tabular opacity-80">({encaminhadas.length})</span>
           </Link>
-          <Link href="/novas-em-execucao?concluidos=1" className={estiloAba(!abaPendencias && mostrarConcluidos)}>
-            Concluídas
-          </Link>
+          {ehAdmin && (
+            <Link href="/novas-em-execucao?concluidos=1" className={estiloAba(!abaPendencias && mostrarConcluidos)}>
+              Concluídas
+            </Link>
+          )}
           {!abaPendencias && (
             <form action="/novas-em-execucao" className="ml-auto flex items-center gap-2">
               {mostrarConcluidos && <input type="hidden" name="concluidos" value="1" />}

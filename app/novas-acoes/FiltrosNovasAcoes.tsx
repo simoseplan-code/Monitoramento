@@ -56,15 +56,6 @@ export function FiltrosNovasAcoes({
         </select>
       </div>
 
-      <label className="flex shrink-0 items-center gap-2 text-sm text-ink-secondary">
-        <input
-          type="checkbox"
-          checked={mostrarConcluidos}
-          onChange={(e) => aplicar({ concluidos: e.target.checked })}
-          className="h-4 w-4 rounded border-black/20 accent-series-1"
-        />
-        Mostrar concluídos
-      </label>
     </div>
   );
 }

@@ -1,7 +1,8 @@
+import { createClient } from "@/lib/supabase/server";
 import { Sidebar } from "./Sidebar";
 import { Topbar } from "./Topbar";
 
-export function AppShell({
+export async function AppShell({
   nome,
   cargo,
   isAdmin,
@@ -22,12 +23,25 @@ export function AppShell({
     sugestoesUnidadePendentes?: number;
     vinculacaoPendentes?: number;
     termosPendentes?: number;
+    novasExecucaoPendentes?: number;
   };
   titulo: string;
   subtitulo?: string;
   notificacoesCount?: number;
   children: React.ReactNode;
 }) {
+  // O número de Novas em Execução aparece em todas as telas (não depende de cada página calcular).
+  let novasExecucaoPendentes = counts.novasExecucaoPendentes;
+  if (novasExecucaoPendentes === undefined) {
+    try {
+      const supabase = await createClient();
+      const { data } = await supabase.rpc("contar_novas_execucao_pendentes");
+      novasExecucaoPendentes = Number(data ?? 0);
+    } catch {
+      novasExecucaoPendentes = 0;
+    }
+  }
+
   const iniciais = nome
     .split(" ")
     .filter(Boolean)
@@ -37,7 +51,7 @@ export function AppShell({
 
   return (
     <div className="flex min-h-screen bg-plane">
-      <Sidebar nome={nome} cargo={cargo} isAdmin={isAdmin} counts={counts} />
+      <Sidebar nome={nome} cargo={cargo} isAdmin={isAdmin} counts={{ ...counts, novasExecucaoPendentes }} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar titulo={titulo} subtitulo={subtitulo} iniciais={iniciais} notificacoesCount={notificacoesCount} />
         <main className="flex-1 px-6 py-6">{children}</main>

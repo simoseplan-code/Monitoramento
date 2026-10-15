@@ -60,12 +60,15 @@ export default async function NovasAcoesPage({
 }) {
   const { busca, orgao, concluidos, pagina, aba } = await searchParams;
   const abaPendencias = aba === "pendencias";
-  const mostrarConcluidos = concluidos === "1";
   const paginaAtual = Math.max(1, parseInt(pagina ?? "1", 10) || 1);
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // A aba "Concluídas" é só para admin/chefe: para os demais o parâmetro é ignorado.
+  const { data: acesso } = await supabase.from("profiles").select("is_admin").eq("id", user!.id).single();
+  const mostrarConcluidos = concluidos === "1" && !!acesso?.is_admin;
 
   const [
     { data: profile },
@@ -87,7 +90,8 @@ export default async function NovasAcoesPage({
       data_inicio: DATA_INICIO_REVISAO,
       busca: busca || null,
       orgao_filtro: orgao || null,
-      mostrar_concluidos: mostrarConcluidos,
+      mostrar_concluidos: false,
+      somente_concluidos: mostrarConcluidos,
       pagina: paginaAtual,
       tamanho: PAGE_SIZE,
     }),
@@ -153,7 +157,7 @@ export default async function NovasAcoesPage({
       isAdmin={!!profile?.is_admin}
       counts={{ acoes: totalAcoes ?? 0, pendentesAprovacao: pendentesAprovacao ?? 0, novasAcoesPendentes }}
       titulo="Novas ações"
-      subtitulo={abaPendencias ? `${encaminhadas.length} ação(ões) aguardando solução de pendência em ${grupos.length} órgão(s)` : `${totalGeral} ação(ões)${mostrarConcluidos ? "" : " aguardando conclusão"}${
+      subtitulo={abaPendencias ? `${encaminhadas.length} ação(ões) aguardando solução de pendência em ${grupos.length} órgão(s)` : `${totalGeral} ação(ões)${mostrarConcluidos ? " concluída(s)" : " aguardando conclusão"}${
         (aguardandoAtualizacao ?? 0) > 0 ? ` · ${aguardandoAtualizacao} com pendência no órgão` : ""
       }${excluidas.length > 0 ? ` · ${excluidas.length} excluída(s) do SIMO com pendência` : ""}`}
     >
@@ -161,7 +165,7 @@ export default async function NovasAcoesPage({
         <Link
           href="/novas-acoes"
           className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
-            !abaPendencias ? "bg-series-1 text-white" : "border border-black/10 text-ink-secondary hover:bg-plane"
+            !abaPendencias && !mostrarConcluidos ? "bg-series-1 text-white" : "border border-black/10 text-ink-secondary hover:bg-plane"
           }`}
         >
           Em análise
@@ -174,6 +178,16 @@ export default async function NovasAcoesPage({
         >
           Aguardando solução de pendência <span className="tabular opacity-80">({encaminhadas.length})</span>
         </Link>
+        {ehAdmin && (
+          <Link
+            href="/novas-acoes?concluidos=1"
+            className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+              !abaPendencias && mostrarConcluidos ? "bg-series-1 text-white" : "border border-black/10 text-ink-secondary hover:bg-plane"
+            }`}
+          >
+            Concluídas
+          </Link>
+        )}
       </div>
 
       {abaPendencias ? (
