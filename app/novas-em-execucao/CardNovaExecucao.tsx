@@ -6,6 +6,7 @@ import { ChecklistItem } from "@/app/novas-acoes/ChecklistItem";
 import { ComentarioPendencia } from "@/app/novas-acoes/ComentarioPendencia";
 import { ConcluirBotao } from "@/app/novas-acoes/ConcluirBotao";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
+import { AnalisarKmlBotao } from "@/components/AnalisarKml";
 import { ITENS_EXECUCAO, type StatusItem } from "@/lib/execucao";
 
 export type PessoaExec = { id: string; nome: string };
@@ -106,6 +107,7 @@ export function CardNovaExecucao({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-3">
+          <AnalisarKmlBotao idAcao={idAcao} nomeAcao={nomeAcao} />
           {!bloqueado && (tudoConfirmado || concluido) && <ConcluirBotao idAcao={idAcao} concluido={concluido} endpoint="/api/execucao/concluir" />}
           {temPendencia && onSelecionar && (
             <label

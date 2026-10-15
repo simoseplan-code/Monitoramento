@@ -6,6 +6,7 @@ import { ChecklistItem } from "./ChecklistItem";
 import { ComentarioPendencia } from "./ComentarioPendencia";
 import { ConcluirBotao } from "./ConcluirBotao";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
+import { AnalisarKmlBotao } from "@/components/AnalisarKml";
 
 type Status = "pendente" | "confirmado" | "aguardando_atualizacao";
 
@@ -120,6 +121,7 @@ export function CardNovaAcao({
           </p>
         </div>
         <div className="flex shrink-0 items-center gap-3">
+          <AnalisarKmlBotao idAcao={idAcao} nomeAcao={nomeAcao} />
           {!bloqueado && (tudoConfirmado || concluido) && <ConcluirBotao idAcao={idAcao} concluido={concluido} />}
           {temPendencia && onSelecionar && (
             <label
