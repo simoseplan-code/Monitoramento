@@ -1,7 +1,8 @@
 // Itens conferidos na análise de "Novas em Execução". Para trocar ou acrescentar um item
 // basta mexer nesta lista: o banco guarda os itens por chave, sem precisar de migration.
 export const ITENS_EXECUCAO = [
-  { campo: "documentos_obrigatorios", label: "Documentos obrigatórios" },
+  // A chave interna continua "documentos_obrigatorios" para não perder o que já foi marcado; só o nome mudou.
+  { campo: "documentos_obrigatorios", label: "Vinculação com SIAFE" },
   { campo: "emissao_os", label: "Emissão da O.S." },
   { campo: "cronograma", label: "Cronograma Fis/Fin" },
 ] as const;
