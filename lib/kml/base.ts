@@ -142,10 +142,9 @@ export function aplicarSobreposicoes(
 ): void {
   resultado.sobreposicoesNaBase = { comparadas: comparacao.comparadas, toleranciaM, itens: comparacao.itens };
   if (comparacao.itens.length > 0) {
-    const lista = comparacao.itens.slice(0, 5).map((i) => `${i.idAcao} (${i.metros.toLocaleString("pt-BR")} m)`).join(", ");
     resultado.alertas.unshift({
       nivel: "aviso",
-      texto: `Este KML corre junto (a até ${toleranciaM} m) de trechos de ${comparacao.itens.length} outra(s) ação(ões) da base: ${lista}${comparacao.itens.length > 5 ? "…" : ""}. Confira possível duplicação.`,
+      texto: `Possível sobreposição com ${comparacao.itens.length} outra(s) ação(ões): confira a lista abaixo do mapa.`,
     });
     resultado.mapa.outras = comparacao.itens.slice(0, 8).map((i) => ({
       idAcao: i.idAcao,

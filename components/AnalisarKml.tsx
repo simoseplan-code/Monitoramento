@@ -160,45 +160,22 @@ function Resultado({ r }: { r: ResultadoKml }) {
       {r.mapa.linhas.length + r.mapa.poligonos.length + r.mapa.pontos.length > 0 && <MapaKml r={r} />}
 
       {r.sobreposicoesNaBase && r.sobreposicoesNaBase.itens.length > 0 && (
-        <section>
-          <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-status-warning">
-            Sobreposição com outras ações da base ({r.sobreposicoesNaBase.itens.length})
-          </h3>
-          <div className="overflow-x-auto rounded-lg border border-status-warning/30">
-            <table className="w-full text-xs">
-              <thead className="bg-status-warning-bg text-left text-status-warning">
-                <tr>
-                  <th className="px-3 py-2">Ação</th>
-                  <th className="px-3 py-2">Órgão</th>
-                  <th className="px-3 py-2">Status</th>
-                  <th className="px-3 py-2 text-right">Trecho em comum</th>
-                  <th className="px-3 py-2 text-right">% deste KML</th>
-                  <th className="px-3 py-2 text-right">% da outra</th>
-                </tr>
-              </thead>
-              <tbody>
-                {r.sobreposicoesNaBase.itens.map((s, i) => (
-                  <tr key={s.idAcao} className="border-t border-black/5">
-                    <td className="px-3 py-1.5">
-                      <span className="mr-1.5 inline-block h-2 w-2 rounded-full" style={{ background: CORES_OUTRAS[i % CORES_OUTRAS.length] }} />
-                      <a href={urlAcaoSimo(s.idAcao)} target="_blank" rel="noopener noreferrer" className="font-medium text-series-1 hover:underline">
-                        {s.idAcao}
-                      </a>
-                      <span className="ml-1.5 text-ink-secondary">{s.nome ?? ""}</span>
-                    </td>
-                    <td className="px-3 py-1.5 text-ink-secondary">{s.orgao ?? "-"}</td>
-                    <td className="px-3 py-1.5 text-ink-secondary">{s.status ?? "-"}</td>
-                    <td className="tabular px-3 py-1.5 text-right">{s.metros.toLocaleString("pt-BR")} m</td>
-                    <td className="tabular px-3 py-1.5 text-right">{s.pctDoKml.toLocaleString("pt-BR")}%</td>
-                    <td className="tabular px-3 py-1.5 text-right">{s.pctDaOutra.toLocaleString("pt-BR")}%</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-          <p className="mt-1 text-[11px] text-ink-muted">
-            Comparado com {r.sobreposicoesNaBase.comparadas.toLocaleString("pt-BR")} ação(ões) da base de traçados (tolerância de {r.sobreposicoesNaBase.toleranciaM} m). A base cresce a cada KML analisado.
-          </p>
+        <section className="rounded-lg border border-status-warning/30 bg-status-warning-bg/40 px-3 py-2">
+          <h3 className="mb-1 text-xs font-semibold text-status-warning">Pode estar sobreposta a:</h3>
+          <ul className="space-y-1 text-xs text-ink-secondary">
+            {r.sobreposicoesNaBase.itens.map((s, i) => (
+              <li key={s.idAcao} className="flex items-start gap-2">
+                <span className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: CORES_OUTRAS[i % CORES_OUTRAS.length] }} />
+                <span className="min-w-0">
+                  <a href={urlAcaoSimo(s.idAcao)} target="_blank" rel="noopener noreferrer" className="font-semibold text-series-1 hover:underline">
+                    {s.idAcao}
+                  </a>
+                  {s.orgao ? ` · ${s.orgao}` : ""} · <span className="font-medium text-ink-primary">{s.metros.toLocaleString("pt-BR")} m em comum</span>
+                  {s.nome && <span className="block truncate text-ink-muted" title={s.nome}>{s.nome}</span>}
+                </span>
+              </li>
+            ))}
+          </ul>
         </section>
       )}
 
