@@ -47,6 +47,47 @@ export async function GET(request: NextRequest) {
   const id = request.nextUrl.searchParams.get("id") ?? "";
   let caminho = request.nextUrl.searchParams.get("caminho") ?? "";
   const idValido = /^\d{1,12}$/.test(id);
+
+  // ?id=...&tentar=arquivos: testa de uma vez os endereços prováveis da lista de arquivos da
+  // ação e mostra um resumo curto de cada um (o que responde sem erro é o caminho certo).
+  if (idValido && request.nextUrl.searchParams.get("tentar") === "arquivos") {
+    const candidatos = [
+      `/cahier/files/list/source/action_project/source_id/${id}/`,
+      `/cahier/files/list/source/action_project/source_id/${id}`,
+      `/cahier/files/index/source/action_project/source_id/${id}/`,
+      `/cahier/files/list-preview/source/action_project/source_id/${id}/`,
+      `/cahier/files/source/action_project/source_id/${id}/`,
+      `/cahier/files/?source=action_project&source_id=${id}`,
+      `/cahier/files/list/?source=action_project&source_id=${id}`,
+      `/cahier/files/list/source/action_projects/source_id/${id}/`,
+      `/cahier/files/list/source/project/source_id/${id}/`,
+    ];
+    try {
+      let cookie = await loginSimo();
+      const abertura = await fetch(`${SIMO}/cahier/action/projects/show/id/${id}`, { headers: { Cookie: cookie }, redirect: "manual", signal: AbortSignal.timeout(30_000) });
+      const novos = abertura.headers.getSetCookie?.() ?? [];
+      if (novos.length) cookie = [cookie, ...novos.map((c) => c.split(";")[0])].join("; ");
+      await abertura.arrayBuffer();
+      const resultados = [];
+      for (const c of candidatos) {
+        const r = await fetch(SIMO + c, { headers: { Cookie: cookie }, redirect: "manual", signal: AbortSignal.timeout(20_000) });
+        const buf = Buffer.from(await r.arrayBuffer());
+        const txt = buf.toString("utf8");
+        resultados.push({
+          caminho: c,
+          status: r.status,
+          tipo: r.headers.get("content-type"),
+          tamanho: buf.length,
+          inicio: textoSimples(txt).slice(0, 500),
+          linksDeArquivo: links(txt).filter((l) => PALAVRAS.test(l.href) || PALAVRAS.test(l.texto)).slice(0, 30),
+        });
+      }
+      return NextResponse.json({ id, resultados });
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : "Falha ao consultar o SIMO." }, { status: 502 });
+    }
+  }
+
   if (idValido && !caminho) caminho = `/cahier/action/projects/show/id/${id}`;
   // Só caminhos do próprio SIMO (host fixo), nunca um endereço vindo de fora.
   if (!caminho.startsWith("/cahier/") || caminho.includes("..") || caminho.includes("://") || caminho.length > 400) {
