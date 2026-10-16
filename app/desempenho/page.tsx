@@ -65,6 +65,7 @@ export default async function DesempenhoPage({
     { data: linhasRpc },
     { data: situacaoRpc },
     { data: sobreposicoesRpc },
+    { data: execucaoRpc },
     { data: ativos },
   ] = await Promise.all([
     supabase.from("obras").select("id_acao", { count: "exact", head: true }),
@@ -73,6 +74,7 @@ export default async function DesempenhoPage({
     supabase.rpc("desempenho_agregado", { data_de: dataDe, data_ate: dataAte }),
     supabase.rpc("desempenho_situacao", { data_de: dataDe, data_ate: dataAte }),
     supabase.rpc("desempenho_sobreposicoes", { data_de: dataDe, data_ate: dataAte }),
+    supabase.rpc("desempenho_execucao", { data_de: dataDe, data_ate: dataAte }),
     supabase.from("profiles").select("id, nome").eq("status", "aprovado").order("nome"),
   ]);
 
@@ -100,6 +102,16 @@ export default async function DesempenhoPage({
     { ok: 0, problema: 0, solucionou: 0, total: 0 }
   );
 
+  // Novas em Execução: concluída x pendente por pessoa (1 por ação).
+  const execucao = calcularSituacao(
+    ((execucaoRpc ?? []) as { usuario_id: string; situacao: string; total: number }[]).map((l) => ({ ...l, modulo: "novas_em_execucao" })) as LinhaSituacao[],
+    (ativos ?? []) as { id: string; nome: string }[]
+  );
+  const totaisExecucao = execucao.reduce(
+    (t, p) => ({ ok: t.ok + p.ok, pendencia: t.pendencia + p.pendencia, total: t.total + p.ok + p.pendencia }),
+    { ok: 0, pendencia: 0, total: 0 }
+  );
+
   const totaisSituacao = situacao.reduce(
     (t, p) => ({ ok: t.ok + p.ok, pendencia: t.pendencia + p.pendencia, total: t.total + p.ok + p.pendencia }),
     { ok: 0, pendencia: 0, total: 0 }
@@ -109,6 +121,23 @@ export default async function DesempenhoPage({
   const temRetro = todas.some((l) => l.retroativo);
   const linhas = incluirRetro ? todas : todas.filter((l) => !l.retroativo);
   const d = calcularDesempenho(linhas);
+
+  // Análise de KML por pessoa: KMLs baixados do SIMO e KMLs analisados (já guardados), 1 por ação.
+  const kmlMapa = new Map<string, { baixados: number; analisados: number }>();
+  for (const l of linhas) {
+    if (l.modulo !== "kml") continue;
+    const x = kmlMapa.get(l.usuario_id) ?? { baixados: 0, analisados: 0 };
+    if (l.acao === "baixado_no_simo") x.baixados += Number(l.total);
+    else x.analisados += Number(l.total);
+    kmlMapa.set(l.usuario_id, x);
+  }
+  const kmlPessoas = ((ativos ?? []) as { id: string; nome: string }[])
+    .map((p) => {
+      const x = kmlMapa.get(p.id) ?? { baixados: 0, analisados: 0 };
+      return { id: p.id, nome: p.nome, baixados: x.baixados, analisados: x.analisados, total: x.baixados + x.analisados };
+    })
+    .sort((a, b) => b.total - a.total || a.nome.localeCompare(b.nome));
+  const totaisKml = kmlPessoas.reduce((t, p) => ({ baixados: t.baixados + p.baixados, analisados: t.analisados + p.analisados, total: t.total + p.total }), { baixados: 0, analisados: 0, total: 0 });
 
   function href(mudancas: { periodo?: string; retro?: string }) {
     const params = new URLSearchParams();
@@ -279,6 +308,81 @@ export default async function DesempenhoPage({
                   <td className="tabular px-2 py-1 text-right text-status-good">{totaisSobre.ok}</td>
                   <td className="tabular px-2 py-1 text-right text-series-7">{totaisSobre.solucionou}</td>
                   <td className="tabular px-2 py-1 text-right text-ink-primary">{totaisSobre.total}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </section>
+      </div>
+
+      <div className="mb-4 grid grid-cols-1 gap-4 xl:grid-cols-2">
+        <section className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
+          <h3 className="text-sm font-semibold text-ink-primary">Novas em Execução: análises por pessoa</h3>
+          <p className="mb-2 text-[11px] leading-snug text-ink-muted">
+            1 por ação, na situação de agora. <span className="font-medium text-status-good">Concluída</span>: análise
+            finalizada (todos os itens confirmados). <span className="font-medium text-status-warning">Pendente</span>: já começou e falta
+            resolver algo, inclusive as que estão aguardando solução do órgão.
+          </p>
+          <table className="w-full text-xs">
+            <thead className="border-b border-black/5 text-left uppercase tracking-wide text-ink-muted">
+              <tr>
+                <th className="px-2 py-1.5">Pessoa</th>
+                <th className="px-2 py-1.5 text-right text-status-good">Concluída</th>
+                <th className="px-2 py-1.5 text-right text-status-warning">Pendente</th>
+                <th className="px-2 py-1.5 text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {execucao.map((p) => (
+                <tr key={p.id} className="border-b border-black/5 last:border-0">
+                  <td className="truncate px-2 py-1 font-medium text-ink-primary">{p.nome}</td>
+                  <td className="tabular px-2 py-1 text-right font-semibold text-status-good">{p.ok || "-"}</td>
+                  <td className="tabular px-2 py-1 text-right font-semibold text-status-warning">{p.pendencia || "-"}</td>
+                  <td className="tabular px-2 py-1 text-right text-ink-primary">{p.ok + p.pendencia || "-"}</td>
+                </tr>
+              ))}
+              {execucao.length > 0 && (
+                <tr className="border-t-2 border-black/10 bg-plane/60 font-semibold">
+                  <td className="px-2 py-1 text-ink-primary">Total</td>
+                  <td className="tabular px-2 py-1 text-right text-status-good">{totaisExecucao.ok}</td>
+                  <td className="tabular px-2 py-1 text-right text-status-warning">{totaisExecucao.pendencia}</td>
+                  <td className="tabular px-2 py-1 text-right text-ink-primary">{totaisExecucao.total}</td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </section>
+
+        <section className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
+          <h3 className="text-sm font-semibold text-ink-primary">Análise de KML: por pessoa</h3>
+          <p className="mb-2 text-[11px] leading-snug text-ink-muted">
+            1 por ação e pessoa. <span className="font-medium text-series-5">Baixados</span>: KML buscado no SIMO pela pessoa (um a um ou em
+            lote). <span className="font-medium text-series-1">Analisados</span>: análise aberta a partir do KML que já estava guardado.
+          </p>
+          <table className="w-full text-xs">
+            <thead className="border-b border-black/5 text-left uppercase tracking-wide text-ink-muted">
+              <tr>
+                <th className="px-2 py-1.5">Pessoa</th>
+                <th className="px-2 py-1.5 text-right text-series-5">Baixados</th>
+                <th className="px-2 py-1.5 text-right text-series-1">Analisados</th>
+                <th className="px-2 py-1.5 text-right">Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              {kmlPessoas.map((p) => (
+                <tr key={p.id} className="border-b border-black/5 last:border-0">
+                  <td className="truncate px-2 py-1 font-medium text-ink-primary">{p.nome}</td>
+                  <td className="tabular px-2 py-1 text-right font-semibold text-series-5">{p.baixados || "-"}</td>
+                  <td className="tabular px-2 py-1 text-right font-semibold text-series-1">{p.analisados || "-"}</td>
+                  <td className="tabular px-2 py-1 text-right text-ink-primary">{p.total || "-"}</td>
+                </tr>
+              ))}
+              {kmlPessoas.length > 0 && (
+                <tr className="border-t-2 border-black/10 bg-plane/60 font-semibold">
+                  <td className="px-2 py-1 text-ink-primary">Total</td>
+                  <td className="tabular px-2 py-1 text-right text-series-5">{totaisKml.baixados}</td>
+                  <td className="tabular px-2 py-1 text-right text-series-1">{totaisKml.analisados}</td>
+                  <td className="tabular px-2 py-1 text-right text-ink-primary">{totaisKml.total}</td>
                 </tr>
               )}
             </tbody>

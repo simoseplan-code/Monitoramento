@@ -2,6 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { ALVO_EXECUCAO, CAMPOS_EXECUCAO } from "@/lib/execucao";
 import { resolverResponsavel } from "@/lib/responsavelAnalise";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { registrarAnalise } from "@/lib/analisesLog";
 
 // Conclui (ou reabre) a análise de uma ação de "Novas em Execução". Só conclui com todos
 // os itens confirmados.
@@ -43,5 +45,6 @@ export async function POST(request: NextRequest) {
     .eq("id_acao", idAcao)
     .select("id_acao");
   if (error || !data || data.length === 0) return NextResponse.json({ error: "Falha ao salvar." }, { status: 500 });
+  await registrarAnalise(resp.editandoPorOutro ? createAdminClient() : supabase, resp.responsavelId, "novas_em_execucao", idAcao, concluido ? "concluido" : "reaberto");
   return NextResponse.json({ ok: true });
 }

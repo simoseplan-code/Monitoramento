@@ -528,6 +528,8 @@ const NOMES_MODULO: Record<string, string> = {
   termos: "Termos",
   unidade_quantidade: "Unidade/Quantidade",
   vinculacao: "Vinculação",
+  novas_em_execucao: "Novas em Execução",
+  kml: "Análise de KML",
 };
 const CORES_MODULO: Record<string, string> = {
   novas_acoes: C.azul,
@@ -535,6 +537,8 @@ const CORES_MODULO: Record<string, string> = {
   termos: C.amarelo,
   unidade_quantidade: C.laranja,
   vinculacao: C.violeta,
+  novas_em_execucao: C.verde,
+  kml: C.vermelho,
 };
 
 function PaginaEquipe({ d }: { d: DadosRelatorioPdf }) {
@@ -568,6 +572,8 @@ function PaginaEquipe({ d }: { d: DadosRelatorioPdf }) {
             { titulo: "Termos", direita: true },
             { titulo: "Unid/Qtd", direita: true },
             { titulo: "Vinc.", direita: true },
+            { titulo: "Em exec.", direita: true },
+            { titulo: "KML", direita: true },
             { titulo: "Total", direita: true },
             { titulo: "Dias", direita: true },
             { titulo: "Última", flex: 1.3, direita: true },
@@ -581,6 +587,8 @@ function PaginaEquipe({ d }: { d: DadosRelatorioPdf }) {
               p.porModulo.termos ?? 0,
               p.porModulo.unidade_quantidade ?? 0,
               p.porModulo.vinculacao ?? 0,
+              p.porModulo.novas_em_execucao ?? 0,
+              p.porModulo.kml ?? 0,
               p.total,
               p.diasAtivos,
               formatarDia(p.ultimoDia).slice(0, 5),

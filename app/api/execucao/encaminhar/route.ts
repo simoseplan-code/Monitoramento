@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { CAMPOS_EXECUCAO } from "@/lib/execucao";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { registrarAnalise } from "@/lib/analisesLog";
 
 type Motivo = { id: string; motivo: string };
 type Acao = "encaminhar" | "voltar" | "resolver";
@@ -108,8 +110,13 @@ export async function POST(request: NextRequest) {
         comFalha.push({ id, motivo: "falha ao salvar" });
         continue;
       }
-      if (tudoConfirmado) concluidas++;
-      else devolvidas++;
+      if (tudoConfirmado) {
+        concluidas++;
+        // Conclusão entra no nome do responsável (a regra do log só deixa gravar em nome próprio).
+        await registrarAnalise(responsavelId === user.id ? supabase : createAdminClient(), responsavelId, "novas_em_execucao", id, "concluido", "pendência resolvida pelo órgão");
+      } else {
+        devolvidas++;
+      }
     }
     return NextResponse.json({ ok: true, feitas: concluidas + devolvidas, concluidas, devolvidas, ignoradas: [...ignoradas, ...comFalha] });
   }

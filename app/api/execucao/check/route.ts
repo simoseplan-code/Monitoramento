@@ -3,6 +3,8 @@ import { createClient } from "@/lib/supabase/server";
 import { ALVO_EXECUCAO, CAMPOS_EXECUCAO, STATUS_ITEM, type StatusItem } from "@/lib/execucao";
 import { resolverResponsavel } from "@/lib/responsavelAnalise";
 import { limparTexto } from "@/lib/seguranca";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { registrarAnalise } from "@/lib/analisesLog";
 
 // Marca um item da análise de "Novas em Execução" (confirmado / aguardando atualização /
 // pendente) e, nos pendentes, guarda o comentário do que aconteceu.
@@ -54,6 +56,10 @@ export async function POST(request: NextRequest) {
     { onConflict: "id_acao" }
   );
   if (error) return NextResponse.json({ error: "Falha ao salvar a análise." }, { status: 500 });
+
+  // Histórico de desempenho: edição de admin na análise de outra pessoa entra no nome do responsável
+  // (a regra do log só deixa gravar em nome próprio, então vai pelo servidor).
+  await registrarAnalise(resp.editandoPorOutro ? createAdminClient() : supabase, resp.responsavelId, "novas_em_execucao", idAcao, status, campo);
 
   return NextResponse.json({ ok: true, responsavelId: resp.responsavelId, comentario: obs[campo] ?? null, completo: todosConfirmados });
 }

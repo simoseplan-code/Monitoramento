@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { guardarKml, registrarFalha } from "@/lib/kml/guardar";
+import { registrarAnalise } from "@/lib/analisesLog";
 import { abrirSessaoSimo, baixarKmlComSessao, SemKmlError } from "@/lib/simo/kml";
 
 export const runtime = "nodejs";
@@ -55,6 +56,7 @@ export async function POST(request: NextRequest) {
       if (guardou) {
         const { data } = await admin.from("kml_arquivos").select("extensao_km").eq("id_acao", id).maybeSingle();
         resultados.push({ id, situacao: "baixado", extensaoKm: data?.extensao_km ?? null });
+        await registrarAnalise(admin, user.id, "kml", id, "baixado_no_simo", "lote");
       } else {
         resultados.push({ id, situacao: "erro", mensagem: "KML grande demais para guardar (limite de 25 MB)." });
       }

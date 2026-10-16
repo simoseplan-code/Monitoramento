@@ -5,6 +5,7 @@ import { analisarKml, linhasDoResultado } from "@/lib/kml/analisar";
 import { aplicarSobreposicoes, compararComBase, wktParaLinhasLonLat, type TracadoBase } from "@/lib/kml/base";
 import { guardarKml, lerKmlGuardado, registrarFalha } from "@/lib/kml/guardar";
 import { baixarKmlDaAcao, SemKmlError } from "@/lib/simo/kml";
+import { registrarAnalise } from "@/lib/analisesLog";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -94,6 +95,11 @@ export async function POST(request: NextRequest) {
       await compararComABase(supabase, admin, resultado, idAcao);
     } catch (e) {
       console.error("kml base:", e instanceof Error ? e.message : e);
+    }
+    // Histórico de desempenho: 1 por pessoa e ação (baixou do SIMO ou só analisou o que estava guardado).
+    // Arquivo enviado à mão não conta como análise da ação.
+    if (origem !== "envio") {
+      await registrarAnalise(admin, user.id, "kml", idAcao, origem === "guardado" ? "analisado" : "baixado_no_simo", resultado.arquivo);
     }
     return NextResponse.json({ ok: true, resultado, origem, guardadoEm });
   } catch (e) {
