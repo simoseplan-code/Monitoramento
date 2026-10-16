@@ -587,6 +587,7 @@ const ROTULO_MODULO: Record<string, string> = {
   vinculacao: "Vinculação SIAFE",
   novas_em_execucao: "Novas em Execução",
   kml: "Análise de KML",
+  configuracao_td: "Configuração de TD",
 };
 
 async function abaAtividades(admin: Admin, nomes: Map<string, string>): Promise<Aba> {

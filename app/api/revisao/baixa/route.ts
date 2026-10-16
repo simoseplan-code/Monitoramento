@@ -1,6 +1,8 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { resolverResponsavel } from "@/lib/responsavelAnalise";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { registrarAnalise } from "@/lib/analisesLog";
 
 // Dá baixa numa análise pendente de ação que foi excluída do SIMO: não há mais
 // o que resolver, então sai da lista de "ações excluídas". Só o responsável
@@ -27,5 +29,7 @@ export async function POST(request: NextRequest) {
 
   if (error) return NextResponse.json({ error: "Falha ao dar baixa." }, { status: 500 });
   if (!data || data.length === 0) return NextResponse.json({ error: "Ação não encontrada entre as excluídas." }, { status: 404 });
+  // Histórico de desempenho: a baixa entra no nome do responsável pela análise.
+  await registrarAnalise(resp.editandoPorOutro ? createAdminClient() : supabase, resp.responsavelId, "novas_acoes", idAcao, "baixa", "ação excluída do SIMO");
   return NextResponse.json({ ok: true });
 }

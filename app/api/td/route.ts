@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { registrarAnalise } from "@/lib/analisesLog";
 
 type Acao = "adicionar_mae" | "adicionar_filha" | "remover_mae" | "remover_filha";
 const ACOES: Acao[] = ["adicionar_mae", "adicionar_filha", "remover_mae", "remover_filha"];
@@ -41,12 +42,14 @@ export async function POST(request: NextRequest) {
 
   if (acao === "adicionar_mae") {
     const { error } = await supabase.from("td_acoes_mae").insert({ id_acao: id, criado_por: user.id });
+    if (!error) await registrarAnalise(supabase, user.id, "configuracao_td", id, "adicionar_mae");
     return resultado(error, `A ação ${id} já está na configuração como mãe.`);
   }
 
   const { data: mae } = await supabase.from("td_acoes_mae").select("id_acao").eq("id_acao", idMae).maybeSingle();
   if (!mae) return NextResponse.json({ error: "A ação mãe não existe mais. Atualize a página." }, { status: 404 });
   const { error } = await supabase.from("td_acoes_filha").insert({ id_acao: id, id_acao_mae: idMae, criado_por: user.id });
+  if (!error) await registrarAnalise(supabase, user.id, "configuracao_td", id, "adicionar_filha", `mãe ${idMae}`);
   return resultado(error, `A ação ${id} já é filha de uma ação mãe.`);
 }
 
