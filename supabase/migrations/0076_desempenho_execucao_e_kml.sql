@@ -5,7 +5,19 @@
 -- 2) o que já foi feito antes entra como "retroativo" (1 evento por ação e pessoa);
 -- 3) função com a situação por pessoa em Novas em Execução (concluída x pendente).
 
-alter table public.analises_log drop constraint if exists analises_log_modulo_check;
+-- Derruba qualquer regra antiga que limite o módulo (o nome pode variar) antes de criar a nova.
+do $$
+declare
+  r record;
+begin
+  for r in
+    select conname from pg_constraint
+    where conrelid = 'public.analises_log'::regclass and contype = 'c' and pg_get_constraintdef(oid) ilike '%modulo%'
+  loop
+    execute format('alter table public.analises_log drop constraint %I', r.conname);
+  end loop;
+end $$;
+
 alter table public.analises_log
   add constraint analises_log_modulo_check
   check (modulo in ('novas_acoes', 'sobreposicoes', 'termos', 'unidade_quantidade', 'vinculacao', 'novas_em_execucao', 'kml'));
