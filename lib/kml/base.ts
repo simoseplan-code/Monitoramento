@@ -95,12 +95,21 @@ export function compararComBase(
   });
 
   const metrosPorDono = new Float64Array(candidatas.length);
+  // Pedaços (sequências de pontos seguidos) em que o KML corre junto de cada outra ação.
+  const pedacosPorDono: Coord[][][] = candidatas.map(() => []);
   let totalKmlM = 0;
   for (const linha of linhasKml) {
     const amostras = amostrar(linha, PASSO_AMOSTRA_M);
     totalKmlM += comprimentoM(linha);
     const peso = amostras.length > 1 ? comprimentoM(linha) / amostras.length : 0;
-    for (const p of amostras) {
+    const abertos = new Map<number, { pts: Coord[]; ultimo: number }>();
+    const fechar = (d: number) => {
+      const a = abertos.get(d);
+      if (a && a.pts.length >= 2) pedacosPorDono[d].push(a.pts);
+      abertos.delete(d);
+    };
+    for (let idx = 0; idx < amostras.length; idx++) {
+      const p = amostras[idx];
       const cx = Math.floor(p[0] / CELULA), cy = Math.floor(p[1] / CELULA);
       const donosAqui = new Set<number>();
       for (let dx = -1; dx <= 1; dx++) {
@@ -111,8 +120,19 @@ export function compararComBase(
           }
         }
       }
-      for (const d of donosAqui) metrosPorDono[d] += peso;
+      for (const d of donosAqui) {
+        metrosPorDono[d] += peso;
+        const a = abertos.get(d);
+        if (a && a.ultimo === idx - 1) {
+          a.pts.push(p);
+          a.ultimo = idx;
+        } else {
+          fechar(d);
+          abertos.set(d, { pts: [p], ultimo: idx });
+        }
+      }
     }
+    for (const d of Array.from(abertos.keys())) fechar(d);
   }
 
   candidatas.forEach((c, dono) => {
@@ -127,6 +147,11 @@ export function compararComBase(
       metros: Math.round(metros),
       pctDoKml: totalKmlM > 0 ? Math.round((metros / totalKmlM) * 1000) / 10 : 0,
       pctDaOutra: extensaoDoDono[dono] > 0 ? Math.round((metros / extensaoDoDono[dono]) * 1000) / 10 : 0,
+      // Para o mapa: no máximo 60 pedaços de até 80 pontos cada, em [lat, lon].
+      trechos: pedacosPorDono[dono].slice(0, 60).map((pts) => {
+        const passo = Math.max(1, Math.ceil(pts.length / 80));
+        return pts.filter((_, k) => k % passo === 0 || k === pts.length - 1).map(([x, y]) => [y, x] as [number, number]);
+      }),
     });
     linhasDasOutras.set(c.idAcao, c.linhas);
   });

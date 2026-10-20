@@ -3,7 +3,7 @@
 import "leaflet/dist/leaflet.css";
 import { useEffect, useRef, useState } from "react";
 import { AlertTriangle, CheckCircle2, FileSearch, Info, Loader2, OctagonAlert, X } from "lucide-react";
-import type { Map as MapaLeaflet } from "leaflet";
+import type { FeatureGroup, Map as MapaLeaflet } from "leaflet";
 import type { ResultadoKml } from "@/lib/kml/analisar";
 import { urlAcaoSimo } from "@/components/IdAcaoLink";
 
@@ -148,6 +148,17 @@ function JanelaKml({ idAcao, nomeAcao, aoGuardar, aoFechar }: { idAcao: string; 
 }
 
 function Resultado({ r }: { r: ResultadoKml }) {
+  // Sobreposições marcadas para piscar no mapa (por ID da outra ação).
+  const [piscando, setPiscando] = useState<Set<string>>(new Set());
+  const itensSobrepostos = r.sobreposicoesNaBase?.itens ?? [];
+  const todasPiscando = itensSobrepostos.length > 0 && itensSobrepostos.every((s) => piscando.has(s.idAcao));
+  const alternarUma = (id: string) =>
+    setPiscando((atual) => {
+      const novo = new Set(atual);
+      if (novo.has(id)) novo.delete(id);
+      else novo.add(id);
+      return novo;
+    });
   const c = r.contagem;
   return (
     <div className="space-y-4">
@@ -183,14 +194,34 @@ function Resultado({ r }: { r: ResultadoKml }) {
         ))}
       </div>
 
-      {r.mapa.linhas.length + r.mapa.poligonos.length + r.mapa.pontos.length > 0 && <MapaKml r={r} />}
+      {r.mapa.linhas.length + r.mapa.poligonos.length + r.mapa.pontos.length > 0 && <MapaKml r={r} piscando={piscando} />}
 
       {r.sobreposicoesNaBase && r.sobreposicoesNaBase.itens.length > 0 && (
         <section className="rounded-lg border border-status-warning/30 bg-status-warning-bg/40 px-3 py-2">
-          <h3 className="mb-1 text-xs font-semibold text-status-warning">Pode estar sobreposta a:</h3>
+          <div className="mb-1 flex flex-wrap items-center justify-between gap-2">
+            <h3 className="text-xs font-semibold text-status-warning">Pode estar sobreposta a:</h3>
+            <button
+              type="button"
+              onClick={() => setPiscando(todasPiscando ? new Set() : new Set(itensSobrepostos.map((s) => s.idAcao)))}
+              className={`flex items-center gap-1.5 rounded-full border px-3 py-1 text-[11px] font-semibold transition-colors ${
+                todasPiscando ? "border-status-warning bg-status-warning text-white" : "border-status-warning/40 bg-surface text-status-warning hover:bg-status-warning-bg"
+              }`}
+              title="Mostra no mapa, piscando, os trechos que correm junto de outras ações"
+            >
+              <span className={`inline-block h-2 w-2 rounded-full ${todasPiscando ? "bg-white" : "bg-status-warning"}`} />
+              {todasPiscando ? "Parar de piscar" : "Mostrar onde sobrepõe (piscando)"}
+            </button>
+          </div>
           <ul className="space-y-1 text-xs text-ink-secondary">
             {r.sobreposicoesNaBase.itens.map((s, i) => (
               <li key={s.idAcao} className="flex items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={piscando.has(s.idAcao)}
+                  onChange={() => alternarUma(s.idAcao)}
+                  title="Marcar para mostrar piscando no mapa"
+                  className="mt-0.5 h-3.5 w-3.5 shrink-0 cursor-pointer"
+                />
                 <span className="mt-1 inline-block h-2 w-2 shrink-0 rounded-full" style={{ background: CORES_OUTRAS[i % CORES_OUTRAS.length] }} />
                 <span className="min-w-0">
                   <a href={urlAcaoSimo(s.idAcao)} target="_blank" rel="noopener noreferrer" className="font-semibold text-series-1 hover:underline">
@@ -332,8 +363,11 @@ function Tile({ rotulo, valor }: { rotulo: string; valor: string }) {
   );
 }
 
-function MapaKml({ r }: { r: ResultadoKml }) {
+function MapaKml({ r, piscando }: { r: ResultadoKml; piscando: Set<string> }) {
   const divRef = useRef<HTMLDivElement>(null);
+  const mapaRef = useRef<MapaLeaflet | null>(null);
+  const piscaRef = useRef<FeatureGroup | null>(null);
+  const [pronto, setPronto] = useState(false);
   useEffect(() => {
     let mapa: MapaLeaflet | null = null;
     let cancelado = false;
@@ -352,11 +386,45 @@ function MapaKml({ r }: { r: ResultadoKml }) {
       const b = grupo.getBounds();
       if (b.isValid()) mapa.fitBounds(b, { padding: [30, 30], maxZoom: 17 });
       else mapa.setView([-7.5, -43], 6);
+      mapaRef.current = mapa;
+      setPronto(true);
     })();
     return () => {
       cancelado = true;
       mapa?.remove();
+      mapaRef.current = null;
+      piscaRef.current = null;
+      setPronto(false);
     };
   }, [r]);
+
+  // Trechos de sobreposição marcados: desenhados por cima, piscando, e o mapa enquadra neles.
+  useEffect(() => {
+    if (!pronto) return;
+    let cancelado = false;
+    (async () => {
+      const L = await import("leaflet");
+      const mapa = mapaRef.current;
+      if (cancelado || !mapa) return;
+      piscaRef.current?.remove();
+      const grupo = L.featureGroup();
+      (r.sobreposicoesNaBase?.itens ?? []).forEach((s, i) => {
+        if (!piscando.has(s.idAcao)) return;
+        const cor = CORES_OUTRAS[i % CORES_OUTRAS.length];
+        for (const t of s.trechos ?? []) {
+          // Contorno branco por baixo para o trecho aparecer sobre qualquer fundo.
+          L.polyline(t, { color: "#ffffff", weight: 15, opacity: 0.95, className: "kml-pisca", interactive: false }).addTo(grupo);
+          L.polyline(t, { color: cor, weight: 9, opacity: 1, className: "kml-pisca" }).bindTooltip(`Sobreposição com a ação ${s.idAcao} (${s.metros.toLocaleString("pt-BR")} m)`, { sticky: true }).addTo(grupo);
+        }
+      });
+      grupo.addTo(mapa);
+      piscaRef.current = grupo;
+      const b = grupo.getBounds();
+      if (piscando.size > 0 && b.isValid()) mapa.fitBounds(b, { padding: [40, 40], maxZoom: 18 });
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [piscando, pronto, r]);
   return <div ref={divRef} className="h-72 w-full overflow-hidden rounded-lg border border-black/5" />;
 }

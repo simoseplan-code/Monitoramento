@@ -49,3 +49,15 @@ body {
 .tabular {
   font-variant-numeric: tabular-nums;
 }
+
+/* Trecho de sobreposição no mapa do KML: pisca para chamar a atenção. */
+@keyframes kml-pisca {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.08; }
+}
+.kml-pisca {
+  animation: kml-pisca 0.9s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) {
+  .kml-pisca { animation: none; }
+}

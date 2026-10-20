@@ -35,6 +35,8 @@ export type SobreposicaoNaBase = {
   metros: number;
   pctDoKml: number;
   pctDaOutra: number;
+  /** Pedaços do trecho deste KML que correm junto da outra ação, para desenhar no mapa ([lat, lon]). */
+  trechos?: [number, number][][];
 };
 
 export type ResultadoKml = {
