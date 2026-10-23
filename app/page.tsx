@@ -7,7 +7,7 @@ import { QuickActions } from "@/components/dashboard/QuickActions";
 import { RelatoriosBar } from "@/components/dashboard/RelatoriosBar";
 import { NotificationsFeed } from "@/components/dashboard/NotificationsFeed";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
-import { ClipboardList, Building2, Link2, Clock3, AlertTriangle, Archive } from "lucide-react";
+import { ClipboardList, Building2, Link2, ClipboardCheck, PlayCircle, Archive } from "lucide-react";
 
 const DATA_CORTE = "2023-01-01";
 
@@ -35,6 +35,9 @@ export default async function DashboardGestaoPage() {
     { data: syncLogs },
     { count: pendentesAprovacao },
     novasAcoesPendentes,
+    { data: execucaoEmAnaliseRpc },
+    { data: acoesEncaminhadasRpc },
+    { data: execucaoEncaminhadasRpc },
   ] = await Promise.all([
     supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
     // Uma função SQL só: separa o que é anterior a 2023 (informativo,
@@ -44,7 +47,20 @@ export default async function DashboardGestaoPage() {
     supabase.from("sync_log").select("id, sucesso, linhas_processadas, mensagem, executado_em").order("executado_em", { ascending: false }).limit(5),
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
     contarNovasAcoesPendentes(supabase),
+    // Novas em Execução: quantas estão na fila de análise (as encaminhadas ao órgão ficam à parte).
+    supabase.rpc("contar_novas_execucao_pendentes"),
+    // Já encaminhadas ao órgão e ainda não concluídas ("aguardando solução de pendência").
+    supabase.rpc("novas_acoes_encaminhadas"),
+    supabase.rpc("novas_execucao_encaminhadas"),
   ]);
+
+  // Pendente = tudo que ainda não foi concluído: na fila de análise + aguardando o órgão resolver.
+  const acoesEmAnalise = novasAcoesPendentes;
+  const acoesAguardando = (acoesEncaminhadasRpc ?? []).length;
+  const pendenteNovasAcoes = acoesEmAnalise + acoesAguardando;
+  const execucaoEmAnalise = Number(execucaoEmAnaliseRpc ?? 0);
+  const execucaoAguardando = (execucaoEncaminhadasRpc ?? []).length;
+  const pendenteExecucao = execucaoEmAnalise + execucaoAguardando;
 
   const resumo = resumoLista?.[0] ?? {
     antes_corte: 0,
@@ -94,8 +110,20 @@ export default async function DashboardGestaoPage() {
         <StatCard icon={ClipboardList} label="Criadas a partir de 2023" value={resumo.apos_corte_total} tint="series-1" ajuda="Total de ações cadastradas de 01/01/2023 em diante. É a base de todos os indicadores desta tela." />
         <StatCard icon={Building2} label="Órgãos (2023+)" value={resumo.apos_corte_orgaos_distintos} tint="neutral" ajuda="Quantos órgãos diferentes têm pelo menos uma ação criada de 2023 em diante." />
         <StatCard icon={Link2} label="Vinculadas (2023+)" value={resumo.apos_corte_vinculadas} tint="good" ajuda="Ações que já têm o Número Automático, ou seja, o contrato do SIAFE já foi vinculado no SIMO." />
-        <StatCard icon={Clock3} label="Pendentes (2023+)" value={resumo.apos_corte_pendentes} tint="warning" ajuda="Ações que já têm o Número do Contrato no SIAFE informado, mas ainda não foram vinculadas (sem Número Automático). É o trabalho da tela Vinculação SIAFE." />
-        <StatCard icon={AlertTriangle} label="Dado incorreto (2023+)" value={resumo.apos_corte_dado_incorreto} tint="critical" ajuda="Ações com Número do Contrato no SIAFE preenchido, mas sem exatamente 8 dígitos. Precisam de correção manual antes de poderem ser vinculadas." />
+        <StatCard
+          icon={ClipboardCheck}
+          label="Pendentes em Novas Ações"
+          value={pendenteNovasAcoes}
+          tint="warning"
+          ajuda={`Novas Ações que ainda não foram concluídas: ${acoesEmAnalise} na fila de análise + ${acoesAguardando} aguardando solução de pendência (já encaminhadas ao órgão).`}
+        />
+        <StatCard
+          icon={PlayCircle}
+          label="Pendentes em Execução"
+          value={pendenteExecucao}
+          tint="warning"
+          ajuda={`Ações que viraram EM EXECUÇÃO e ainda não tiveram a análise concluída: ${execucaoEmAnalise} na fila de análise + ${execucaoAguardando} aguardando solução de pendência (já encaminhadas ao órgão).`}
+        />
       </section>
 
       <p className="mb-6 text-xs text-ink-muted">
