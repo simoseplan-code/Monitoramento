@@ -187,6 +187,7 @@ export function AnaliseConcluidas({ obras, filtroGravado }: { obras: ObraConclui
           <TabelaPorAno linhas={tabela.linhas} geral={tabela.geral} />
           <Quantitativos q={q} />
           <ListaObras obras={filtradas} />
+          <ConferirIds estado={estado} />
         </div>
 
         {painelAberto && (
@@ -698,6 +699,141 @@ function ListaObras({ obras }: { obras: ObraConcluida[] }) {
               Próxima
             </button>
           </span>
+        </div>
+      )}
+    </section>
+  );
+}
+
+// ---------- conferência por ID ----------
+
+type LinhaConferencia = {
+  id: string;
+  naBase: boolean;
+  entra: boolean;
+  motivos: string[];
+  nome?: string;
+  tipoRec?: string;
+  data?: string | null;
+  pct?: number | null;
+  classificacao?: string | null;
+  tipoOutros?: string | null;
+  original?: number | null;
+  total?: number | null;
+  aditivo?: number;
+  aditivada?: boolean;
+};
+
+/** Cole os IDs de outra base (planilha) e veja, um a um, se entram na análise e por que não entram. */
+function ConferirIds({ estado }: { estado: EstadoFiltros }) {
+  const [aberto, setAberto] = useState(false);
+  const [texto, setTexto] = useState("");
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [linhas, setLinhas] = useState<LinhaConferencia[] | null>(null);
+
+  async function conferir() {
+    setCarregando(true);
+    setErro(null);
+    try {
+      const resp = await fetch("/api/analise-concluidas/conferir", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: texto, estado: estadoParaGravar(estado) }),
+      });
+      const json = (await resp.json().catch(() => ({}))) as { error?: string; linhas?: LinhaConferencia[] };
+      if (!resp.ok) setErro(json.error ?? "Não foi possível conferir.");
+      else setLinhas(json.linhas ?? []);
+    } catch {
+      setErro("Sem conexão com o servidor.");
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  const fora = (linhas ?? []).filter((l) => !l.entra);
+  const resumo = new Map<string, number>();
+  for (const l of fora) {
+    for (const m of l.motivos) {
+      const chave = m.startsWith("% de execução") ? "% de execução abaixo do mínimo" : m;
+      resumo.set(chave, (resumo.get(chave) ?? 0) + 1);
+    }
+  }
+
+  return (
+    <section className="rounded-xl border border-black/5 bg-surface shadow-card">
+      <button onClick={() => setAberto((a) => !a)} className="flex w-full items-center gap-2 px-5 py-3 text-left">
+        {aberto ? <ChevronDown size={14} /> : <ChevronRight size={14} />}
+        <span className="text-sm font-semibold text-ink-primary">Conferir IDs de outra base</span>
+        <span className="text-[11px] text-ink-muted">cole os IDs e veja por que cada obra entra ou não nesta análise</span>
+      </button>
+      {aberto && (
+        <div className="space-y-3 border-t border-black/5 px-5 py-4">
+          <textarea
+            value={texto}
+            onChange={(e) => setTexto(e.target.value)}
+            rows={4}
+            placeholder="Cole os IDs (um por linha, ou separados por vírgula ou espaço)"
+            className="w-full rounded-lg border border-black/10 bg-plane px-3 py-2 text-xs focus:outline-none"
+          />
+          <div className="flex flex-wrap items-center gap-3">
+            <button
+              onClick={conferir}
+              disabled={carregando || lerIds(texto).length === 0}
+              className="flex items-center gap-1.5 rounded-full bg-series-1 px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+            >
+              {carregando && <Loader2 size={13} className="animate-spin" />} Conferir {lerIds(texto).length > 0 ? inteiro(lerIds(texto).length) + " ID(s)" : ""}
+            </button>
+            <span className="text-[11px] text-ink-muted">Usa os filtros que estão marcados agora.</span>
+          </div>
+          {erro && <p className="rounded-lg bg-status-critical/10 px-3 py-2 text-xs text-status-critical">{erro}</p>}
+          {linhas && (
+            <>
+              <p className="text-xs text-ink-secondary">
+                <strong>{inteiro(linhas.length - fora.length)}</strong> entram na análise · <strong>{inteiro(fora.length)}</strong> ficam de fora
+                {linhas.filter((l) => l.entra && !l.aditivada).length > 0 && (
+                  <> · {inteiro(linhas.filter((l) => l.entra && !l.aditivada).length)} entram mas não são aditivadas (valor total igual ou menor que o original)</>
+                )}
+              </p>
+              {resumo.size > 0 && (
+                <ul className="list-disc space-y-0.5 pl-5 text-[11px] text-ink-muted">
+                  {Array.from(resumo, ([m, n]) => (
+                    <li key={m}>
+                      {n} × {m}
+                    </li>
+                  ))}
+                </ul>
+              )}
+              <div className="max-h-96 overflow-auto rounded-lg border border-black/5">
+                <table className="w-full text-xs">
+                  <thead className="sticky top-0 bg-plane text-left text-ink-muted">
+                    <tr>
+                      <th className="px-3 py-2">ID</th>
+                      <th className="px-3 py-2">Situação</th>
+                      <th className="px-3 py-2">Recebimento</th>
+                      <th className="px-3 py-2 text-right">% exec.</th>
+                      <th className="px-3 py-2 text-right">Valor contratado</th>
+                      <th className="px-3 py-2 text-right">Valor final</th>
+                      <th className="px-3 py-2 text-right">Aditivo</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {linhas.map((l) => (
+                      <tr key={l.id} className="border-t border-black/5 align-top">
+                        <td className="px-3 py-1.5 font-semibold">{l.id}</td>
+                        <td className={"px-3 py-1.5 " + (l.entra ? "text-status-good" : "text-status-critical")}>{l.entra ? (l.aditivada ? "Entra (aditivada)" : "Entra (sem aditivo)") : "Fora: " + l.motivos.join("; ")}</td>
+                        <td className="px-3 py-1.5">{l.naBase ? (l.data ? dataBR(l.data) + " (" + (l.tipoRec ?? "").toLowerCase() + ")" : "-") : "-"}</td>
+                        <td className="tabular px-3 py-1.5 text-right">{l.pct != null ? pct(l.pct) : "-"}</td>
+                        <td className="tabular px-3 py-1.5 text-right">{l.original != null ? dinheiro(l.original) : "-"}</td>
+                        <td className="tabular px-3 py-1.5 text-right">{l.naBase && l.total != null ? dinheiro(l.total) : "-"}</td>
+                        <td className="tabular px-3 py-1.5 text-right">{l.naBase && l.aditivo ? dinheiro(l.aditivo) : "-"}</td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
         </div>
       )}
     </section>

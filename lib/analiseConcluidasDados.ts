@@ -48,23 +48,35 @@ export async function carregarObrasConcluidas(supabase: SupabaseClient): Promise
     linhas.push(...((data ?? []) as Linha[]));
     if (!data || data.length < 1000) break;
   }
-  const obras: ObraConcluida[] = linhas.map((l) => ({
-    id: l.id_acao,
-    nome: l.nome_acao ?? "",
-    orgao: l.orgao,
-    status: l.status,
-    estagio: l.estagio_atual,
-    tipologia: l.tipologia,
-    classificacao: l.classificacao,
-    tipoOutros: l.tipo_outros_documentos,
-    conveniada: l.acao_conveniada,
-    pct: numero(l.percentual_execucao),
-    recDef: l.data_receb_definitivo,
-    recProv: l.data_receb_provisorio,
-    original: numero(l.valor_original),
-    total: numero(l.valor_total),
-  }));
-  return { obras, erro: null };
+  return { obras: linhas.map(paraObra), erro: null };
+}
+
+const paraObra = (l: Linha): ObraConcluida => ({
+  id: l.id_acao,
+  nome: l.nome_acao ?? "",
+  orgao: l.orgao,
+  status: l.status,
+  estagio: l.estagio_atual,
+  tipologia: l.tipologia,
+  classificacao: l.classificacao,
+  tipoOutros: l.tipo_outros_documentos,
+  conveniada: l.acao_conveniada,
+  pct: numero(l.percentual_execucao),
+  recDef: l.data_receb_definitivo,
+  recProv: l.data_receb_provisorio,
+  original: numero(l.valor_original),
+  total: numero(l.valor_total),
+});
+
+/** Obras pelos IDs informados, com ou sem recebimento (para a conferência). */
+export async function carregarObrasPorIds(supabase: SupabaseClient, ids: string[]): Promise<{ obras: ObraConcluida[]; erro: string | null }> {
+  const linhas: Linha[] = [];
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data, error } = await supabase.from("obras").select(COLUNAS).in("id_acao", ids.slice(i, i + 200));
+    if (error) return { obras: [], erro: error.message };
+    linhas.push(...((data ?? []) as Linha[]));
+  }
+  return { obras: linhas.map(paraObra), erro: null };
 }
 
 /** Frases que dizem o que está filtrado (para o cabeçalho dos relatórios). */

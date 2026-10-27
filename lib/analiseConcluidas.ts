@@ -144,6 +144,22 @@ export function filtrar(obras: ObraConcluida[], estado: EstadoFiltros): ObraConc
   });
 }
 
+/** Por que a obra não entra no relatório com o filtro atual (lista vazia = entra). */
+export function motivosDeExclusao(o: ObraConcluida, estado: EstadoFiltros): string[] {
+  const motivos: string[] = [];
+  if (!dataDeRecebimento(o)) motivos.push("sem data de recebimento (definitivo nem provisório)");
+  const minimo = estado.pctMinimo == null ? null : estado.pctMinimo / 100;
+  if (minimo != null && (o.pct == null || o.pct < minimo - 1e-9)) {
+    motivos.push(o.pct == null ? "sem % de execução" : `% de execução ${(o.pct * 100).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}% (abaixo do mínimo)`);
+  }
+  for (const f of FILTROS) {
+    if (f.chave === "id") continue;
+    const sel = estado.selecao[f.chave];
+    if (sel && !sel.has(f.valor(o))) motivos.push(`${f.rotulo}: "${f.valor(o)}" está desmarcado`);
+  }
+  return motivos;
+}
+
 /** IDs digitados ou colados (planilha, e-mail...): só os números, sem repetir. */
 export function lerIds(texto: string): string[] {
   return Array.from(new Set(texto.split(/[^0-9]+/).filter((s) => s.length >= 1 && s.length <= 12)));
