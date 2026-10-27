@@ -214,7 +214,7 @@ function TabelaPorAno({ linhas, geral }: { linhas: LinhaAno[]; geral: LinhaAno }
       <div className="border-b border-black/5 px-5 py-3">
         <h2 className="text-sm font-semibold text-ink-primary">Valores calculados em cima de obras concluídas</h2>
         <p className="text-[11px] text-ink-muted">
-          Ano pelo recebimento definitivo (se não houver, pelo provisório). Aditivo = valor total menos valor original; a obra é aditivada quando a diferença é maior que zero.
+          Ano pelo recebimento provisório (se não houver, pelo definitivo). Aditivo = valor total menos valor original; a obra é aditivada quando a diferença é maior que zero.
         </p>
       </div>
       <div className="overflow-x-auto">

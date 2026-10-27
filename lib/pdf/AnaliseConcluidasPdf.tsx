@@ -46,7 +46,7 @@ export function AnaliseConcluidasPdf({ r, geradoEm, geradoPor }: { r: RelatorioM
         </View>
 
         <View style={{ marginBottom: 8 }}>
-          <Cartao titulo="Valores calculados em cima de obras concluídas" sub="Ano pelo recebimento definitivo (se não houver, pelo provisório). Aditivo = valor total menos valor original.">
+          <Cartao titulo="Valores calculados em cima de obras concluídas" sub="Ano pelo recebimento provisório (se não houver, pelo definitivo). Aditivo = valor total menos valor original.">
             <Tabela
               colunas={[
                 { titulo: "Ano", flex: 0.9 },

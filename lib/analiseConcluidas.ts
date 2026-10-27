@@ -1,7 +1,7 @@
 // Análise de obras concluídas: cálculos puros (sem tela e sem banco), usados pela tela de filtros.
 //
 // Regras:
-//  - Ano de recebimento: usa o recebimento DEFINITIVO; se não houver, o PROVISÓRIO. "-" é o mesmo
+//  - Ano de recebimento: usa o recebimento PROVISÓRIO; se não houver, o DEFINITIVO (mesma regra da base antiga da planilha). "-" é o mesmo
 //    que vazio. Sem nenhuma das duas datas, a obra nem entra na análise.
 //  - Valor original = valor contratado. Valor total = valor ao final da obra (com aditivos). Se o
 //    valor total não veio, considera o original (obra sem aditivo).
@@ -29,7 +29,7 @@ export type ObraConcluida = {
 };
 
 export function dataDeRecebimento(o: ObraConcluida): string | null {
-  return o.recDef || o.recProv || null;
+  return o.recProv || o.recDef || null;
 }
 
 export function anoDeRecebimento(o: ObraConcluida): string {
@@ -46,7 +46,8 @@ export function dataSuspeita(o: ObraConcluida): boolean {
 }
 
 export function tipoDeRecebimento(o: ObraConcluida): string {
-  return o.recDef ? "Definitivo" : o.recProv ? "Provisório" : VAZIO;
+  // Qual das datas foi usada para o ano.
+  return o.recProv ? "Provisório" : o.recDef ? "Definitivo" : VAZIO;
 }
 
 /** Valor ao final da obra: o valor total, ou o original quando não há aditivo informado. */

@@ -95,7 +95,7 @@ export function descreverFiltros(estado: EstadoFiltros, valores: Record<string, 
   if (estado.busca.trim()) frases.push(`Busca por ID ou nome: "${estado.busca.trim()}"`);
   const ids = lerIds(estado.ids);
   if (ids.length > 0) frases.push(`IDs informados: ${ids.length}`);
-  frases.push("Ano: recebimento definitivo; se não houver, o provisório");
+  frases.push("Ano: recebimento provisório; se não houver, o definitivo");
   return frases;
 }
 
