@@ -99,30 +99,6 @@ export function AnaliseConcluidas({ obras, filtroGravado }: { obras: ObraConclui
         </p>
       )}
 
-      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-black/5 bg-surface px-4 py-3 shadow-card">
-        <button
-          onClick={gravarFiltro}
-          disabled={gravando}
-          className="flex items-center gap-1.5 rounded-lg bg-series-1 px-3.5 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
-          title="Grava os filtros atuais: ao sair e entrar de novo nesta tela, eles já vêm aplicados"
-        >
-          <Save size={13} /> {gravando ? "Gravando..." : "Gravar filtro"}
-        </button>
-        <span className="text-xs text-ink-muted">
-          {gravadoEm
-            ? alteradoDesdeAGravacao
-              ? "Você mudou os filtros depois da última gravação. Clique em Gravar filtro para guardar."
-              : `Filtro gravado em ${new Date(gravadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}. É ele que abre quando você volta.`
-            : "Nenhum filtro gravado: a tela abre sempre no padrão (OBRA, 80% ou mais, sem outros documentos)."}
-        </span>
-        {gravadoEm && (
-          <button onClick={descartarFiltroGravado} disabled={gravando} className="text-xs font-medium text-ink-muted hover:text-ink-primary hover:underline disabled:opacity-50">
-            Apagar filtro gravado
-          </button>
-        )}
-        {aviso && <span className={`text-xs font-medium ${aviso.tipo === "ok" ? "text-status-good" : "text-status-critical"}`}>{aviso.texto}</span>}
-      </div>
-
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-ink-muted">
           <strong className="text-ink-primary">{inteiro(filtradas.length)}</strong> de {inteiro(obras.length)} obra(s) nos filtros atuais
@@ -150,6 +126,7 @@ export function AnaliseConcluidas({ obras, filtroGravado }: { obras: ObraConclui
             padrao={padrao}
             valores={valores}
             aoFechar={() => setPainelAberto(false)}
+            gravacao={{ gravando, gravadoEm, alterado: alteradoDesdeAGravacao, aviso, aoGravar: gravarFiltro, aoApagar: descartarFiltroGravado }}
           />
         )}
       </div>
@@ -305,12 +282,21 @@ function PainelFiltros({
   padrao,
   valores,
   aoFechar,
+  gravacao,
 }: {
   estado: EstadoFiltros;
   setEstado: (e: EstadoFiltros) => void;
   padrao: EstadoFiltros;
   valores: Record<string, { valor: string; qtd: number }[]>;
   aoFechar: () => void;
+  gravacao: {
+    gravando: boolean;
+    gravadoEm: string | null;
+    alterado: boolean;
+    aviso: { tipo: "ok" | "erro"; texto: string } | null;
+    aoGravar: () => void;
+    aoApagar: () => void;
+  };
 }) {
   const [abertos, setAbertos] = useState<Set<string>>(new Set(["classificacao", "tipoOutros"]));
   const [buscaNoFiltro, setBuscaNoFiltro] = useState<Record<string, string>>({});
@@ -438,6 +424,33 @@ function PainelFiltros({
           </div>
         );
       })}
+
+      {/* Rodapé fixo do painel: grava os filtros atuais para a tela abrir neles na próxima vez. */}
+      <div className="sticky bottom-0 space-y-2 border-t border-black/10 bg-surface px-4 py-3">
+        <button
+          onClick={gravacao.aoGravar}
+          disabled={gravacao.gravando}
+          className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-series-1 px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+          title="Grava os filtros atuais: ao sair e entrar de novo nesta tela, eles já vêm aplicados"
+        >
+          <Save size={13} /> {gravacao.gravando ? "Gravando..." : "Gravar filtro"}
+        </button>
+        <p className="text-[11px] leading-snug text-ink-muted">
+          {gravacao.gravadoEm
+            ? gravacao.alterado
+              ? "Você mudou os filtros depois da última gravação. Clique em Gravar filtro para guardar."
+              : "Filtro gravado em " + new Date(gravacao.gravadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) + ". É ele que abre quando você volta."
+            : "Nenhum filtro gravado: a tela abre sempre no padrão (OBRA, 80% ou mais, sem outros documentos)."}
+        </p>
+        {gravacao.gravadoEm && (
+          <button onClick={gravacao.aoApagar} disabled={gravacao.gravando} className="text-[11px] font-medium text-ink-muted hover:text-ink-primary hover:underline disabled:opacity-50">
+            Apagar filtro gravado
+          </button>
+        )}
+        {gravacao.aviso && (
+          <p className={"text-[11px] font-medium " + (gravacao.aviso.tipo === "ok" ? "text-status-good" : "text-status-critical")}>{gravacao.aviso.texto}</p>
+        )}
+      </div>
     </aside>
   );
 }
