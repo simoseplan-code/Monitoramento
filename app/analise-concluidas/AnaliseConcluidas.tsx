@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, ChevronDown, ChevronRight, Filter, RotateCcw, Save, Search, X } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Download, FileSpreadsheet, FileText, Filter, Loader2, RotateCcw, Save, Search, X } from "lucide-react";
 import { urlAcaoSimo } from "@/components/IdAcaoLink";
 import {
   FILTROS,
@@ -44,6 +44,44 @@ export function AnaliseConcluidas({ obras, filtroGravado }: { obras: ObraConclui
   const tabela = useMemo(() => tabelaPorAno(filtradas), [filtradas]);
   const q = useMemo(() => quantitativos(filtradas), [filtradas]);
   const semValores = obras.length > 0 && obras.every((o) => o.original == null);
+
+  // Exportar o relatório já com os filtros atuais (Excel completo ou PDF resumido).
+  const [exportando, setExportando] = useState<"excel" | "pdf" | null>(null);
+  const [menuExportar, setMenuExportar] = useState(false);
+  const [erroExportar, setErroExportar] = useState<string | null>(null);
+
+  async function exportar(formato: "excel" | "pdf") {
+    setMenuExportar(false);
+    setExportando(formato);
+    setErroExportar(null);
+    try {
+      const resp = await fetch("/api/analise-concluidas/" + formato, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ estado: estadoParaGravar(estado) }),
+        credentials: "same-origin",
+      });
+      if (!resp.ok) {
+        const json = (await resp.json().catch(() => ({}))) as { error?: string };
+        setErroExportar(json.error ?? "Não foi possível gerar o arquivo.");
+        return;
+      }
+      const blob = await resp.blob();
+      const nome = resp.headers.get("content-disposition")?.match(/filename="([^"]+)"/)?.[1] ?? "analise-obras-concluidas." + (formato === "excel" ? "xlsx" : "pdf");
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = nome;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setErroExportar("Sem conexão com o servidor.");
+    } finally {
+      setExportando(null);
+    }
+  }
 
   const jsonAtual = JSON.stringify(estadoParaGravar(estado));
   const alteradoDesdeAGravacao = gravadoJson !== null && gravadoJson !== jsonAtual;
@@ -104,6 +142,35 @@ export function AnaliseConcluidas({ obras, filtroGravado }: { obras: ObraConclui
         <p className="text-xs text-ink-muted">
           <strong className="text-ink-primary">{inteiro(filtradas.length)}</strong> de {inteiro(obras.length)} obra(s) nos filtros atuais
         </p>
+        <div className="relative ml-auto mr-2">
+          <button
+            onClick={() => setMenuExportar((m) => !m)}
+            disabled={exportando !== null || filtradas.length === 0}
+            className="flex items-center gap-1.5 rounded-full bg-series-1 px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+            title="Baixa o relatório com os filtros que estão aplicados agora"
+          >
+            {exportando ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+            {exportando ? "Gerando..." : "Exportar relatório"}
+          </button>
+          {menuExportar && (
+            <div className="absolute right-0 z-20 mt-1.5 w-72 overflow-hidden rounded-xl border border-black/10 bg-surface shadow-card">
+              <button onClick={() => exportar("excel")} className="flex w-full items-start gap-2.5 px-4 py-3 text-left hover:bg-plane">
+                <FileSpreadsheet size={16} className="mt-0.5 shrink-0 text-status-good" />
+                <span>
+                  <span className="block text-xs font-semibold text-ink-primary">Excel (.xlsx)</span>
+                  <span className="block text-[11px] text-ink-muted">Filtros usados, tabela por ano, quantitativos e órgãos, com valores em número.</span>
+                </span>
+              </button>
+              <button onClick={() => exportar("pdf")} className="flex w-full items-start gap-2.5 border-t border-black/5 px-4 py-3 text-left hover:bg-plane">
+                <FileText size={16} className="mt-0.5 shrink-0 text-status-critical" />
+                <span>
+                  <span className="block text-xs font-semibold text-ink-primary">PDF</span>
+                  <span className="block text-[11px] text-ink-muted">Relatório principal pronto para apresentar.</span>
+                </span>
+              </button>
+            </div>
+          )}
+        </div>
         <button
           onClick={() => setPainelAberto((a) => !a)}
           className="flex items-center gap-1.5 rounded-full border border-black/10 bg-surface px-3.5 py-1.5 text-xs font-semibold text-ink-secondary hover:bg-plane"
@@ -112,6 +179,8 @@ export function AnaliseConcluidas({ obras, filtroGravado }: { obras: ObraConclui
           {filtrosAtivos > 0 && <span className="rounded-full bg-series-1/10 px-1.5 text-[10px] text-series-1">{filtrosAtivos}</span>}
         </button>
       </div>
+
+      {erroExportar && <p className="rounded-lg bg-status-critical/10 px-3 py-2 text-xs text-status-critical">{erroExportar}</p>}
 
       <div className="flex flex-col gap-4 lg:flex-row lg:items-start">
         <div className="min-w-0 flex-1 space-y-4">

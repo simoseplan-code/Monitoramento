@@ -6,7 +6,7 @@ import { formatarDia } from "@/lib/desempenho";
 export type TipoPdf = "completo" | "novas_acoes" | "sobreposicoes" | "termos";
 
 // Mesma paleta do painel (app/globals.css).
-const C = {
+export const C = {
   plano: "#f7f8fa",
   cartao: "#ffffff",
   borda: "#e4e4df",
@@ -25,7 +25,7 @@ const C = {
   neutro: "#6b6a66",
 };
 
-const s = StyleSheet.create({
+export const s = StyleSheet.create({
   pagina: { backgroundColor: C.plano, padding: 28, paddingBottom: 44, fontFamily: "Helvetica", fontSize: 9, color: C.texto },
   topo: { flexDirection: "row", justifyContent: "space-between", alignItems: "center", marginBottom: 12 },
   marca: { flexDirection: "row", alignItems: "center" },
@@ -43,7 +43,7 @@ const s = StyleSheet.create({
 const num = (n: number) => n.toLocaleString("pt-BR");
 const pct = (a: number, b: number) => (b > 0 ? `${((a / b) * 100).toFixed(1).replace(".", ",")}%` : "0%");
 
-function Pagina({ titulo, subtitulo, geradoEm, children }: { titulo: string; subtitulo: string; geradoEm: string; children: React.ReactNode }) {
+export function Pagina({ titulo, subtitulo, geradoEm, children }: { titulo: string; subtitulo: string; geradoEm: string; children: React.ReactNode }) {
   return (
     <Page size="A4" style={s.pagina}>
       <View style={s.topo}>
@@ -68,7 +68,7 @@ function Pagina({ titulo, subtitulo, geradoEm, children }: { titulo: string; sub
   );
 }
 
-function Cartao({ titulo, sub, children, flex, mr = 0 }: { titulo?: string; sub?: string; children: React.ReactNode; flex?: number; mr?: number }) {
+export function Cartao({ titulo, sub, children, flex, mr = 0 }: { titulo?: string; sub?: string; children: React.ReactNode; flex?: number; mr?: number }) {
   return (
     <View style={[s.cartao, flex !== undefined ? { flex } : {}, { marginRight: mr }]} wrap={false}>
       {titulo && <Text style={s.cartaoTitulo}>{titulo}</Text>}
@@ -78,7 +78,7 @@ function Cartao({ titulo, sub, children, flex, mr = 0 }: { titulo?: string; sub?
   );
 }
 
-function Kpis({ itens }: { itens: { rotulo: string; valor: string | number; cor: string }[] }) {
+export function Kpis({ itens }: { itens: { rotulo: string; valor: string | number; cor: string }[] }) {
   return (
     <View style={[s.linha, { flexWrap: "wrap" }]}>
       {itens.map((k, i) => (
@@ -87,7 +87,10 @@ function Kpis({ itens }: { itens: { rotulo: string; valor: string | number; cor:
           style={[s.cartao, { flex: 1, minWidth: 80, marginRight: i < itens.length - 1 ? 6 : 0, padding: 8, borderTopWidth: 2.5, borderTopColor: k.cor }]}
           wrap={false}
         >
-          <Text style={{ fontSize: 17, fontFamily: "Helvetica-Bold", color: C.texto }}>{typeof k.valor === "number" ? num(k.valor) : k.valor}</Text>
+          {/* Texto longo (ex.: "R$ 337,7 mi") usa fonte menor para não quebrar em duas linhas. */}
+          <Text style={{ fontSize: typeof k.valor === "string" && k.valor.length > 8 ? 12.5 : 17, fontFamily: "Helvetica-Bold", color: C.texto }}>
+            {typeof k.valor === "number" ? num(k.valor) : k.valor}
+          </Text>
           <Text style={{ fontSize: 7.5, color: C.mudo, marginTop: 2 }}>{k.rotulo}</Text>
         </View>
       ))}
@@ -211,8 +214,8 @@ function Colunas({ itens, cor = C.azul }: { itens: Par[]; cor?: string }) {
   );
 }
 
-type Col = { titulo: string; flex?: number; direita?: boolean; cor?: string };
-function Tabela({ colunas, linhas, vazio = "Nada a mostrar." }: { colunas: Col[]; linhas: (string | number)[][]; vazio?: string }) {
+export type Col = { titulo: string; flex?: number; direita?: boolean; cor?: string };
+export function Tabela({ colunas, linhas, vazio = "Nada a mostrar." }: { colunas: Col[]; linhas: (string | number)[][]; vazio?: string }) {
   return (
     <View>
       <View style={{ flexDirection: "row", borderBottomWidth: 0.8, borderBottomColor: C.grade, paddingBottom: 3, marginBottom: 2 }}>
