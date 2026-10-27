@@ -561,9 +561,10 @@ function PainelFiltros({
 
 const ORDENACOES = [
   { valor: "id", rotulo: "ID" },
-  { valor: "recebimento", rotulo: "Recebimento (mais recente)" },
-  { valor: "original", rotulo: "Valor contratado (maior)" },
-  { valor: "aditivo", rotulo: "Aditivo (maior)" },
+  { valor: "recebimento", rotulo: "Recebimento" },
+  { valor: "original", rotulo: "Valor contratado" },
+  { valor: "final", rotulo: "Valor final" },
+  { valor: "aditivo", rotulo: "Aditivo" },
 ] as const;
 
 const dataBR = (iso: string | null) => {
@@ -574,17 +575,20 @@ const dataBR = (iso: string | null) => {
 
 function ListaObras({ obras }: { obras: ObraConcluida[] }) {
   const [ordem, setOrdem] = useState<(typeof ORDENACOES)[number]["valor"]>("id");
+  const [decrescente, setDecrescente] = useState(false);
   const [pagina, setPagina] = useState(1);
   const TAMANHO = 50;
 
   const ordenadas = useMemo(() => {
     const copia = [...obras];
-    if (ordem === "id") copia.sort((a, b) => Number(a.id) - Number(b.id));
-    else if (ordem === "recebimento") copia.sort((a, b) => (dataDeRecebimento(b) ?? "").localeCompare(dataDeRecebimento(a) ?? ""));
-    else if (ordem === "original") copia.sort((a, b) => (b.original ?? 0) - (a.original ?? 0));
-    else copia.sort((a, b) => valorAditivo(b) - valorAditivo(a));
+    const sinal = decrescente ? -1 : 1;
+    if (ordem === "id") copia.sort((a, b) => sinal * (Number(a.id) - Number(b.id)));
+    else if (ordem === "recebimento") copia.sort((a, b) => sinal * (dataDeRecebimento(a) ?? "").localeCompare(dataDeRecebimento(b) ?? ""));
+    else if (ordem === "original") copia.sort((a, b) => sinal * ((a.original ?? 0) - (b.original ?? 0)));
+    else if (ordem === "final") copia.sort((a, b) => sinal * (valorFinal(a) - valorFinal(b)));
+    else copia.sort((a, b) => sinal * (valorAditivo(a) - valorAditivo(b)));
     return copia;
-  }, [obras, ordem]);
+  }, [obras, ordem, decrescente]);
 
   const totalPaginas = Math.max(1, Math.ceil(ordenadas.length / TAMANHO));
   const paginaAtual = Math.min(pagina, totalPaginas);
@@ -611,6 +615,17 @@ function ListaObras({ obras }: { obras: ObraConcluida[] }) {
                 {o.rotulo}
               </option>
             ))}
+          </select>
+          <select
+            value={decrescente ? "desc" : "asc"}
+            onChange={(e) => {
+              setDecrescente(e.target.value === "desc");
+              setPagina(1);
+            }}
+            className="rounded-lg border border-black/10 bg-plane px-2 py-1 text-xs text-ink-secondary focus:outline-none"
+          >
+            <option value="desc">Maior para menor</option>
+            <option value="asc">Menor para maior</option>
           </select>
         </label>
       </div>
