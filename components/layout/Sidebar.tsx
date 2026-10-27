@@ -20,6 +20,7 @@ import {
   ListTree,
   PlayCircle,
   MapPinned,
+  Banknote,
   FileCheck2,
   BarChart3,
   type LucideIcon,
@@ -73,6 +74,7 @@ export function Sidebar({
     { href: "/desempenho", label: "Desempenho", icon: BarChart3, adminOnly: true },
     { href: "/equipe", label: "Equipe", icon: Users, count: counts.pendentesAprovacao || undefined, adminOnly: true },
     { href: "/admin", label: "Administração", icon: ShieldCheck, adminOnly: true },
+    { href: "/analise-concluidas", label: "Análise de obras concluídas", icon: Banknote, adminOnly: true },
   ];
 
   const iniciais = nome

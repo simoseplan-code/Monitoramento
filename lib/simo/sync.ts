@@ -133,14 +133,23 @@ export async function executarSyncObras(): Promise<{ linhas: number }> {
       lotes.push(obras.slice(i, i + TAMANHO_LOTE));
     }
 
-    const resultados = await Promise.all(
-      lotes.map((lote) =>
-        admin.from("obras").upsert(
-          lote.map((o) => ({ ...o, atualizado_em: syncIniciadoEm })),
-          { onConflict: "id_acao" }
-        )
-      )
-    );
+    // Colunas novas (valores e classificação, SQL 0078): se o banco ainda não as tem, grava sem
+    // elas em vez de derrubar o sync inteiro.
+    const COLUNAS_NOVAS = ["valor_original", "valor_total", "classificacao"] as const;
+    const gravarLote = async (lote: typeof obras) => {
+      const linhas = lote.map((o) => ({ ...o, atualizado_em: syncIniciadoEm }));
+      const r = await admin.from("obras").upsert(linhas, { onConflict: "id_acao" });
+      if (r.error && COLUNAS_NOVAS.some((c) => r.error!.message.includes(c))) {
+        const semNovas = linhas.map((l) => {
+          const copia: Record<string, unknown> = { ...l };
+          for (const c of COLUNAS_NOVAS) delete copia[c];
+          return copia;
+        });
+        return admin.from("obras").upsert(semNovas, { onConflict: "id_acao" });
+      }
+      return r;
+    };
+    const resultados = await Promise.all(lotes.map((lote) => gravarLote(lote)));
     const erroLote = resultados.find((r) => r.error);
     if (erroLote?.error) throw new Error(`Falha ao gravar lote no Supabase: ${erroLote.error.message}`);
     const tGravacao = seg();

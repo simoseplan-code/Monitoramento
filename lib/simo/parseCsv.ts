@@ -27,6 +27,10 @@ export const HEADER_MAP_OPCIONAL: Record<string, string[]> = {
   unidade_medida: ["UNIDADE DE MEDIDA"],
   quantidade: ["QUANTIDADE", "QUANTITATIVO"],
   descricao_acao: ["DESCRIÇÃO DA AÇÃO", "DESCRICAO DA AÇÃO", "DESCRIÇÃO"],
+  // Análise de obras concluídas: valor contratado, valor ao final da obra e classificação.
+  valor_original: ["VALOR ORIGINAL"],
+  valor_total: ["VALOR TOTAL"],
+  classificacao: ["CLASSIFICAÇÃO", "CLASSIFICACAO"],
 };
 
 export type ObraRow = {
@@ -47,6 +51,9 @@ export type ObraRow = {
   unidade_medida: string | null;
   quantidade: number | null;
   descricao_acao: string | null;
+  valor_original: number | null;
+  valor_total: number | null;
+  classificacao: string | null;
   extra: Record<string, string>;
 };
 
@@ -107,6 +114,19 @@ function contarBatidas(linha: string[]): number {
     if (candidatos.some((c) => upper.includes(c.toUpperCase()))) batidas++;
   }
   return batidas;
+}
+
+// Dinheiro como o SIMO mostra: "R$ 1.234.567,89", "1.234.567,89", "1234567.89" ou "-" (vazio).
+export function dinheiroParaNumero(raw: string | null | undefined): number | null {
+  let s = (raw ?? "").replace(/R\$|\s| /g, "").trim();
+  if (s === "" || s === "-") return null;
+  const negativo = s.startsWith("-") || /^\(.*\)$/.test(s);
+  s = s.replace(/[()-]/g, "");
+  if (s.includes(",")) s = s.replace(/\./g, "").replace(",", ".");
+  else if (/^\d{1,3}(\.\d{3})+$/.test(s)) s = s.replace(/\./g, ""); // 1.234.567 (milhar, sem centavos)
+  const n = parseFloat(s);
+  if (!Number.isFinite(n)) return null;
+  return negativo ? -n : n;
 }
 
 function pctParaFracao(raw: string | undefined): number | null {
@@ -256,6 +276,9 @@ export function csvParaObras(csvText: string): ObraRow[] {
       unidade_medida: vazio(get("unidade_medida")) ? null : get("unidade_medida").trim(),
       quantidade: paraNumeroBR(get("quantidade")),
       descricao_acao: get("descricao_acao")?.trim() || null,
+      valor_original: dinheiroParaNumero(get("valor_original")),
+      valor_total: dinheiroParaNumero(get("valor_total")),
+      classificacao: get("classificacao")?.trim() || null,
       extra,
     });
   }
