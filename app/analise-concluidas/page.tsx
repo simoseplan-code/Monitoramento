@@ -61,6 +61,10 @@ export default async function AnaliseConcluidasPage() {
     if (!data || data.length < 1000) break;
   }
 
+  // Filtro que a pessoa gravou (se o SQL 0079 ainda não foi rodado, simplesmente não há).
+  const { data: gravado } = await supabase.from("filtros_salvos").select("estado, atualizado_em").eq("usuario_id", user!.id).eq("tela", "analise_concluidas").maybeSingle();
+  const filtroGravado = gravado ? { estado: gravado.estado as unknown, atualizadoEm: gravado.atualizado_em as string } : null;
+
   const obras: ObraConcluida[] = linhas.map((l) => ({
     id: l.id_acao,
     nome: l.nome_acao ?? "",
@@ -92,7 +96,7 @@ export default async function AnaliseConcluidasPage() {
           Falha ao carregar os dados: {erro}. Se a mensagem fala de coluna que não existe, rode o SQL 0078 e sincronize com o SIMO.
         </p>
       ) : (
-        <AnaliseConcluidas obras={obras} />
+        <AnaliseConcluidas obras={obras} filtroGravado={filtroGravado} />
       )}
     </AppShell>
   );

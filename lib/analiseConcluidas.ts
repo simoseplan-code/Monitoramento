@@ -37,6 +37,14 @@ export function anoDeRecebimento(o: ObraConcluida): string {
   return d ? d.slice(0, 4) : VAZIO;
 }
 
+/** Data de recebimento com ano fora do normal (erro de digitação no SIMO, ex.: 3936). */
+export function dataSuspeita(o: ObraConcluida): boolean {
+  const d = dataDeRecebimento(o);
+  if (!d) return false;
+  const ano = Number(d.slice(0, 4));
+  return !Number.isFinite(ano) || ano < 2000 || ano > new Date().getFullYear() + 1;
+}
+
 export function tipoDeRecebimento(o: ObraConcluida): string {
   return o.recDef ? "Definitivo" : o.recProv ? "Provisório" : VAZIO;
 }
@@ -84,6 +92,8 @@ export type EstadoFiltros = {
   /** Percentual mínimo de execução, em % (80 = 80%). null = sem corte. */
   pctMinimo: number | null;
   busca: string;
+  /** IDs separados por espaço, vírgula ou quebra de linha. Vazio = todos. */
+  ids: string;
 };
 
 export const PCT_MINIMO_PADRAO = 80;
@@ -108,14 +118,16 @@ export function estadoPadrao(obras: ObraConcluida[]): EstadoFiltros {
   for (const f of FILTROS) selecao[f.chave] = null;
   if (obras.some((o) => ou(o.classificacao) === "OBRA")) selecao.classificacao = new Set(["OBRA"]);
   selecao.tipoOutros = new Set([VAZIO]);
-  return { selecao, pctMinimo: PCT_MINIMO_PADRAO, busca: "" };
+  return { selecao, pctMinimo: PCT_MINIMO_PADRAO, busca: "", ids: "" };
 }
 
 export function filtrar(obras: ObraConcluida[], estado: EstadoFiltros): ObraConcluida[] {
   const busca = estado.busca.trim().toLowerCase();
+  const idsPedidos = new Set(lerIds(estado.ids));
   const minimo = estado.pctMinimo == null ? null : estado.pctMinimo / 100;
   return obras.filter((o) => {
     if (minimo != null && (o.pct == null || o.pct < minimo - 1e-9)) return false;
+    if (idsPedidos.size > 0 && !idsPedidos.has(o.id)) return false;
     if (busca && !(o.id.toLowerCase().includes(busca) || o.nome.toLowerCase().includes(busca))) return false;
     for (const f of FILTROS) {
       const sel = estado.selecao[f.chave];
@@ -123,6 +135,53 @@ export function filtrar(obras: ObraConcluida[], estado: EstadoFiltros): ObraConc
     }
     return true;
   });
+}
+
+/** IDs digitados ou colados (planilha, e-mail...): só os números, sem repetir. */
+export function lerIds(texto: string): string[] {
+  return Array.from(new Set(texto.split(/[^0-9]+/).filter((s) => s.length >= 1 && s.length <= 12)));
+}
+
+// ---------- filtro gravado (vai e volta do banco como JSON) ----------
+
+export type EstadoGravado = {
+  selecao: Record<string, string[] | null>;
+  pctMinimo: number | null;
+  busca: string;
+  ids: string;
+};
+
+export function estadoParaGravar(e: EstadoFiltros): EstadoGravado {
+  const selecao: EstadoGravado["selecao"] = {};
+  for (const f of FILTROS) {
+    const s = e.selecao[f.chave];
+    selecao[f.chave] = s ? Array.from(s) : null;
+  }
+  return { selecao, pctMinimo: e.pctMinimo, busca: e.busca, ids: e.ids };
+}
+
+/** Volta o filtro gravado para o estado da tela. Valores que não existem mais são ignorados. */
+export function estadoDeGravado(g: unknown, padrao: EstadoFiltros, valores: Record<string, { valor: string; qtd: number }[]>): EstadoFiltros {
+  if (!g || typeof g !== "object") return padrao;
+  const x = g as Partial<EstadoGravado>;
+  const selecao: Selecao = {};
+  for (const f of FILTROS) {
+    const gravada = x.selecao?.[f.chave];
+    if (gravada === undefined) {
+      selecao[f.chave] = padrao.selecao[f.chave];
+    } else if (gravada === null || !Array.isArray(gravada)) {
+      selecao[f.chave] = null;
+    } else {
+      const existentes = new Set((valores[f.chave] ?? []).map((v) => v.valor));
+      selecao[f.chave] = new Set(gravada.filter((v) => typeof v === "string" && existentes.has(v)));
+    }
+  }
+  return {
+    selecao,
+    pctMinimo: typeof x.pctMinimo === "number" || x.pctMinimo === null ? (x.pctMinimo ?? null) : padrao.pctMinimo,
+    busca: typeof x.busca === "string" ? x.busca : "",
+    ids: typeof x.ids === "string" ? x.ids : "",
+  };
 }
 
 // ---------- tabela por ano e quantitativos ----------
@@ -181,6 +240,7 @@ export type Quantitativos = {
   ticketMedio: number;
   aditivoMedioPorAditivada: number;
   porOrgao: { orgao: string; qtd: number; original: number; aditivo: number; aditivadas: number }[];
+  datasSuspeitas: number;
 };
 
 export function quantitativos(obras: ObraConcluida[]): Quantitativos {
@@ -217,5 +277,6 @@ export function quantitativos(obras: ObraConcluida[]): Quantitativos {
     ticketMedio: comValor ? original / comValor : 0,
     aditivoMedioPorAditivada: adit ? somaAditivosPositivos / adit : 0,
     porOrgao: Array.from(orgaos.values()).sort((a, b) => b.qtd - a.qtd || b.original - a.original),
+    datasSuspeitas: obras.filter(dataSuspeita).length,
   };
 }

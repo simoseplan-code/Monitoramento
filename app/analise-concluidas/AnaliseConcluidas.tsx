@@ -1,11 +1,20 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, Filter, RotateCcw, Search, X } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Filter, RotateCcw, Save, Search, X } from "lucide-react";
+import { urlAcaoSimo } from "@/components/IdAcaoLink";
 import {
   FILTROS,
+  aditivada,
+  dataDeRecebimento,
+  dataSuspeita,
+  estadoDeGravado,
   estadoPadrao,
+  estadoParaGravar,
   filtrar,
+  tipoDeRecebimento,
+  valorAditivo,
+  valorFinal,
   quantitativos,
   tabelaPorAno,
   valoresDosFiltros,
@@ -19,18 +28,68 @@ const dinheiro = (v: number) => brl.format(v);
 const pct = (v: number) => `${(v * 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 const inteiro = (v: number) => v.toLocaleString("pt-BR");
 
-export function AnaliseConcluidas({ obras }: { obras: ObraConcluida[] }) {
+export function AnaliseConcluidas({ obras, filtroGravado }: { obras: ObraConcluida[]; filtroGravado: { estado: unknown; atualizadoEm: string } | null }) {
   const padrao = useMemo(() => estadoPadrao(obras), [obras]);
-  const [estado, setEstado] = useState<EstadoFiltros>(padrao);
+  const valores = useMemo(() => valoresDosFiltros(obras), [obras]);
+  // Se a pessoa gravou um filtro, a tela já abre nele.
+  const [estado, setEstado] = useState<EstadoFiltros>(() => (filtroGravado ? estadoDeGravado(filtroGravado.estado, padrao, valores) : padrao));
+  const [gravadoEm, setGravadoEm] = useState<string | null>(filtroGravado?.atualizadoEm ?? null);
+  const [gravadoJson, setGravadoJson] = useState<string | null>(filtroGravado ? JSON.stringify(estadoParaGravar(estadoDeGravado(filtroGravado.estado, padrao, valores))) : null);
+  const [aviso, setAviso] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
+  const [gravando, setGravando] = useState(false);
   const [painelAberto, setPainelAberto] = useState(true);
 
-  const valores = useMemo(() => valoresDosFiltros(obras), [obras]);
   const filtradas = useMemo(() => filtrar(obras, estado), [obras, estado]);
   const tabela = useMemo(() => tabelaPorAno(filtradas), [filtradas]);
   const q = useMemo(() => quantitativos(filtradas), [filtradas]);
   const semValores = obras.length > 0 && obras.every((o) => o.original == null);
 
-  const filtrosAtivos = FILTROS.filter((f) => estado.selecao[f.chave] !== null).length + (estado.pctMinimo != null ? 1 : 0) + (estado.busca ? 1 : 0);
+  const jsonAtual = JSON.stringify(estadoParaGravar(estado));
+  const alteradoDesdeAGravacao = gravadoJson !== null && gravadoJson !== jsonAtual;
+
+  async function gravarFiltro() {
+    setGravando(true);
+    setAviso(null);
+    try {
+      const resp = await fetch("/api/filtros", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ tela: "analise_concluidas", estado: estadoParaGravar(estado) }),
+      });
+      const json = (await resp.json().catch(() => ({}))) as { error?: string; atualizadoEm?: string };
+      if (!resp.ok) setAviso({ tipo: "erro", texto: json.error ?? "Não foi possível gravar o filtro." });
+      else {
+        setGravadoEm(json.atualizadoEm ?? new Date().toISOString());
+        setGravadoJson(jsonAtual);
+        setAviso({ tipo: "ok", texto: "Filtro gravado. Quando você voltar a esta tela, ele já estará aplicado." });
+      }
+    } catch {
+      setAviso({ tipo: "erro", texto: "Sem conexão com o servidor." });
+    } finally {
+      setGravando(false);
+    }
+  }
+
+  async function descartarFiltroGravado() {
+    setGravando(true);
+    setAviso(null);
+    try {
+      const resp = await fetch("/api/filtros?tela=analise_concluidas", { method: "DELETE" });
+      if (!resp.ok) setAviso({ tipo: "erro", texto: "Não foi possível apagar o filtro gravado." });
+      else {
+        setGravadoEm(null);
+        setGravadoJson(null);
+        setEstado(padrao);
+        setAviso({ tipo: "ok", texto: "Filtro gravado apagado. A tela voltou ao padrão." });
+      }
+    } catch {
+      setAviso({ tipo: "erro", texto: "Sem conexão com o servidor." });
+    } finally {
+      setGravando(false);
+    }
+  }
+
+  const filtrosAtivos = FILTROS.filter((f) => estado.selecao[f.chave] !== null).length + (estado.pctMinimo != null ? 1 : 0) + (estado.busca ? 1 : 0) + (estado.ids.trim() ? 1 : 0);
 
   return (
     <div className="space-y-4">
@@ -39,6 +98,30 @@ export function AnaliseConcluidas({ obras }: { obras: ObraConcluida[] }) {
           Nenhuma obra tem valor original ou valor total ainda. Depois de rodar o SQL 0078 e sincronizar com o SIMO (Sincronizar agora na Administração), os valores aparecem aqui.
         </p>
       )}
+
+      <div className="flex flex-wrap items-center gap-3 rounded-xl border border-black/5 bg-surface px-4 py-3 shadow-card">
+        <button
+          onClick={gravarFiltro}
+          disabled={gravando}
+          className="flex items-center gap-1.5 rounded-lg bg-series-1 px-3.5 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+          title="Grava os filtros atuais: ao sair e entrar de novo nesta tela, eles já vêm aplicados"
+        >
+          <Save size={13} /> {gravando ? "Gravando..." : "Gravar filtro"}
+        </button>
+        <span className="text-xs text-ink-muted">
+          {gravadoEm
+            ? alteradoDesdeAGravacao
+              ? "Você mudou os filtros depois da última gravação. Clique em Gravar filtro para guardar."
+              : `Filtro gravado em ${new Date(gravadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}. É ele que abre quando você volta.`
+            : "Nenhum filtro gravado: a tela abre sempre no padrão (OBRA, 80% ou mais, sem outros documentos)."}
+        </span>
+        {gravadoEm && (
+          <button onClick={descartarFiltroGravado} disabled={gravando} className="text-xs font-medium text-ink-muted hover:text-ink-primary hover:underline disabled:opacity-50">
+            Apagar filtro gravado
+          </button>
+        )}
+        {aviso && <span className={`text-xs font-medium ${aviso.tipo === "ok" ? "text-status-good" : "text-status-critical"}`}>{aviso.texto}</span>}
+      </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-ink-muted">
@@ -57,6 +140,7 @@ export function AnaliseConcluidas({ obras }: { obras: ObraConcluida[] }) {
         <div className="min-w-0 flex-1 space-y-4">
           <TabelaPorAno linhas={tabela.linhas} geral={tabela.geral} />
           <Quantitativos q={q} />
+          <ListaObras obras={filtradas} />
         </div>
 
         {painelAberto && (
@@ -154,6 +238,7 @@ function Quantitativos({ q }: { q: ReturnType<typeof quantitativos> }) {
     { rotulo: "Com supressão", valor: inteiro(q.suprimidas), dica: "valor total menor que o original" },
     { rotulo: "Valor médio contratado", valor: dinheiro(q.ticketMedio) },
     { rotulo: "Aditivo médio (obras aditivadas)", valor: dinheiro(q.aditivoMedioPorAditivada) },
+    ...(q.datasSuspeitas > 0 ? [{ rotulo: "Datas de recebimento suspeitas", valor: inteiro(q.datasSuspeitas), dica: "ano fora de 2000 até o próximo ano: confira no SIMO" }] : []),
   ];
   return (
     <section className="space-y-3">
@@ -263,6 +348,16 @@ function PainelFiltros({
 
       <div className="space-y-3 border-b border-black/5 px-4 py-3">
         <label className="block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+          Filtrar por ID
+          <textarea
+            value={estado.ids}
+            onChange={(e) => setEstado({ ...estado, ids: e.target.value })}
+            rows={2}
+            placeholder="Um ou vários IDs, separados por vírgula, espaço ou linha"
+            className="mt-1 w-full rounded-lg border border-black/10 bg-plane px-2 py-1.5 font-mono text-xs font-normal normal-case text-ink-primary focus:outline-none"
+          />
+        </label>
+        <label className="block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
           Buscar por ID ou nome
           <span className="mt-1 flex items-center gap-1.5 rounded-lg border border-black/10 bg-plane px-2">
             <Search size={12} className="text-ink-muted" />
@@ -344,5 +439,137 @@ function PainelFiltros({
         );
       })}
     </aside>
+  );
+}
+
+// ---------- lista simplificada das obras ----------
+
+const ORDENACOES = [
+  { valor: "id", rotulo: "ID" },
+  { valor: "recebimento", rotulo: "Recebimento (mais recente)" },
+  { valor: "original", rotulo: "Valor contratado (maior)" },
+  { valor: "aditivo", rotulo: "Aditivo (maior)" },
+] as const;
+
+const dataBR = (iso: string | null) => {
+  if (!iso) return "-";
+  const partes = iso.slice(0, 10).split("-");
+  return partes.length === 3 ? partes[2] + "/" + partes[1] + "/" + partes[0] : iso;
+};
+
+function ListaObras({ obras }: { obras: ObraConcluida[] }) {
+  const [ordem, setOrdem] = useState<(typeof ORDENACOES)[number]["valor"]>("id");
+  const [pagina, setPagina] = useState(1);
+  const TAMANHO = 50;
+
+  const ordenadas = useMemo(() => {
+    const copia = [...obras];
+    if (ordem === "id") copia.sort((a, b) => Number(a.id) - Number(b.id));
+    else if (ordem === "recebimento") copia.sort((a, b) => (dataDeRecebimento(b) ?? "").localeCompare(dataDeRecebimento(a) ?? ""));
+    else if (ordem === "original") copia.sort((a, b) => (b.original ?? 0) - (a.original ?? 0));
+    else copia.sort((a, b) => valorAditivo(b) - valorAditivo(a));
+    return copia;
+  }, [obras, ordem]);
+
+  const totalPaginas = Math.max(1, Math.ceil(ordenadas.length / TAMANHO));
+  const paginaAtual = Math.min(pagina, totalPaginas);
+  const visiveis = ordenadas.slice((paginaAtual - 1) * TAMANHO, paginaAtual * TAMANHO);
+
+  return (
+    <section className="rounded-xl border border-black/5 bg-surface shadow-card">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-black/5 px-5 py-3">
+        <h2 className="text-sm font-semibold text-ink-primary">
+          Lista das obras <span className="font-normal text-ink-muted">({inteiro(obras.length)})</span>
+        </h2>
+        <label className="flex items-center gap-2 text-xs text-ink-muted">
+          Ordenar por
+          <select
+            value={ordem}
+            onChange={(e) => {
+              setOrdem(e.target.value as typeof ordem);
+              setPagina(1);
+            }}
+            className="rounded-lg border border-black/10 bg-plane px-2 py-1 text-xs text-ink-secondary focus:outline-none"
+          >
+            {ORDENACOES.map((o) => (
+              <option key={o.valor} value={o.valor}>
+                {o.rotulo}
+              </option>
+            ))}
+          </select>
+        </label>
+      </div>
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead className="bg-plane text-left text-ink-muted">
+            <tr>
+              <th className="px-3 py-2">ID</th>
+              <th className="px-3 py-2">Ação</th>
+              <th className="px-3 py-2">Órgão</th>
+              <th className="px-3 py-2">Recebimento</th>
+              <th className="px-3 py-2 text-right">Valor contratado</th>
+              <th className="px-3 py-2 text-right">Valor final</th>
+              <th className="px-3 py-2 text-right">Aditivo</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visiveis.map((o) => {
+              const ad = valorAditivo(o);
+              return (
+                <tr key={o.id} className="border-t border-black/5">
+                  <td className="px-3 py-1.5 font-medium">
+                    <a href={urlAcaoSimo(o.id)} target="_blank" rel="noopener noreferrer" title="Abrir a ação no SIMO" className="text-series-1 hover:underline">
+                      {o.id}
+                    </a>
+                  </td>
+                  <td className="max-w-xs px-3 py-1.5 text-ink-secondary">
+                    <span className="block truncate" title={o.nome}>
+                      {o.nome || "-"}
+                    </span>
+                  </td>
+                  <td className="px-3 py-1.5 text-ink-secondary">{o.orgao ?? "-"}</td>
+                  <td className="whitespace-nowrap px-3 py-1.5 text-ink-secondary">
+                    {dataBR(dataDeRecebimento(o))}
+                    <span className="ml-1 text-ink-muted">({tipoDeRecebimento(o).toLowerCase()})</span>
+                    {dataSuspeita(o) && (
+                      <span title="Ano de recebimento fora do normal: confira a data no SIMO" className="ml-1 inline-flex align-middle text-status-warning">
+                        <AlertTriangle size={12} />
+                      </span>
+                    )}
+                  </td>
+                  <td className="tabular px-3 py-1.5 text-right">{o.original != null ? dinheiro(o.original) : "-"}</td>
+                  <td className="tabular px-3 py-1.5 text-right">{o.original != null ? dinheiro(valorFinal(o)) : "-"}</td>
+                  <td className={"tabular px-3 py-1.5 text-right " + (aditivada(o) ? "font-medium text-status-warning" : "text-ink-muted")}>
+                    {o.original != null && Math.abs(ad) > 0.005 ? dinheiro(ad) : "-"}
+                  </td>
+                </tr>
+              );
+            })}
+            {visiveis.length === 0 && (
+              <tr>
+                <td colSpan={7} className="px-3 py-8 text-center text-ink-muted">
+                  Nenhuma obra com os filtros atuais.
+                </td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+      </div>
+      {totalPaginas > 1 && (
+        <div className="flex items-center justify-between border-t border-black/5 px-5 py-2.5 text-xs text-ink-muted">
+          <span>
+            Página {paginaAtual} de {totalPaginas}
+          </span>
+          <span className="flex gap-2">
+            <button onClick={() => setPagina(Math.max(1, paginaAtual - 1))} disabled={paginaAtual === 1} className="rounded-lg border border-black/10 px-3 py-1 font-medium hover:bg-plane disabled:opacity-40">
+              Anterior
+            </button>
+            <button onClick={() => setPagina(Math.min(totalPaginas, paginaAtual + 1))} disabled={paginaAtual === totalPaginas} className="rounded-lg border border-black/10 px-3 py-1 font-medium hover:bg-plane disabled:opacity-40">
+              Próxima
+            </button>
+          </span>
+        </div>
+      )}
+    </section>
   );
 }
