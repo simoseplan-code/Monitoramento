@@ -12,6 +12,7 @@ import {
   estadoPadrao,
   estadoParaGravar,
   filtrar,
+  lerIds,
   tipoDeRecebimento,
   valorAditivo,
   valorFinal,
@@ -300,6 +301,7 @@ function PainelFiltros({
 }) {
   const [abertos, setAbertos] = useState<Set<string>>(new Set(["classificacao", "tipoOutros"]));
   const [buscaNoFiltro, setBuscaNoFiltro] = useState<Record<string, string>>({});
+  const [idsColados, setIdsColados] = useState("");
 
   const alternarAberto = (chave: string) =>
     setAbertos((a) => {
@@ -334,16 +336,6 @@ function PainelFiltros({
 
       <div className="space-y-3 border-b border-black/5 px-4 py-3">
         <label className="block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
-          Filtrar por ID
-          <textarea
-            value={estado.ids}
-            onChange={(e) => setEstado({ ...estado, ids: e.target.value })}
-            rows={2}
-            placeholder="Um ou vários IDs, separados por vírgula, espaço ou linha"
-            className="mt-1 w-full rounded-lg border border-black/10 bg-plane px-2 py-1.5 font-mono text-xs font-normal normal-case text-ink-primary focus:outline-none"
-          />
-        </label>
-        <label className="block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
           Buscar por ID ou nome
           <span className="mt-1 flex items-center gap-1.5 rounded-lg border border-black/10 bg-plane px-2">
             <Search size={12} className="text-ink-muted" />
@@ -377,7 +369,11 @@ function PainelFiltros({
         const sel = estado.selecao[f.chave];
         const aberto = abertos.has(f.chave);
         const termo = (buscaNoFiltro[f.chave] ?? "").toLowerCase();
-        const visiveis = termo ? lista.filter((v) => v.valor.toLowerCase().includes(termo)) : lista;
+        const encontrados = termo ? lista.filter((v) => v.valor.toLowerCase().includes(termo)) : lista;
+        // Listas enormes (ex.: ID, com milhares de valores) desenham só os primeiros: use a pesquisa.
+        const LIMITE = 300;
+        const visiveis = encontrados.slice(0, LIMITE);
+        const ehId = f.chave === "id";
         return (
           <div key={f.chave} className="border-b border-black/5 last:border-0">
             <button onClick={() => alternarAberto(f.chave)} className="flex w-full items-center justify-between gap-2 px-4 py-2.5 text-left hover:bg-plane/60">
@@ -399,7 +395,7 @@ function PainelFiltros({
                     Limpar
                   </button>
                 </div>
-                {lista.length > 10 && (
+                {(lista.length > 10 || ehId) && (
                   <input
                     value={buscaNoFiltro[f.chave] ?? ""}
                     onChange={(e) => setBuscaNoFiltro({ ...buscaNoFiltro, [f.chave]: e.target.value })}
@@ -407,17 +403,54 @@ function PainelFiltros({
                     className="mb-1.5 w-full rounded-lg border border-black/10 bg-plane px-2 py-1 text-xs text-ink-primary focus:outline-none"
                   />
                 )}
+                {termo && encontrados.length > 0 && (
+                  <button
+                    onClick={() => setEstado({ ...estado, selecao: { ...estado.selecao, [f.chave]: new Set(encontrados.map((v) => v.valor)) } })}
+                    className="mb-1.5 text-[11px] font-medium text-series-1 hover:underline"
+                    title="Deixa marcados somente os valores que apareceram na pesquisa"
+                  >
+                    Marcar só os {encontrados.length.toLocaleString("pt-BR")} resultado(s) da pesquisa
+                  </button>
+                )}
+                {ehId && (
+                  <div className="mb-1.5 space-y-1">
+                    <textarea
+                      value={idsColados}
+                      onChange={(e) => setIdsColados(e.target.value)}
+                      rows={2}
+                      placeholder="Cole vários IDs (vírgula, espaço ou linha)"
+                      className="w-full rounded-lg border border-black/10 bg-plane px-2 py-1 font-mono text-xs text-ink-primary focus:outline-none"
+                    />
+                    <button
+                      onClick={() => {
+                        const existentes = new Set(lista.map((v) => v.valor));
+                        const pedidos = lerIds(idsColados).filter((i) => existentes.has(i));
+                        setEstado({ ...estado, selecao: { ...estado.selecao, [f.chave]: new Set(pedidos) } });
+                      }}
+                      disabled={idsColados.trim() === ""}
+                      className="text-[11px] font-medium text-series-1 hover:underline disabled:opacity-40"
+                      title="Deixa marcados somente os IDs colados (os que não existem na análise são ignorados)"
+                    >
+                      Marcar só os IDs colados
+                    </button>
+                  </div>
+                )}
                 <ul className="max-h-52 space-y-0.5 overflow-y-auto pr-1">
                   {visiveis.map((v) => (
                     <li key={v.valor}>
                       <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-xs text-ink-secondary hover:bg-plane">
                         <input type="checkbox" checked={sel ? sel.has(v.valor) : true} onChange={(e) => marcar(f.chave, v.valor, e.target.checked)} className="h-3.5 w-3.5 shrink-0" />
                         <span className="min-w-0 flex-1 truncate" title={v.valor}>{v.valor}</span>
-                        <span className="tabular shrink-0 text-[10px] text-ink-muted">{inteiro(v.qtd)}</span>
+                        {!ehId && <span className="tabular shrink-0 text-[10px] text-ink-muted">{inteiro(v.qtd)}</span>}
                       </label>
                     </li>
                   ))}
                   {visiveis.length === 0 && <li className="px-1 py-1 text-xs text-ink-muted">Nada encontrado.</li>}
+                  {encontrados.length > LIMITE && (
+                    <li className="px-1 py-1 text-[11px] text-ink-muted">
+                      Mostrando {LIMITE} de {encontrados.length.toLocaleString("pt-BR")}. Pesquise para achar o que procura.
+                    </li>
+                  )}
                 </ul>
               </div>
             )}

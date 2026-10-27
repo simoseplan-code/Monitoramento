@@ -73,6 +73,7 @@ export type DefinicaoFiltro = { chave: string; rotulo: string; valor: (o: ObraCo
 const ou = (v: string | null | undefined) => (v && v.trim() !== "" && v.trim() !== "-" ? v.trim() : VAZIO);
 
 export const FILTROS: DefinicaoFiltro[] = [
+  { chave: "id", rotulo: "ID", valor: (o) => o.id },
   { chave: "classificacao", rotulo: "Classificação", valor: (o) => ou(o.classificacao) },
   { chave: "ano", rotulo: "Ano de recebimento", valor: anoDeRecebimento },
   { chave: "tipoRec", rotulo: "Tipo de recebimento", valor: tipoDeRecebimento },
@@ -107,7 +108,13 @@ export function valoresDosFiltros(obras: ObraConcluida[]): Record<string, { valo
       const v = f.valor(o);
       mapa.set(v, (mapa.get(v) ?? 0) + 1);
     }
-    saida[f.chave] = Array.from(mapa, ([valor, qtd]) => ({ valor, qtd })).sort((a, b) => (f.chave === "ano" ? a.valor.localeCompare(b.valor) : b.qtd - a.qtd || a.valor.localeCompare(b.valor)));
+    saida[f.chave] = Array.from(mapa, ([valor, qtd]) => ({ valor, qtd })).sort((a, b) =>
+      f.chave === "id"
+        ? Number(a.valor) - Number(b.valor)
+        : f.chave === "ano"
+          ? a.valor.localeCompare(b.valor)
+          : b.qtd - a.qtd || a.valor.localeCompare(b.valor)
+    );
   }
   return saida;
 }
