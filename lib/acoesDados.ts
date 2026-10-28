@@ -9,7 +9,7 @@ import {
   type AcaoLinha,
 } from "@/lib/acoesFiltro";
 
-const COLUNAS = "id_acao, nome_acao, orgao, status, estagio_atual, tipologia, classificacao, acao_conveniada, percentual_execucao, numero_automatico, numero_siafe, data_criacao";
+const COLUNAS = "id_acao, nome_acao, orgao, status, estagio_atual, tipologia, classificacao, acao_conveniada, percentual_execucao, numero_automatico, numero_siafe, data_criacao, data_receb_definitivo, data_receb_provisorio";
 
 type Linha = {
   id_acao: string;
@@ -24,6 +24,8 @@ type Linha = {
   numero_automatico: string | null;
   numero_siafe: string | null;
   data_criacao: string | null;
+  data_receb_definitivo: string | null;
+  data_receb_provisorio: string | null;
 };
 
 const numero = (v: number | string | null): number | null => (v == null || v === "" ? null : Number.isFinite(Number(v)) ? Number(v) : null);
@@ -41,6 +43,8 @@ export const paraAcao = (l: Linha): AcaoLinha => ({
   numeroAutomatico: l.numero_automatico,
   numeroSiafe: l.numero_siafe,
   criadaEm: l.data_criacao,
+  recDef: l.data_receb_definitivo,
+  recProv: l.data_receb_provisorio,
 });
 
 /** Todas as ações, lidas em páginas de 1000. */

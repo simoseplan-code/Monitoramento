@@ -22,6 +22,8 @@ export type AcaoLinha = {
   numeroAutomatico: string | null;
   numeroSiafe: string | null;
   criadaEm: string | null;
+  recDef: string | null;
+  recProv: string | null;
 };
 
 export type Vinculacao = "Vinculada" | "Pendente" | "Sem número";
@@ -32,6 +34,12 @@ export function vinculacao(a: AcaoLinha): Vinculacao {
   return "Sem número";
 }
 
+/** Ano do recebimento: o provisório; se não houver, o definitivo (mesma regra da análise de obras concluídas). */
+export function anoDeRecebimento(a: AcaoLinha): string {
+  const d = a.recProv || a.recDef;
+  return d ? d.slice(0, 4) : VAZIO;
+}
+
 export const siafeValido = (n: string | null) => !!n && /^\d{8}$/.test(n.trim());
 
 const ou = (v: string | null | undefined) => (v && v.trim() !== "" && v.trim() !== "-" ? v.trim() : VAZIO);
@@ -40,6 +48,7 @@ export type DefinicaoFiltro = { chave: string; rotulo: string; valor: (a: AcaoLi
 
 export const FILTROS: DefinicaoFiltro[] = [
   { chave: "vinculacao", rotulo: "Vinculação", valor: vinculacao },
+  { chave: "ano", rotulo: "Ano de recebimento", valor: anoDeRecebimento },
   { chave: "status", rotulo: "Status", valor: (a) => ou(a.status) },
   { chave: "orgao", rotulo: "Órgão", valor: (a) => ou(a.orgao) },
   { chave: "estagio", rotulo: "Estágio atual", valor: (a) => ou(a.estagio) },
@@ -78,7 +87,7 @@ export function valoresDosFiltros(acoes: AcaoLinha[]): Record<string, { valor: s
       mapa.set(v, (mapa.get(v) ?? 0) + 1);
     }
     saida[f.chave] = Array.from(mapa, ([valor, qtd]) => ({ valor, qtd })).sort((x, y) =>
-      f.chave === "id" ? Number(x.valor) - Number(y.valor) : y.qtd - x.qtd || x.valor.localeCompare(y.valor)
+      f.chave === "id" ? Number(x.valor) - Number(y.valor) : f.chave === "ano" ? x.valor.localeCompare(y.valor) : y.qtd - x.qtd || x.valor.localeCompare(y.valor)
     );
   }
   return saida;
