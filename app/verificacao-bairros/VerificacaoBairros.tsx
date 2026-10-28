@@ -34,6 +34,7 @@ export type ItemLista = {
   pontosFora: number;
   criadaEm: string | null;
   anoConclusao: string;
+  semBairro: { municipio: string; metros: number; pct: number; pontos: number }[];
   bairros: { municipio: string; bairro: string; metros: number; pct: number; pontos: number }[];
 };
 
@@ -50,10 +51,13 @@ function situacaoDe(i: ItemLista): Exclude<Situacao, "todas"> {
   if (i.bairros.length > 1) return "varios";
   return "um";
 }
-const trechoFora = (i: ItemLista) => i.extensaoM > 0 && i.metrosFora / i.extensaoM >= 0.1;
-const parteFora = (i: ItemLista) => i.bairros.length > 0 && (trechoFora(i) || i.pontosFora > 0);
-const textoFora = (i: ItemLista) =>
-  [trechoFora(i) ? `${porcento(i.metrosFora / i.extensaoM)} do trecho` : "", i.pontosFora > 0 ? `${i.pontosFora} ponto(s)` : ""].filter(Boolean).join(" e ") + " fora";
+const metrosSemBairro = (i: ItemLista) => i.metrosFora + i.semBairro.reduce((s, x) => s + x.metros, 0);
+const pontosSemBairro = (i: ItemLista) => i.pontosFora + i.semBairro.reduce((s, x) => s + x.pontos, 0);
+const parteFora = (i: ItemLista) => i.bairros.length > 0 && ((i.extensaoM > 0 && metrosSemBairro(i) / i.extensaoM >= 0.1) || pontosSemBairro(i) > 0);
+// O que não cai nem em município do Piauí.
+const foraDoMapa = (i: ItemLista) => (i.extensaoM > 0 && i.metrosFora / i.extensaoM >= 0.1) || i.pontosFora > 0;
+const textoForaDoMapa = (i: ItemLista) =>
+  [i.extensaoM > 0 && i.metrosFora / i.extensaoM >= 0.1 ? `${porcento(i.metrosFora / i.extensaoM)} do trecho` : "", i.pontosFora > 0 ? `${i.pontosFora} ponto(s)` : ""].filter(Boolean).join(" e ") + " fora do Piauí";
 const VAZIO = "(vazio)";
 const anoDe = (d: string | null) => (d ? d.slice(0, 4) : VAZIO);
 const dataBR = (d: string | null) => {
@@ -87,7 +91,7 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
   // Opções dos filtros (município e bairro vêm do que foi verificado).
   const municipios = useMemo(() => {
     const m = new Map<string, number>();
-    for (const i of itens) for (const b of new Set(i.bairros.map((x) => x.municipio))) m.set(b, (m.get(b) ?? 0) + 1);
+    for (const i of itens) for (const b of new Set([...i.bairros.map((x) => x.municipio), ...i.semBairro.map((x) => x.municipio)])) m.set(b, (m.get(b) ?? 0) + 1);
     return Array.from(m, ([nome, qtd]) => ({ nome, qtd })).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
   }, [itens]);
   const bairrosDoMunicipio = useMemo(() => {
@@ -109,8 +113,8 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
     const termo = busca.trim().toLowerCase();
     return itens
       .filter((i) => {
-        if (termo && !(i.id.includes(termo) || i.nome.toLowerCase().includes(termo) || i.bairros.some((b) => (b.municipio + " " + b.bairro).toLowerCase().includes(termo)))) return false;
-        if (municipio === SEM_BAIRRO ? i.bairros.length > 0 : municipio && !i.bairros.some((b) => b.municipio === municipio)) return false;
+        if (termo && !(i.id.includes(termo) || i.nome.toLowerCase().includes(termo) || i.bairros.some((b) => (b.municipio + " " + b.bairro).toLowerCase().includes(termo)) || i.semBairro.some((b) => b.municipio.toLowerCase().includes(termo)))) return false;
+        if (municipio === SEM_BAIRRO ? i.bairros.length > 0 : municipio && !i.bairros.some((b) => b.municipio === municipio) && !i.semBairro.some((b) => b.municipio === municipio)) return false;
         if (bairro && !i.bairros.some((b) => b.bairro === bairro && (!municipio || municipio === SEM_BAIRRO || b.municipio === municipio))) return false;
         if (orgao && i.orgao !== orgao) return false;
         if (status && i.status !== status) return false;
@@ -176,7 +180,7 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
   }
 
   // Calcula em lotes curtos: cada chamada trabalha uns 40 s e a tela chama de novo até acabar.
-  async function atualizar() {
+  async function atualizar(refazer = false) {
     setAtualizando(true);
     setMsg(null);
     let total = 0;
@@ -188,7 +192,7 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
         const resp = await fetch("/api/bairros/atualizar", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ baixarMapa: rodada === 0 }),
+          body: JSON.stringify({ baixarMapa: rodada === 0, refazerTudo: refazer && rodada === 0 }),
         });
         const texto = await resp.text();
         let json: { error?: string; processadas?: number; comBairro?: number; semBairro?: number; terminou?: boolean; pontosPoligonosDoMapa?: string } = {};
@@ -250,10 +254,22 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
             )}
           </p>
           {ehAdmin && (
-            <button onClick={atualizar} disabled={atualizando} className="flex items-center gap-1.5 rounded-full bg-series-1 px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">
-              {atualizando ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
-              {atualizando ? "Calculando..." : "Atualizar verificação"}
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button onClick={() => atualizar(false)} disabled={atualizando} className="flex items-center gap-1.5 rounded-full bg-series-1 px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">
+                {atualizando ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                {atualizando ? "Calculando..." : "Atualizar verificação"}
+              </button>
+              <button
+                onClick={() => {
+                  if (window.confirm("Refazer o cálculo de todas as ações? Leva alguns minutos; o que está na tela só muda quando terminar.")) atualizar(true);
+                }}
+                disabled={atualizando}
+                className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-medium text-ink-secondary hover:bg-plane disabled:opacity-60"
+                title="Esquece os cálculos guardados e refaz todos (use depois de uma mudança na regra de cálculo)"
+              >
+                Refazer tudo
+              </button>
+            </div>
           )}
         </div>
         {msg && <p className={"mt-2 text-xs font-medium " + (msg.tipo === "ok" ? "text-status-good" : "text-status-critical")}>{msg.texto}</p>}
@@ -388,7 +404,7 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
                   <td className="whitespace-nowrap px-4 py-3 text-ink-secondary">{dataBR(i.criadaEm)}</td>
                   <td className="px-4 py-3 text-ink-secondary">{i.anoConclusao === VAZIO ? "-" : i.anoConclusao}</td>
                   <td className="px-4 py-3">
-                    {i.bairros.length === 0 ? (
+                    {i.bairros.length === 0 && i.semBairro.length === 0 && !foraDoMapa(i) ? (
                       <span className="rounded-full bg-status-neutral-bg px-2 py-0.5 text-xs font-medium text-status-neutral" title="O trecho não cai em nenhum bairro do arquivo (município sem bairros mapeados ou fora dos limites)">
                         {SEM_BAIRRO}
                       </span>
@@ -407,9 +423,19 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
                             </button>
                           );
                         })}
-                        {parteFora(i) && (
-                          <span className="rounded-full bg-status-warning-bg px-2.5 py-0.5 text-xs font-medium text-status-warning" title="Parte do trecho ou alguns pontos não caem em nenhum bairro mapeado">
-                            {textoFora(i)}
+                        {i.semBairro.map((s) => (
+                          <button
+                            key={s.municipio}
+                            onClick={() => setVerMapa({ id: i.id, nome: i.nome })}
+                            title={`${inteiro(s.metros)} m e ${s.pontos} ponto(s) em ${s.municipio}, fora dos bairros do arquivo. Clique para ver no mapa.`}
+                            className={`rounded-full px-2.5 py-0.5 text-xs font-medium hover:opacity-80 ${i.bairros.length > 0 ? "bg-status-warning-bg text-status-warning" : "bg-status-neutral-bg text-status-neutral"}`}
+                          >
+                            {s.municipio} - sem bairro mapeado <span className="opacity-70">({detalhe(s, i.extensaoM)})</span>
+                          </button>
+                        ))}
+                        {foraDoMapa(i) && (
+                          <span className="rounded-full bg-status-critical/10 px-2.5 py-0.5 text-xs font-medium text-status-critical" title="Não cai em nenhum município do Piauí: confira o traçado">
+                            {textoForaDoMapa(i)}
                           </span>
                         )}
                       </div>
@@ -528,8 +554,8 @@ function JanelaMapa({ id, nome, bairroFoco, aoFechar }: { id: string; nome: stri
             <ul className="mt-2 flex flex-wrap gap-2">
               {dados.bairros.map((b, i) => (
                 <li key={b.municipio + b.bairro} className="flex items-center gap-1.5 rounded-full border border-black/10 px-2.5 py-1 text-xs text-ink-secondary">
-                  <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: CORES[i % CORES.length] }} />
-                  {b.municipio} - {b.bairro}: {dados.extensaoM > 0 ? `${inteiro(b.metros)} m (${porcento(b.pct)})` : ""}{dados.extensaoM > 0 && b.pontos > 0 ? " + " : ""}{b.pontos > 0 ? `${b.pontos} ponto${b.pontos > 1 ? "s" : ""}` : ""}
+                  <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: b.bairro === "" ? "#6b7280" : CORES[i % CORES.length] }} />
+                  {b.municipio} - {b.bairro || "sem bairro mapeado"}: {dados.extensaoM > 0 ? `${inteiro(b.metros)} m (${porcento(b.pct)})` : ""}{dados.extensaoM > 0 && b.pontos > 0 ? " + " : ""}{b.pontos > 0 ? `${b.pontos} ponto${b.pontos > 1 ? "s" : ""}` : ""}
                 </li>
               ))}
               {(dados.metrosFora > 0 || dados.pontosFora > 0) && dados.bairros.length > 0 && (
@@ -557,11 +583,12 @@ function MapaBairros({ dados, bairroFoco }: { dados: DadosMapa; bairroFoco?: str
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(mapa);
       const todos = L.featureGroup().addTo(mapa);
       dados.bairros.forEach((b, i) => {
-        const cor = CORES[i % CORES.length];
+        const semBairro = b.bairro === "";
+        const cor = semBairro ? "#6b7280" : CORES[i % CORES.length];
         const destaque = !bairroFoco || b.bairro === bairroFoco;
         for (const anel of b.aneis) {
-          L.polygon(anel, { color: cor, weight: destaque ? 3 : 1.5, fillColor: cor, fillOpacity: destaque ? 0.18 : 0.06, dashArray: destaque ? undefined : "4 4" })
-            .bindTooltip(`${b.municipio} - ${b.bairro}: ${porcento(b.pct)} do trecho`, { sticky: true })
+          L.polygon(anel, { color: cor, weight: destaque ? 3 : 1.5, fillColor: cor, fillOpacity: semBairro ? 0.04 : destaque ? 0.18 : 0.06, dashArray: destaque && !semBairro ? undefined : "4 4" })
+            .bindTooltip(`${b.municipio} - ${b.bairro || "sem bairro mapeado (contorno do município)"}: ${porcento(b.pct)} do trecho`, { sticky: true })
             .addTo(todos);
         }
       });

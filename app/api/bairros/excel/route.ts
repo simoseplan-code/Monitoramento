@@ -105,6 +105,7 @@ export async function POST(request: NextRequest) {
   for (const [id, ls] of porAcao) {
     const base = ls[0];
     const bairros = ls.filter((l) => l.bairro);
+    const semBairro = ls.filter((l) => l.municipio && l.bairro === "");
     const extensao = base.extensao_m;
     const detalhe = (l: Linha) => [extensao > 0 ? porcento(l.pct ?? 0) : "", (l.pontos ?? 0) > 0 ? `${l.pontos} ponto${(l.pontos ?? 0) > 1 ? "s" : ""}` : ""].filter(Boolean).join(" + ");
     const fora = [extensao > 0 && base.metros_fora / extensao >= 0.1 ? `${porcento(base.metros_fora / extensao)} do trecho` : "", (base.pontos_fora ?? 0) > 0 ? `${base.pontos_fora} ponto(s)` : ""].filter(Boolean).join(" e ");
@@ -118,8 +119,8 @@ export async function POST(request: NextRequest) {
       ORIGEM[base.fonte] ?? base.fonte,
       Math.round(extensao / 10) / 100,
       bairros.length,
-      bairros.length === 0 ? "Sem bairro mapeado" : bairros.length === 1 ? "Um só bairro" : "Mais de um bairro",
-      bairros.map((l) => `${l.municipio} - ${l.bairro} (${detalhe(l)})`).join("; "),
+      bairros.length === 0 ? (semBairro.length > 0 ? `Sem bairro mapeado (${semBairro.map((l) => l.municipio).join(", ")})` : "Sem bairro mapeado") : bairros.length === 1 ? "Um só bairro" : "Mais de um bairro",
+      [...bairros.map((l) => `${l.municipio} - ${l.bairro} (${detalhe(l)})`), ...semBairro.map((l) => `${l.municipio} - sem bairro mapeado (${detalhe(l)})`)].join("; "),
       fora,
       datas.get(id)?.criada ?? "",
       datas.get(id)?.conclusao ?? "",
@@ -145,11 +146,11 @@ export async function POST(request: NextRequest) {
       l.nome_acao ?? "",
       l.orgao ?? "",
       l.status ?? "",
-      l.municipio ?? "(sem bairro mapeado)",
-      l.bairro ?? "",
-      l.bairro ? l.metros ?? 0 : null,
-      l.bairro && l.extensao_m > 0 ? l.pct ?? 0 : null,
-      l.bairro ? l.pontos ?? 0 : null,
+      l.municipio ?? "(sem município)",
+      l.municipio ? (l.bairro === "" ? "(sem bairro mapeado)" : l.bairro ?? "") : "",
+      l.municipio ? l.metros ?? 0 : null,
+      l.municipio && l.extensao_m > 0 ? l.pct ?? 0 : null,
+      l.municipio ? l.pontos ?? 0 : null,
       datas.get(l.id_acao)?.criada ?? "",
       datas.get(l.id_acao)?.conclusao ?? "",
     ];

@@ -18,10 +18,10 @@ export async function POST(request: Request) {
   if (!perfil?.is_admin || perfil.status !== "aprovado") return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
 
   // Cada chamada trabalha uns 40 s e a tela chama de novo até acabar (evita estourar o tempo da função).
-  const corpo = (await request.json().catch(() => null)) as { baixarMapa?: boolean } | null;
+  const corpo = (await request.json().catch(() => null)) as { baixarMapa?: boolean; refazerTudo?: boolean } | null;
   const admin = createAdminClient();
   try {
-    const r = await atualizarBairros(admin, { limiteMs: 40_000, baixarMapa: corpo?.baixarMapa !== false });
+    const r = await atualizarBairros(admin, { limiteMs: 40_000, baixarMapa: corpo?.baixarMapa !== false, refazerTudo: corpo?.refazerTudo === true });
     return NextResponse.json({ ok: true, ...r });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { wktParaLinhasLonLat } from "@/lib/kml/base";
-import { bairrosDoTracado, carregarBairros } from "@/lib/bairros/calcular";
+import { bairrosDoTracado, carregarBairros, carregarMunicipios } from "@/lib/bairros/calcular";
 import { pontosEContornosDoKml } from "@/lib/bairros/kmlGuardado";
 import { atualizarGeometriaDoMapa, geomExtraDe } from "@/lib/bairros/geometriaMapa";
 
@@ -13,9 +13,15 @@ type Pendente = { id_acao: string; fonte: "sobreposicoes" | "kml" | "mapa"; assi
  * calculado: o SQL só devolve a ação cuja assinatura (md5 do traçado) é diferente da guardada.
  * Roda em lotes até acabar o tempo dado.
  */
-export async function atualizarBairros(admin: SupabaseClient, opcoes: { limiteMs: number; baixarMapa?: boolean }): Promise<ResumoBairros> {
+export async function atualizarBairros(admin: SupabaseClient, opcoes: { limiteMs: number; baixarMapa?: boolean; refazerTudo?: boolean }): Promise<ResumoBairros> {
   const inicio = Date.now();
-  const bairros = await carregarBairros();
+  const [bairros, municipios] = await Promise.all([carregarBairros(), carregarMunicipios()]);
+
+  // "Refazer tudo": esquece os cálculos guardados; todas as ações voltam a ficar pendentes.
+  if (opcoes.refazerTudo) {
+    const { error } = await admin.from("acao_bairros_calculo").delete().neq("id_acao", "");
+    if (error) throw new Error(`limpar acao_bairros_calculo: ${error.message}`);
+  }
   const resumo: ResumoBairros = { processadas: 0, comBairro: 0, semBairro: 0, terminou: false, pontosPoligonosDoMapa: "" };
 
   // Pontos e polígonos que o mapa publica: atualiza antes de calcular. Se falhar (arquivo fora do ar),
@@ -61,9 +67,11 @@ export async function atualizarBairros(admin: SupabaseClient, opcoes: { limiteMs
       const pontos = doMapa?.pontos ?? doKml.pontos;
       const contornos = doMapa?.poligonos ?? doKml.contornos;
       const linhas = [...(wkt ? wktParaLinhasLonLat(wkt) : []), ...contornos];
-      const r = bairrosDoTracado(linhas, bairros, pontos);
+      const r = bairrosDoTracado(linhas, bairros, pontos, municipios);
       calculos.push({ id_acao: p.id_acao, fonte: p.fonte, assinatura: p.assinatura, extensao_m: Math.round(r.extensaoM), metros_fora: r.metrosFora, qtd_bairros: r.bairros.length, pontos: r.pontos, pontos_fora: r.pontosFora, calculado_em: agora });
       for (const b of r.bairros) itens.push({ id_acao: p.id_acao, municipio: b.municipio, bairro: b.bairro, metros: b.metros, pct: b.pct, pontos: b.pontos });
+      // Parte que está num município mas em nenhum bairro: bairro vazio = "sem bairro mapeado".
+      for (const s of r.semBairro) itens.push({ id_acao: p.id_acao, municipio: s.municipio, bairro: "", metros: s.metros, pct: s.pct, pontos: s.pontos });
       resumo.processadas++;
       if (r.bairros.length > 0) resumo.comBairro++;
       else resumo.semBairro++;

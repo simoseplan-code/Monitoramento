@@ -58,13 +58,16 @@ export default async function VerificacaoBairrosPage() {
         extensaoM: l.extensao_m,
         metrosFora: l.metros_fora,
         pontosFora: l.pontos_fora ?? 0,
+        semBairro: [],
         criadaEm: datas.get(l.id_acao)?.criada ?? null,
         anoConclusao: datas.get(l.id_acao)?.conclusao ?? "(vazio)",
         bairros: [],
       };
       porAcao.set(l.id_acao, item);
     }
-    if (l.bairro && l.municipio) item.bairros.push({ municipio: l.municipio, bairro: l.bairro, metros: l.metros ?? 0, pct: l.pct ?? 0, pontos: l.pontos ?? 0 });
+    // bairro vazio = parte que está no município mas em nenhum bairro do arquivo
+    if (l.municipio && l.bairro === "") item.semBairro.push({ municipio: l.municipio, metros: l.metros ?? 0, pct: l.pct ?? 0, pontos: l.pontos ?? 0 });
+    else if (l.bairro && l.municipio) item.bairros.push({ municipio: l.municipio, bairro: l.bairro, metros: l.metros ?? 0, pct: l.pct ?? 0, pontos: l.pontos ?? 0 });
   }
   const itens = Array.from(porAcao.values());
   for (const i of itens) i.bairros.sort((a, b) => b.metros - a.metros);

@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { carregarBairros } from "@/lib/bairros/calcular";
+import { carregarBairros, carregarMunicipios } from "@/lib/bairros/calcular";
 import { wktParaLinhasLonLat } from "@/lib/kml/base";
 import { pontosEContornosDoKml } from "@/lib/bairros/kmlGuardado";
 import { geomExtraDe } from "@/lib/bairros/geometriaMapa";
@@ -51,11 +51,13 @@ export async function GET(request: NextRequest) {
   const pontos: LatLon[] = (doMapa?.pontos ?? doKml.pontos).slice(0, 2000).map((p) => [p[1], p[0]]);
   const contornos: LatLon[][] = (doMapa?.poligonos ?? doKml.contornos).slice(0, 200).map((c) => reduzir(c, 400));
 
-  const todos = await carregarBairros();
+  const [todos, municipios] = await Promise.all([carregarBairros(), carregarMunicipios()]);
   const bairros = (itens ?? []).map((b) => {
     const aneis: LatLon[][] = [];
-    for (const z of todos.filter((x) => x.m === b.municipio && x.n === b.bairro)) {
-      for (const poligono of z.g) for (const anel of poligono) aneis.push(reduzir(anel as [number, number][], 400));
+    // bairro vazio = parte fora dos bairros: desenha o contorno do município
+    const zonas = b.bairro === "" ? municipios.filter((x) => x.n === b.municipio) : todos.filter((x) => x.m === b.municipio && x.n === b.bairro);
+    for (const z of zonas) {
+      for (const poligono of z.g) for (const anel of poligono.slice(0, 1)) aneis.push(reduzir(anel as [number, number][], 400));
     }
     return { municipio: b.municipio as string, bairro: b.bairro as string, metros: b.metros as number, pct: b.pct as number, pontos: (b.pontos as number) ?? 0, aneis };
   });

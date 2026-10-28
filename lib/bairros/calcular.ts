@@ -3,16 +3,23 @@ import { amostrar, comprimentoM } from "@/lib/kml/analisar";
 type Coord = [number, number]; // [lon, lat]
 type Poligono = number[][][]; // [anel externo, ...furos], cada ponto [lon, lat]
 
-export type Bairro = { n: string; m: string; z?: string; b: [number, number, number, number]; g: Poligono[] };
+type Zona = { b: [number, number, number, number]; g: Poligono[] };
+export type Bairro = Zona & { n: string; m: string; z?: string };
+export type Municipio = Zona & { n: string; c?: string; t?: string | null };
 
 export type BairroDaAcao = { municipio: string; bairro: string; metros: number; pct: number; pontos: number };
+/** Parte do traçado que está num município mas não em nenhum bairro do arquivo. */
+export type SemBairroDaAcao = { municipio: string; metros: number; pct: number; pontos: number };
 
 export type ResultadoBairros = {
   extensaoM: number;
+  /** Metros que não caem em nenhum município do Piauí (nem em bairro). */
   metrosFora: number;
   pontos: number;
+  /** Pontos que não caem em nenhum município do Piauí. */
   pontosFora: number;
   bairros: BairroDaAcao[];
+  semBairro: SemBairroDaAcao[];
 };
 
 // Um ponto a cada 15 m basta para saber em que bairros o trecho passa.
@@ -21,10 +28,16 @@ const PASSO_M = 15;
 const MIN_PCT = 0.02;
 const MIN_METROS = 30;
 
-let cache: Bairro[] | null = null;
+let cacheBairros: Bairro[] | null = null;
 export async function carregarBairros(): Promise<Bairro[]> {
-  if (!cache) cache = (await import("@/data/geo/bairros_pi.json")).default as unknown as Bairro[];
-  return cache;
+  if (!cacheBairros) cacheBairros = (await import("@/data/geo/bairros_pi.json")).default as unknown as Bairro[];
+  return cacheBairros;
+}
+
+let cacheMunicipios: Municipio[] | null = null;
+export async function carregarMunicipios(): Promise<Municipio[]> {
+  if (!cacheMunicipios) cacheMunicipios = (await import("@/data/geo/municipios_pi.json")).default as unknown as Municipio[];
+  return cacheMunicipios;
 }
 
 function dentroDoAnel(p: Coord, anel: number[][]): boolean {
@@ -36,7 +49,7 @@ function dentroDoAnel(p: Coord, anel: number[][]): boolean {
   return dentro;
 }
 
-function dentroDoBairro(p: Coord, z: Bairro): boolean {
+function dentroDaZona(p: Coord, z: Zona): boolean {
   if (p[0] < z.b[0] || p[0] > z.b[2] || p[1] < z.b[1] || p[1] > z.b[3]) return false;
   for (const poligono of z.g) {
     if (dentroDoAnel(p, poligono[0]) && !poligono.slice(1).some((furo) => dentroDoAnel(p, furo))) return true;
@@ -46,14 +59,15 @@ function dentroDoBairro(p: Coord, z: Bairro): boolean {
 
 /**
  * Em que bairros o traçado cai. `linhas` (trechos, e o contorno dos polígonos) contam em metros;
- * `pontos` (locais marcados no KML) contam em quantidade.
+ * `pontosKml` (locais marcados) contam em quantidade. O que não cai em nenhum bairro é atribuído ao
+ * município onde está (`semBairro`), para pelo menos saber de que cidade é.
  */
-export function bairrosDoTracado(linhas: Coord[][], bairros: Bairro[], pontosKml: Coord[] = []): ResultadoBairros {
+export function bairrosDoTracado(linhas: Coord[][], bairros: Bairro[], pontosKml: Coord[] = [], municipios: Municipio[] = []): ResultadoBairros {
   const extensaoM = linhas.reduce((s, l) => s + comprimentoM(l), 0);
   const amostras = extensaoM > 0 ? linhas.flatMap((l) => amostrar(l, PASSO_M)) : [];
-  if (amostras.length === 0 && pontosKml.length === 0) return { extensaoM, metrosFora: 0, pontos: 0, pontosFora: 0, bairros: [] };
+  if (amostras.length === 0 && pontosKml.length === 0) return { extensaoM, metrosFora: 0, pontos: 0, pontosFora: 0, bairros: [], semBairro: [] };
 
-  // Só os bairros cuja caixa encosta na caixa do que foi marcado.
+  // Só as zonas cuja caixa encosta na caixa do que foi marcado.
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   for (const p of [...amostras, ...pontosKml]) {
     if (p[0] < x0) x0 = p[0];
@@ -61,7 +75,10 @@ export function bairrosDoTracado(linhas: Coord[][], bairros: Bairro[], pontosKml
     if (p[1] < y0) y0 = p[1];
     if (p[1] > y1) y1 = p[1];
   }
-  const candidatos = bairros.filter((b) => !(b.b[2] < x0 || b.b[0] > x1 || b.b[3] < y0 || b.b[1] > y1));
+  const tocaCaixa = (z: Zona) => !(z.b[2] < x0 || z.b[0] > x1 || z.b[3] < y0 || z.b[1] > y1);
+  const candidatos = bairros.filter(tocaCaixa);
+  const munCandidatos = municipios.filter(tocaCaixa);
+  const municipioDe = (p: Coord): string | null => munCandidatos.find((m) => dentroDaZona(p, m))?.n ?? null;
 
   const metrosPorAmostra = amostras.length ? extensaoM / amostras.length : 0;
   // Agrupa pelo nome (município + bairro): o arquivo tem dois polígonos com o mesmo nome em Teresina
@@ -70,42 +87,69 @@ export function bairrosDoTracado(linhas: Coord[][], bairros: Bairro[], pontosKml
   const nomes = new Map<string, Bairro>();
   const amostrasPorBairro = new Map<string, number>();
   const pontosPorBairro = new Map<string, number>();
+  const amostrasSemBairro = new Map<string, number>(); // por município
+  const pontosSemBairro = new Map<string, number>();
   let foraAmostras = 0;
-  for (const p of amostras) {
-    const achado = candidatos.find((b) => dentroDoBairro(p, b));
-    if (achado) {
-      nomes.set(chave(achado), achado);
-      amostrasPorBairro.set(chave(achado), (amostrasPorBairro.get(chave(achado)) ?? 0) + 1);
-    } else foraAmostras++;
-  }
   let pontosFora = 0;
-  for (const p of pontosKml) {
-    const achado = candidatos.find((b) => dentroDoBairro(p, b));
+  const soma = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) ?? 0) + 1);
+
+  for (const p of amostras) {
+    const achado = candidatos.find((b) => dentroDaZona(p, b));
     if (achado) {
       nomes.set(chave(achado), achado);
-      pontosPorBairro.set(chave(achado), (pontosPorBairro.get(chave(achado)) ?? 0) + 1);
-    } else pontosFora++;
+      soma(amostrasPorBairro, chave(achado));
+    } else {
+      const m = municipioDe(p);
+      if (m) soma(amostrasSemBairro, m);
+      else foraAmostras++;
+    }
+  }
+  for (const p of pontosKml) {
+    const achado = candidatos.find((b) => dentroDaZona(p, b));
+    if (achado) {
+      nomes.set(chave(achado), achado);
+      soma(pontosPorBairro, chave(achado));
+    } else {
+      const m = municipioDe(p);
+      if (m) soma(pontosSemBairro, m);
+      else pontosFora++;
+    }
   }
 
+  const pctDe = (metros: number, pontos: number) => (extensaoM > 0 ? metros / extensaoM : pontosKml.length ? pontos / pontosKml.length : 0);
+
   const lista: BairroDaAcao[] = [];
-  let descartadoAmostras = 0;
   for (const k of new Set([...amostrasPorBairro.keys(), ...pontosPorBairro.keys()])) {
     const b = nomes.get(k)!;
     const n = amostrasPorBairro.get(k) ?? 0;
     const pontos = pontosPorBairro.get(k) ?? 0;
     const metros = n * metrosPorAmostra;
-    // Com trecho, a % é a parte do trecho; ação só de pontos, a % é a parte dos pontos.
-    const pct = extensaoM > 0 ? metros / extensaoM : pontos / pontosKml.length;
-    const soEncosta = pontos === 0 && pct < MIN_PCT && metros < MIN_METROS;
-    if (soEncosta) descartadoAmostras += n;
-    else lista.push({ municipio: b.m, bairro: b.n, metros: Math.round(metros), pct: Math.round(pct * 1000) / 1000, pontos });
+    const pct = pctDe(metros, pontos);
+    if (pontos === 0 && pct < MIN_PCT && metros < MIN_METROS) {
+      // Só encosta no bairro: conta como "sem bairro" do município.
+      for (let i = 0; i < n; i++) soma(amostrasSemBairro, b.m);
+    } else lista.push({ municipio: b.m, bairro: b.n, metros: Math.round(metros), pct: Math.round(pct * 1000) / 1000, pontos });
   }
   lista.sort((a, b) => b.metros - a.metros || b.pontos - a.pontos);
+
+  const semBairro: SemBairroDaAcao[] = [];
+  let descartado = 0;
+  for (const m of new Set([...amostrasSemBairro.keys(), ...pontosSemBairro.keys()])) {
+    const n = amostrasSemBairro.get(m) ?? 0;
+    const pontos = pontosSemBairro.get(m) ?? 0;
+    const metros = n * metrosPorAmostra;
+    const pct = pctDe(metros, pontos);
+    if (pontos === 0 && pct < MIN_PCT && metros < MIN_METROS) descartado += n;
+    else semBairro.push({ municipio: m, metros: Math.round(metros), pct: Math.round(pct * 1000) / 1000, pontos });
+  }
+  semBairro.sort((a, b) => b.metros - a.metros || b.pontos - a.pontos);
+
   return {
     extensaoM,
-    metrosFora: Math.round((foraAmostras + descartadoAmostras) * metrosPorAmostra),
+    metrosFora: Math.round((foraAmostras + descartado) * metrosPorAmostra),
     pontos: pontosKml.length,
     pontosFora,
     bairros: lista,
+    semBairro,
   };
 }
