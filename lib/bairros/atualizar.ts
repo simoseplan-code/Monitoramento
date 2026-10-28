@@ -2,10 +2,11 @@ import type { SupabaseClient } from "@supabase/supabase-js";
 import { wktParaLinhasLonLat } from "@/lib/kml/base";
 import { bairrosDoTracado, carregarBairros } from "@/lib/bairros/calcular";
 import { pontosEContornosDoKml } from "@/lib/bairros/kmlGuardado";
+import { atualizarGeometriaDoMapa, geomExtraDe } from "@/lib/bairros/geometriaMapa";
 
-export type ResumoBairros = { processadas: number; comBairro: number; semBairro: number; terminou: boolean };
+export type ResumoBairros = { processadas: number; comBairro: number; semBairro: number; terminou: boolean; pontosPoligonosDoMapa: string };
 
-type Pendente = { id_acao: string; fonte: "sobreposicoes" | "kml"; assinatura: string };
+type Pendente = { id_acao: string; fonte: "sobreposicoes" | "kml" | "mapa"; assinatura: string };
 
 /**
  * Calcula (e guarda) os bairros das ações cujo traçado é novo ou mudou. Não refaz o que já está
@@ -15,7 +16,16 @@ type Pendente = { id_acao: string; fonte: "sobreposicoes" | "kml"; assinatura: s
 export async function atualizarBairros(admin: SupabaseClient, opcoes: { limiteMs: number }): Promise<ResumoBairros> {
   const inicio = Date.now();
   const bairros = await carregarBairros();
-  const resumo: ResumoBairros = { processadas: 0, comBairro: 0, semBairro: 0, terminou: false };
+  const resumo: ResumoBairros = { processadas: 0, comBairro: 0, semBairro: 0, terminou: false, pontosPoligonosDoMapa: "" };
+
+  // Pontos e polígonos que o mapa publica: atualiza antes de calcular. Se falhar (arquivo fora do ar),
+  // segue com o que já estava guardado.
+  try {
+    const g = await atualizarGeometriaDoMapa(admin);
+    resumo.pontosPoligonosDoMapa = `${g.comPontos} ações com pontos, ${g.comPoligonos} com polígonos`;
+  } catch (e) {
+    resumo.pontosPoligonosDoMapa = `não atualizados: ${e instanceof Error ? e.message : "erro"}`;
+  }
 
   while (Date.now() - inicio < opcoes.limiteMs) {
     const { data, error } = await admin.rpc("bairros_pendentes", { limite: 60 });
@@ -36,16 +46,20 @@ export async function atualizarBairros(admin: SupabaseClient, opcoes: { limiteMs
       for (const l of linhas ?? []) if (l.wkt) wkts.set(l.id_acao as string, l.wkt as string);
     }
 
+    const extrasDoMapa = await geomExtraDe(admin, pendentes.map((p) => p.id_acao));
     const calculos: { id_acao: string; fonte: string; assinatura: string; extensao_m: number; metros_fora: number; qtd_bairros: number; pontos: number; pontos_fora: number; calculado_em: string }[] = [];
     const itens: { id_acao: string; municipio: string; bairro: string; metros: number; pct: number; pontos: number }[] = [];
     const agora = new Date().toISOString();
 
     for (const p of pendentes) {
       const wkt = wkts.get(p.id_acao);
-      // Linhas do traçado + pontos e contornos de polígonos do KML guardado (se houver).
-      const extras = await pontosEContornosDoKml(admin, p.id_acao);
-      const linhas = [...(wkt ? wktParaLinhasLonLat(wkt) : []), ...extras.contornos];
-      const r = bairrosDoTracado(linhas, bairros, extras.pontos);
+      // Linhas do traçado + pontos e polígonos. Os do mapa valem; o KML guardado só completa o que o mapa não tem.
+      const doMapa = extrasDoMapa.get(p.id_acao);
+      const doKml = doMapa?.pontos && doMapa?.poligonos ? { pontos: [], contornos: [] } : await pontosEContornosDoKml(admin, p.id_acao);
+      const pontos = doMapa?.pontos ?? doKml.pontos;
+      const contornos = doMapa?.poligonos ?? doKml.contornos;
+      const linhas = [...(wkt ? wktParaLinhasLonLat(wkt) : []), ...contornos];
+      const r = bairrosDoTracado(linhas, bairros, pontos);
       calculos.push({ id_acao: p.id_acao, fonte: p.fonte, assinatura: p.assinatura, extensao_m: Math.round(r.extensaoM), metros_fora: r.metrosFora, qtd_bairros: r.bairros.length, pontos: r.pontos, pontos_fora: r.pontosFora, calculado_em: agora });
       for (const b of r.bairros) itens.push({ id_acao: p.id_acao, municipio: b.municipio, bairro: b.bairro, metros: b.metros, pct: b.pct, pontos: b.pontos });
       resumo.processadas++;

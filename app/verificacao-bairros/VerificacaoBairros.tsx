@@ -9,7 +9,7 @@ import { IdAcaoLink } from "@/components/IdAcaoLink";
 
 export type LinhaLista = {
   id_acao: string;
-  fonte: "sobreposicoes" | "kml";
+  fonte: "sobreposicoes" | "kml" | "mapa";
   extensao_m: number;
   metros_fora: number;
   municipio: string | null;
@@ -28,7 +28,7 @@ export type ItemLista = {
   nome: string;
   orgao: string | null;
   status: string | null;
-  fonte: "sobreposicoes" | "kml";
+  fonte: "sobreposicoes" | "kml" | "mapa";
   extensaoM: number;
   metrosFora: number;
   pontosFora: number;
@@ -113,12 +113,12 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
     setMsg(null);
     try {
       const resp = await fetch("/api/bairros/atualizar", { method: "POST" });
-      const json = (await resp.json().catch(() => ({}))) as { error?: string; processadas?: number; comBairro?: number; semBairro?: number; terminou?: boolean };
+      const json = (await resp.json().catch(() => ({}))) as { error?: string; processadas?: number; comBairro?: number; semBairro?: number; terminou?: boolean; pontosPoligonosDoMapa?: string };
       if (!resp.ok) setMsg({ tipo: "erro", texto: json.error ?? "Não foi possível atualizar." });
       else {
         setMsg({
           tipo: "ok",
-          texto: `${json.processadas ?? 0} ação(ões) calculada(s) (${json.comBairro ?? 0} com bairro, ${json.semBairro ?? 0} sem).` + (json.terminou ? "" : " Ainda falta calcular o resto: clique de novo."),
+          texto: `${json.processadas ?? 0} ação(ões) calculada(s) (${json.comBairro ?? 0} com bairro, ${json.semBairro ?? 0} sem).` + (json.terminou ? "" : " Ainda falta calcular o resto: clique de novo.") + (json.pontosPoligonosDoMapa ? ` Mapa: ${json.pontosPoligonosDoMapa}.` : ""),
         });
         router.refresh();
       }
@@ -140,7 +140,7 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
       <section className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-xs text-ink-muted">
-            Cruza o traçado guardado de cada ação (o do mapa, ou o KML baixado do SIMO quando o mapa não tem) com os limites dos bairros. O resultado fica guardado e só é refeito quando o traçado muda: a atualização diária (04:15) cuida disso sozinha.
+            Cruza o que está guardado de cada ação (linhas, pontos e polígonos do mapa de obras; o KML baixado do SIMO completa o que o mapa não tem) com os limites dos bairros. O resultado fica guardado e só é refeito quando o traçado muda: a atualização diária (04:15) cuida disso sozinha.
             {resumo && (
               <>
                 {" "}
@@ -223,8 +223,9 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
           </select>
           <select value={fonte} onChange={(e) => mudar(setFonte)(e.target.value)} className={campo}>
             <option value="">Qualquer origem do traçado</option>
-            <option value="sobreposicoes">Mapa</option>
+            <option value="sobreposicoes">Linhas do mapa</option>
             <option value="kml">KML guardado</option>
+            <option value="mapa">Só pontos ou polígonos do mapa</option>
           </select>
           {(busca || municipio || bairro || orgao || status || situacao !== "todas" || fonte) && (
             <button
@@ -305,7 +306,7 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
                     <button
                       onClick={() => setVerMapa({ id: i.id, nome: i.nome })}
                       className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-black/10 px-2.5 py-1 text-xs font-medium text-ink-secondary hover:bg-plane"
-                      title={i.fonte === "kml" ? "Traçado: KML guardado" : "Traçado: mapa de obras"}
+                      title={i.fonte === "kml" ? "Traçado: KML guardado" : i.fonte === "mapa" ? "Pontos e polígonos do mapa de obras" : "Traçado: mapa de obras"}
                     >
                       <MapPinned size={13} /> Verificar KML
                     </button>
@@ -347,7 +348,7 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
 // ---------- mapa: o traçado da ação e o contorno dos bairros ----------
 
 type DadosMapa = {
-  fonte: "sobreposicoes" | "kml";
+  fonte: "sobreposicoes" | "kml" | "mapa";
   extensaoM: number;
   metrosFora: number;
   pontosFora: number;
@@ -408,7 +409,7 @@ function JanelaMapa({ id, nome, bairroFoco, aoFechar }: { id: string; nome: stri
           <>
             <MapaBairros dados={dados} bairroFoco={bairroFoco} />
             <p className="mt-3 text-xs text-ink-muted">
-              Traçado: {dados.fonte === "kml" ? "KML guardado" : "mapa de obras"} · {(dados.extensaoM / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} km · {dados.totalPontos} ponto(s) do KML.{" "}
+              Traçado: {dados.fonte === "kml" ? "KML guardado" : dados.fonte === "mapa" ? "pontos e polígonos do mapa de obras" : "mapa de obras"} · {(dados.extensaoM / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} km · {dados.totalPontos} ponto(s) do KML.{" "}
               {dados.bairros.length === 0 ? "Não cai em nenhum bairro mapeado." : ""}
             </p>
             <ul className="mt-2 flex flex-wrap gap-2">

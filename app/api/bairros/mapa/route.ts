@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { carregarBairros } from "@/lib/bairros/calcular";
 import { wktParaLinhasLonLat } from "@/lib/kml/base";
 import { pontosEContornosDoKml } from "@/lib/bairros/kmlGuardado";
+import { geomExtraDe } from "@/lib/bairros/geometriaMapa";
 
 export const runtime = "nodejs";
 
@@ -41,12 +42,14 @@ export async function GET(request: NextRequest) {
 
   // O traçado fica em tabelas só do servidor (o do mapa é restrito a admin e chefe).
   const admin = createAdminClient();
-  const tabela = calculo.fonte === "kml" ? "kml_arquivos" : "obras_tracado";
-  const { data: linha } = await admin.from(tabela).select("wkt").eq("id_acao", id).maybeSingle();
+  const tabela = calculo.fonte === "kml" ? "kml_arquivos" : calculo.fonte === "sobreposicoes" ? "obras_tracado" : null;
+  const { data: linha } = tabela ? await admin.from(tabela).select("wkt").eq("id_acao", id).maybeSingle() : { data: null };
   const linhas = linha?.wkt ? wktParaLinhasLonLat(linha.wkt as string).map((l) => reduzir(l, 1500)) : [];
-  const extras = await pontosEContornosDoKml(admin, id);
-  const pontos: LatLon[] = extras.pontos.slice(0, 2000).map((p) => [p[1], p[0]]);
-  const contornos: LatLon[][] = extras.contornos.slice(0, 200).map((c) => reduzir(c, 400));
+  // Pontos e polígonos: os do mapa valem; o KML guardado só completa o que o mapa não tem.
+  const doMapa = (await geomExtraDe(admin, [id])).get(id);
+  const doKml = doMapa?.pontos && doMapa?.poligonos ? { pontos: [], contornos: [] } : await pontosEContornosDoKml(admin, id);
+  const pontos: LatLon[] = (doMapa?.pontos ?? doKml.pontos).slice(0, 2000).map((p) => [p[1], p[0]]);
+  const contornos: LatLon[][] = (doMapa?.poligonos ?? doKml.contornos).slice(0, 200).map((c) => reduzir(c, 400));
 
   const todos = await carregarBairros();
   const bairros = (itens ?? []).map((b) => {
