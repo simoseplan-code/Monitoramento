@@ -1,0 +1,454 @@
+"use client";
+
+import "leaflet/dist/leaflet.css";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
+import { Loader2, MapPinned, RefreshCw, Search, X } from "lucide-react";
+import type { Map as MapaLeaflet } from "leaflet";
+import { IdAcaoLink } from "@/components/IdAcaoLink";
+
+export type LinhaLista = {
+  id_acao: string;
+  fonte: "sobreposicoes" | "kml";
+  extensao_m: number;
+  metros_fora: number;
+  municipio: string | null;
+  bairro: string | null;
+  metros: number | null;
+  pct: number | null;
+  nome_acao: string | null;
+  orgao: string | null;
+  status: string | null;
+};
+
+export type ItemLista = {
+  id: string;
+  nome: string;
+  orgao: string | null;
+  status: string | null;
+  fonte: "sobreposicoes" | "kml";
+  extensaoM: number;
+  metrosFora: number;
+  bairros: { municipio: string; bairro: string; metros: number; pct: number }[];
+};
+
+const TAMANHO = 50;
+const SEM_BAIRRO = "(sem bairro mapeado)";
+const inteiro = (v: number) => v.toLocaleString("pt-BR");
+const porcento = (v: number) => `${Math.round(v * 100)}%`;
+const campo = "rounded-lg border border-black/10 bg-plane px-3 py-2 text-xs text-ink-secondary focus:border-series-1 focus:outline-none";
+
+type Situacao = "todas" | "um" | "varios" | "parte_fora" | "sem";
+
+function situacaoDe(i: ItemLista): Exclude<Situacao, "todas"> {
+  if (i.bairros.length === 0) return "sem";
+  if (i.bairros.length > 1) return "varios";
+  return "um";
+}
+const parteFora = (i: ItemLista) => i.bairros.length > 0 && i.extensaoM > 0 && i.metrosFora / i.extensaoM >= 0.1;
+
+export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemLista[]; ehAdmin: boolean; resumo: { verificadas: number; pendentes: number; ultima: string | null } | null }) {
+  const router = useRouter();
+  const [busca, setBusca] = useState("");
+  const [municipio, setMunicipio] = useState("");
+  const [bairro, setBairro] = useState("");
+  const [orgao, setOrgao] = useState("");
+  const [status, setStatus] = useState("");
+  const [fonte, setFonte] = useState("");
+  const [situacao, setSituacao] = useState<Situacao>("todas");
+  const [pagina, setPagina] = useState(1);
+  const [verMapa, setVerMapa] = useState<{ id: string; nome: string; bairroFoco?: string } | null>(null);
+
+  const [atualizando, setAtualizando] = useState(false);
+  const [msg, setMsg] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
+
+  // Opções dos filtros (município e bairro vêm do que foi verificado).
+  const municipios = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const i of itens) for (const b of new Set(i.bairros.map((x) => x.municipio))) m.set(b, (m.get(b) ?? 0) + 1);
+    return Array.from(m, ([nome, qtd]) => ({ nome, qtd })).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  }, [itens]);
+  const bairrosDoMunicipio = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const i of itens) for (const b of i.bairros) if (!municipio || b.municipio === municipio) m.set(b.bairro, (m.get(b.bairro) ?? 0) + 1);
+    return Array.from(m, ([nome, qtd]) => ({ nome, qtd })).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
+  }, [itens, municipio]);
+  const orgaos = useMemo(() => Array.from(new Set(itens.map((i) => i.orgao).filter(Boolean) as string[])).sort(), [itens]);
+  const statusLista = useMemo(() => Array.from(new Set(itens.map((i) => i.status).filter(Boolean) as string[])).sort(), [itens]);
+
+  const filtradas = useMemo(() => {
+    const termo = busca.trim().toLowerCase();
+    return itens
+      .filter((i) => {
+        if (termo && !(i.id.includes(termo) || i.nome.toLowerCase().includes(termo) || i.bairros.some((b) => (b.municipio + " " + b.bairro).toLowerCase().includes(termo)))) return false;
+        if (municipio === SEM_BAIRRO ? i.bairros.length > 0 : municipio && !i.bairros.some((b) => b.municipio === municipio)) return false;
+        if (bairro && !i.bairros.some((b) => b.bairro === bairro && (!municipio || municipio === SEM_BAIRRO || b.municipio === municipio))) return false;
+        if (orgao && i.orgao !== orgao) return false;
+        if (status && i.status !== status) return false;
+        if (fonte && i.fonte !== fonte) return false;
+        if (situacao === "parte_fora" ? !parteFora(i) : situacao !== "todas" && situacaoDe(i) !== situacao) return false;
+        return true;
+      })
+      .sort((a, b) => Number(a.id) - Number(b.id));
+  }, [itens, busca, municipio, bairro, orgao, status, fonte, situacao]);
+
+  const totalPaginas = Math.max(1, Math.ceil(filtradas.length / TAMANHO));
+  const paginaAtual = Math.min(pagina, totalPaginas);
+  const visiveis = filtradas.slice((paginaAtual - 1) * TAMANHO, paginaAtual * TAMANHO);
+  const mudar = <T,>(set: (v: T) => void) => (v: T) => {
+    set(v);
+    setPagina(1);
+  };
+
+  async function atualizar() {
+    setAtualizando(true);
+    setMsg(null);
+    try {
+      const resp = await fetch("/api/bairros/atualizar", { method: "POST" });
+      const json = (await resp.json().catch(() => ({}))) as { error?: string; processadas?: number; comBairro?: number; semBairro?: number; terminou?: boolean };
+      if (!resp.ok) setMsg({ tipo: "erro", texto: json.error ?? "Não foi possível atualizar." });
+      else {
+        setMsg({
+          tipo: "ok",
+          texto: `${json.processadas ?? 0} ação(ões) calculada(s) (${json.comBairro ?? 0} com bairro, ${json.semBairro ?? 0} sem).` + (json.terminou ? "" : " Ainda falta calcular o resto: clique de novo."),
+        });
+        router.refresh();
+      }
+    } catch {
+      setMsg({ tipo: "erro", texto: "Sem conexão com o servidor." });
+    } finally {
+      setAtualizando(false);
+    }
+  }
+
+  const contagem = {
+    um: filtradas.filter((i) => situacaoDe(i) === "um").length,
+    varios: filtradas.filter((i) => situacaoDe(i) === "varios").length,
+    sem: filtradas.filter((i) => situacaoDe(i) === "sem").length,
+  };
+
+  return (
+    <div className="space-y-4">
+      <section className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <p className="text-xs text-ink-muted">
+            Cruza o traçado guardado de cada ação (o do mapa, ou o KML baixado do SIMO quando o mapa não tem) com os limites dos bairros. O resultado fica guardado e só é refeito quando o traçado muda: a atualização diária (04:15) cuida disso sozinha.
+            {resumo && (
+              <>
+                {" "}
+                <strong className="text-ink-secondary">{inteiro(resumo.verificadas)}</strong> verificada(s)
+                {resumo.pendentes > 0 ? (
+                  <>
+                    , <strong className="text-status-warning">{inteiro(resumo.pendentes)}</strong> aguardando cálculo
+                  </>
+                ) : (
+                  ", nada pendente"
+                )}
+                {resumo.ultima ? `. Último cálculo em ${new Date(resumo.ultima).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}.` : "."}
+              </>
+            )}
+          </p>
+          {ehAdmin && (
+            <button onClick={atualizar} disabled={atualizando} className="flex items-center gap-1.5 rounded-full bg-series-1 px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">
+              {atualizando ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+              {atualizando ? "Calculando..." : "Atualizar verificação"}
+            </button>
+          )}
+        </div>
+        {msg && <p className={"mt-2 text-xs font-medium " + (msg.tipo === "ok" ? "text-status-good" : "text-status-critical")}>{msg.texto}</p>}
+      </section>
+
+      {/* Filtros */}
+      <section className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
+        <div className="flex flex-wrap items-center gap-3">
+          <label className="relative">
+            <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
+            <input value={busca} onChange={(e) => mudar(setBusca)(e.target.value)} placeholder="ID, nome, município ou bairro..." className={campo + " w-64 pl-9"} />
+          </label>
+          <select
+            value={municipio}
+            onChange={(e) => {
+              setMunicipio(e.target.value);
+              setBairro("");
+              setPagina(1);
+            }}
+            className={campo}
+          >
+            <option value="">Todos os municípios</option>
+            <option value={SEM_BAIRRO}>{SEM_BAIRRO}</option>
+            {municipios.map((m) => (
+              <option key={m.nome} value={m.nome}>
+                {m.nome} ({m.qtd})
+              </option>
+            ))}
+          </select>
+          <select value={bairro} onChange={(e) => mudar(setBairro)(e.target.value)} disabled={municipio === SEM_BAIRRO} className={campo}>
+            <option value="">{municipio && municipio !== SEM_BAIRRO ? `Todos os bairros de ${municipio}` : "Todos os bairros"}</option>
+            {bairrosDoMunicipio.map((b) => (
+              <option key={b.nome} value={b.nome}>
+                {b.nome} ({b.qtd})
+              </option>
+            ))}
+          </select>
+          <select value={orgao} onChange={(e) => mudar(setOrgao)(e.target.value)} className={campo}>
+            <option value="">Todos os órgãos</option>
+            {orgaos.map((o) => (
+              <option key={o} value={o}>
+                {o}
+              </option>
+            ))}
+          </select>
+          <select value={status} onChange={(e) => mudar(setStatus)(e.target.value)} className={campo}>
+            <option value="">Todos os status</option>
+            {statusLista.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
+          <select value={situacao} onChange={(e) => mudar(setSituacao)(e.target.value as Situacao)} className={campo}>
+            <option value="todas">Qualquer situação</option>
+            <option value="um">Dentro de um só bairro</option>
+            <option value="varios">Passa por mais de um bairro</option>
+            <option value="parte_fora">Parte do trecho fora dos bairros</option>
+            <option value="sem">Sem bairro mapeado</option>
+          </select>
+          <select value={fonte} onChange={(e) => mudar(setFonte)(e.target.value)} className={campo}>
+            <option value="">Qualquer origem do traçado</option>
+            <option value="sobreposicoes">Mapa</option>
+            <option value="kml">KML guardado</option>
+          </select>
+          {(busca || municipio || bairro || orgao || status || situacao !== "todas" || fonte) && (
+            <button
+              onClick={() => {
+                setBusca("");
+                setMunicipio("");
+                setBairro("");
+                setOrgao("");
+                setStatus("");
+                setSituacao("todas");
+                setFonte("");
+                setPagina(1);
+              }}
+              className="text-xs font-medium text-series-1 hover:underline"
+            >
+              limpar filtros
+            </button>
+          )}
+        </div>
+        <p className="mt-3 text-xs text-ink-muted">
+          <strong className="text-ink-primary">{inteiro(filtradas.length)}</strong> de {inteiro(itens.length)} ação(ões) · {inteiro(contagem.um)} em um só bairro · {inteiro(contagem.varios)} em mais de um · {inteiro(contagem.sem)} sem bairro mapeado
+        </p>
+      </section>
+
+      {/* Lista */}
+      <section className="rounded-xl border border-black/5 bg-surface shadow-card">
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="border-b border-black/5 text-left text-xs uppercase tracking-wide text-ink-muted">
+              <tr>
+                <th className="px-4 py-3">ID</th>
+                <th className="px-4 py-3">Ação</th>
+                <th className="px-4 py-3">Órgão</th>
+                <th className="px-4 py-3">Município - Bairro</th>
+                <th className="px-4 py-3">KML</th>
+              </tr>
+            </thead>
+            <tbody>
+              {visiveis.map((i) => (
+                <tr key={i.id} className="border-b border-black/5 align-top last:border-0 hover:bg-plane/60">
+                  <td className="tabular px-4 py-3 font-medium text-ink-primary">
+                    <IdAcaoLink id={i.id} />
+                  </td>
+                  <td className="max-w-md px-4 py-3 text-ink-secondary">
+                    <span className="block">{i.nome}</span>
+                    {i.status && <span className="text-[11px] text-ink-muted">{i.status}</span>}
+                  </td>
+                  <td className="px-4 py-3 text-ink-secondary">{i.orgao ?? "-"}</td>
+                  <td className="px-4 py-3">
+                    {i.bairros.length === 0 ? (
+                      <span className="rounded-full bg-status-neutral-bg px-2 py-0.5 text-xs font-medium text-status-neutral" title="O trecho não cai em nenhum bairro do arquivo (município sem bairros mapeados ou fora dos limites)">
+                        {SEM_BAIRRO}
+                      </span>
+                    ) : (
+                      <div className="flex flex-wrap gap-1.5">
+                        {i.bairros.map((b) => {
+                          const foco = bairro && b.bairro === bairro;
+                          return (
+                            <button
+                              key={b.municipio + b.bairro}
+                              onClick={() => setVerMapa({ id: i.id, nome: i.nome, bairroFoco: b.bairro })}
+                              title={`${inteiro(b.metros)} m dentro deste bairro. Clique para ver no mapa.`}
+                              className={`rounded-full px-2.5 py-0.5 text-xs font-medium hover:opacity-80 ${foco ? "bg-series-1 text-white" : "bg-status-good-bg text-status-good"}`}
+                            >
+                              {b.municipio} - {b.bairro} <span className="opacity-70">({porcento(b.pct)})</span>
+                            </button>
+                          );
+                        })}
+                        {parteFora(i) && (
+                          <span className="rounded-full bg-status-warning-bg px-2.5 py-0.5 text-xs font-medium text-status-warning" title="Parte do trecho não cai em nenhum bairro mapeado">
+                            {porcento(i.metrosFora / i.extensaoM)} fora
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
+                    <button
+                      onClick={() => setVerMapa({ id: i.id, nome: i.nome })}
+                      className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-black/10 px-2.5 py-1 text-xs font-medium text-ink-secondary hover:bg-plane"
+                      title={i.fonte === "kml" ? "Traçado: KML guardado" : "Traçado: mapa de obras"}
+                    >
+                      <MapPinned size={13} /> Verificar KML
+                    </button>
+                  </td>
+                </tr>
+              ))}
+              {visiveis.length === 0 && (
+                <tr>
+                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-ink-muted">
+                    {itens.length === 0 ? "Nenhuma ação verificada ainda. Rode o SQL 0081 e clique em Atualizar verificação." : "Nenhuma ação com esses filtros."}
+                  </td>
+                </tr>
+              )}
+            </tbody>
+          </table>
+        </div>
+        {totalPaginas > 1 && (
+          <div className="flex items-center justify-between border-t border-black/5 px-5 py-2.5 text-xs text-ink-muted">
+            <span>
+              Página {paginaAtual} de {totalPaginas}
+            </span>
+            <span className="flex gap-2">
+              <button onClick={() => setPagina(Math.max(1, paginaAtual - 1))} disabled={paginaAtual === 1} className="rounded-lg border border-black/10 px-3 py-1 font-medium hover:bg-plane disabled:opacity-40">
+                Anterior
+              </button>
+              <button onClick={() => setPagina(Math.min(totalPaginas, paginaAtual + 1))} disabled={paginaAtual === totalPaginas} className="rounded-lg border border-black/10 px-3 py-1 font-medium hover:bg-plane disabled:opacity-40">
+                Próxima
+              </button>
+            </span>
+          </div>
+        )}
+      </section>
+
+      {verMapa && <JanelaMapa id={verMapa.id} nome={verMapa.nome} bairroFoco={verMapa.bairroFoco} aoFechar={() => setVerMapa(null)} />}
+    </div>
+  );
+}
+
+// ---------- mapa: o traçado da ação e o contorno dos bairros ----------
+
+type DadosMapa = {
+  fonte: "sobreposicoes" | "kml";
+  extensaoM: number;
+  metrosFora: number;
+  linhas: [number, number][][];
+  bairros: { municipio: string; bairro: string; metros: number; pct: number; aneis: [number, number][][] }[];
+};
+
+const CORES = ["#2563eb", "#16a34a", "#9333ea", "#ea580c", "#0891b2", "#db2777", "#65a30d", "#4f46e5"];
+
+function JanelaMapa({ id, nome, bairroFoco, aoFechar }: { id: string; nome: string; bairroFoco?: string; aoFechar: () => void }) {
+  const [dados, setDados] = useState<DadosMapa | null>(null);
+  const [erro, setErro] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelado = false;
+    (async () => {
+      try {
+        const resp = await fetch(`/api/bairros/mapa?id=${encodeURIComponent(id)}`);
+        const json = (await resp.json().catch(() => ({}))) as DadosMapa & { error?: string };
+        if (cancelado) return;
+        if (!resp.ok) setErro(json.error ?? "Não foi possível carregar o mapa.");
+        else setDados(json);
+      } catch {
+        if (!cancelado) setErro("Sem conexão com o servidor.");
+      }
+    })();
+    return () => {
+      cancelado = true;
+    };
+  }, [id]);
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={aoFechar}>
+      <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-surface p-5 shadow-card" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-3 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-ink-primary">
+              Verificar KML · ação {id}
+            </p>
+            <p className="truncate text-xs text-ink-muted" title={nome}>
+              {nome}
+            </p>
+          </div>
+          <button onClick={aoFechar} className="rounded-lg p-1 text-ink-muted hover:bg-plane" aria-label="Fechar">
+            <X size={16} />
+          </button>
+        </div>
+        {erro && <p className="rounded-lg bg-status-critical/10 px-3 py-2 text-xs text-status-critical">{erro}</p>}
+        {!dados && !erro && (
+          <p className="flex items-center gap-2 py-10 text-xs text-ink-muted">
+            <Loader2 size={14} className="animate-spin" /> Carregando o mapa...
+          </p>
+        )}
+        {dados && (
+          <>
+            <MapaBairros dados={dados} bairroFoco={bairroFoco} />
+            <p className="mt-3 text-xs text-ink-muted">
+              Traçado: {dados.fonte === "kml" ? "KML guardado" : "mapa de obras"} · {(dados.extensaoM / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} km.{" "}
+              {dados.bairros.length === 0 ? "Não cai em nenhum bairro mapeado." : ""}
+            </p>
+            <ul className="mt-2 flex flex-wrap gap-2">
+              {dados.bairros.map((b, i) => (
+                <li key={b.municipio + b.bairro} className="flex items-center gap-1.5 rounded-full border border-black/10 px-2.5 py-1 text-xs text-ink-secondary">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: CORES[i % CORES.length] }} />
+                  {b.municipio} - {b.bairro}: {inteiro(b.metros)} m ({porcento(b.pct)})
+                </li>
+              ))}
+              {dados.metrosFora > 0 && dados.bairros.length > 0 && (
+                <li className="rounded-full border border-status-warning/30 bg-status-warning-bg px-2.5 py-1 text-xs text-status-warning">fora dos bairros: {inteiro(dados.metrosFora)} m</li>
+              )}
+            </ul>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MapaBairros({ dados, bairroFoco }: { dados: DadosMapa; bairroFoco?: string }) {
+  const divRef = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    let mapa: MapaLeaflet | null = null;
+    let cancelado = false;
+    (async () => {
+      const L = await import("leaflet");
+      if (cancelado || !divRef.current) return;
+      mapa = L.map(divRef.current);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(mapa);
+      const todos = L.featureGroup().addTo(mapa);
+      dados.bairros.forEach((b, i) => {
+        const cor = CORES[i % CORES.length];
+        const destaque = !bairroFoco || b.bairro === bairroFoco;
+        for (const anel of b.aneis) {
+          L.polygon(anel, { color: cor, weight: destaque ? 3 : 1.5, fillColor: cor, fillOpacity: destaque ? 0.18 : 0.06, dashArray: destaque ? undefined : "4 4" })
+            .bindTooltip(`${b.municipio} - ${b.bairro}: ${porcento(b.pct)} do trecho`, { sticky: true })
+            .addTo(todos);
+        }
+      });
+      const grupoLinhas = L.featureGroup().addTo(mapa);
+      for (const l of dados.linhas) L.polyline(l, { color: "#dc2626", weight: 4, opacity: 0.95 }).addTo(grupoLinhas);
+      const b = grupoLinhas.getBounds();
+      const bt = todos.getBounds();
+      if (b.isValid()) mapa.fitBounds(bt.isValid() ? b.extend(bt) : b, { padding: [30, 30], maxZoom: 17 });
+      else if (bt.isValid()) mapa.fitBounds(bt, { padding: [30, 30] });
+      else mapa.setView([-7.5, -43], 6);
+    })();
+    return () => {
+      cancelado = true;
+      mapa?.remove();
+    };
+  }, [dados, bairroFoco]);
+  return <div ref={divRef} className="h-[28rem] w-full overflow-hidden rounded-lg border border-black/5" />;
+}

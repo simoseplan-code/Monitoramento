@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { executarSyncObras, executarSyncSugestoes } from "@/lib/simo/sync";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { atualizarSobreposicoes } from "@/lib/sobreposicoes/atualizar";
+import { atualizarBairros } from "@/lib/bairros/atualizar";
 
 export const runtime = "nodejs";
 // 300s: gravar as obras e, no fim, atualizar as Sobreposições (baixa os traçados do mapa e
@@ -50,7 +51,21 @@ export async function GET(request: NextRequest) {
       }
     }
 
-    return NextResponse.json({ ok: true, linhas, naFila: naFila ?? "adiadas (tempo)", sobreposicoes });
+    // Verificação de bairros: só calcula as ações com traçado novo ou alterado (o resto já está guardado).
+    let bairros: string;
+    if (Date.now() - inicio > 255_000) {
+      bairros = "adiada (tempo): use o botão Atualizar verificação";
+    } else {
+      try {
+        const r = await atualizarBairros(createAdminClient(), { limiteMs: Math.max(5_000, 280_000 - (Date.now() - inicio)) });
+        bairros = `OK: ${r.processadas} ação(ões) calculada(s) (${r.comBairro} com bairro, ${r.semBairro} sem)${r.terminou ? "" : "; falta calcular o resto no próximo dia"}.`;
+      } catch (e) {
+        bairros = `FALHOU: ${e instanceof Error ? e.message : "erro desconhecido"}`;
+        console.error("cron bairros:", bairros);
+      }
+    }
+
+    return NextResponse.json({ ok: true, linhas, naFila: naFila ?? "adiadas (tempo)", sobreposicoes, bairros });
   } catch (e) {
     const mensagem = e instanceof Error ? e.message : "Erro desconhecido.";
     return NextResponse.json({ error: mensagem }, { status: 500 });
