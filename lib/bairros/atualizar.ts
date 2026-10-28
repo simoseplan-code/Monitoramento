@@ -13,18 +13,20 @@ type Pendente = { id_acao: string; fonte: "sobreposicoes" | "kml" | "mapa"; assi
  * calculado: o SQL só devolve a ação cuja assinatura (md5 do traçado) é diferente da guardada.
  * Roda em lotes até acabar o tempo dado.
  */
-export async function atualizarBairros(admin: SupabaseClient, opcoes: { limiteMs: number }): Promise<ResumoBairros> {
+export async function atualizarBairros(admin: SupabaseClient, opcoes: { limiteMs: number; baixarMapa?: boolean }): Promise<ResumoBairros> {
   const inicio = Date.now();
   const bairros = await carregarBairros();
   const resumo: ResumoBairros = { processadas: 0, comBairro: 0, semBairro: 0, terminou: false, pontosPoligonosDoMapa: "" };
 
   // Pontos e polígonos que o mapa publica: atualiza antes de calcular. Se falhar (arquivo fora do ar),
   // segue com o que já estava guardado.
-  try {
-    const g = await atualizarGeometriaDoMapa(admin);
-    resumo.pontosPoligonosDoMapa = `${g.comPontos} ações com pontos, ${g.comPoligonos} com polígonos`;
-  } catch (e) {
-    resumo.pontosPoligonosDoMapa = `não atualizados: ${e instanceof Error ? e.message : "erro"}`;
+  if (opcoes.baixarMapa !== false) {
+    try {
+      const g = await atualizarGeometriaDoMapa(admin);
+      resumo.pontosPoligonosDoMapa = `${g.comPontos} ações com pontos, ${g.comPoligonos} com polígonos`;
+    } catch (e) {
+      resumo.pontosPoligonosDoMapa = `não atualizados: ${e instanceof Error ? e.message : "erro"}`;
+    }
   }
 
   while (Date.now() - inicio < opcoes.limiteMs) {

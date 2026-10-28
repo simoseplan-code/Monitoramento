@@ -108,22 +108,48 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
     setPagina(1);
   };
 
+  // Calcula em lotes curtos: cada chamada trabalha uns 40 s e a tela chama de novo até acabar.
   async function atualizar() {
     setAtualizando(true);
     setMsg(null);
+    let total = 0;
+    let comBairro = 0;
+    let semBairro = 0;
+    let infoMapa = "";
     try {
-      const resp = await fetch("/api/bairros/atualizar", { method: "POST" });
-      const json = (await resp.json().catch(() => ({}))) as { error?: string; processadas?: number; comBairro?: number; semBairro?: number; terminou?: boolean; pontosPoligonosDoMapa?: string };
-      if (!resp.ok) setMsg({ tipo: "erro", texto: json.error ?? "Não foi possível atualizar." });
-      else {
-        setMsg({
-          tipo: "ok",
-          texto: `${json.processadas ?? 0} ação(ões) calculada(s) (${json.comBairro ?? 0} com bairro, ${json.semBairro ?? 0} sem).` + (json.terminou ? "" : " Ainda falta calcular o resto: clique de novo.") + (json.pontosPoligonosDoMapa ? ` Mapa: ${json.pontosPoligonosDoMapa}.` : ""),
+      for (let rodada = 0; rodada < 60; rodada++) {
+        const resp = await fetch("/api/bairros/atualizar", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ baixarMapa: rodada === 0 }),
         });
-        router.refresh();
+        const texto = await resp.text();
+        let json: { error?: string; processadas?: number; comBairro?: number; semBairro?: number; terminou?: boolean; pontosPoligonosDoMapa?: string } = {};
+        try {
+          json = JSON.parse(texto);
+        } catch {
+          // resposta que não é do nosso código (ex.: tempo esgotado na hospedagem)
+        }
+        if (!resp.ok) {
+          setMsg({ tipo: "erro", texto: (json.error ?? `O servidor respondeu ${resp.status}${texto && !texto.startsWith("<") ? ": " + texto.slice(0, 160) : ""}`) + (total > 0 ? ` Já foram calculadas ${inteiro(total)} ação(ões); clique de novo para continuar.` : "") });
+          router.refresh();
+          return;
+        }
+        total += json.processadas ?? 0;
+        comBairro += json.comBairro ?? 0;
+        semBairro += json.semBairro ?? 0;
+        if (json.pontosPoligonosDoMapa) infoMapa = json.pontosPoligonosDoMapa;
+        if (json.terminou || (json.processadas ?? 0) === 0) {
+          setMsg({ tipo: "ok", texto: `${inteiro(total)} ação(ões) calculada(s) (${inteiro(comBairro)} com bairro, ${inteiro(semBairro)} sem).` + (infoMapa ? ` Mapa: ${infoMapa}.` : "") });
+          router.refresh();
+          return;
+        }
+        setMsg({ tipo: "ok", texto: `Calculando... ${inteiro(total)} ação(ões) até agora.` });
       }
+      setMsg({ tipo: "ok", texto: `${inteiro(total)} ação(ões) calculadas. Clique de novo para continuar.` });
+      router.refresh();
     } catch {
-      setMsg({ tipo: "erro", texto: "Sem conexão com o servidor." });
+      setMsg({ tipo: "erro", texto: "Sem conexão com o servidor." + (total > 0 ? ` Já foram calculadas ${inteiro(total)}; clique de novo para continuar.` : "") });
     } finally {
       setAtualizando(false);
     }

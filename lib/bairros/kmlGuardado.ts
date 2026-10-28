@@ -9,9 +9,11 @@ export type PontosEContornos = { pontos: Coord[]; contornos: Coord[][] };
 /** Pontos e contornos de polígonos do KML guardado de uma ação (vazio se não houver arquivo). */
 export async function pontosEContornosDoKml(admin: SupabaseClient, idAcao: string): Promise<PontosEContornos> {
   const vazio: PontosEContornos = { pontos: [], contornos: [] };
-  const { data } = await admin.from("kml_arquivos").select("kml_gzip_b64, qtd_pontos, qtd_poligonos").eq("id_acao", idAcao).eq("situacao", "baixado").maybeSingle();
+  // Primeiro só os números (leve); o arquivo inteiro só é lido se tiver ponto ou polígono.
+  const { data: resumo } = await admin.from("kml_arquivos").select("qtd_pontos, qtd_poligonos").eq("id_acao", idAcao).eq("situacao", "baixado").maybeSingle();
+  if (!resumo || !(Number(resumo.qtd_pontos) > 0 || Number(resumo.qtd_poligonos) > 0)) return vazio;
+  const { data } = await admin.from("kml_arquivos").select("kml_gzip_b64").eq("id_acao", idAcao).maybeSingle();
   if (!data?.kml_gzip_b64) return vazio;
-  if (!(Number(data.qtd_pontos) > 0 || Number(data.qtd_poligonos) > 0)) return vazio;
   try {
     const xml = await textoDoArquivo(gunzipSync(Buffer.from(data.kml_gzip_b64 as string, "base64")));
     const { feicoes } = lerKml(xml);
