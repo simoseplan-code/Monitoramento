@@ -18,14 +18,17 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
 
-  const { ids, acao } = (await request.json()) as { ids?: string[]; acao?: Acao };
+  const { ids, acao, comentario: comentarioBruto } = (await request.json()) as { ids?: string[]; acao?: Acao; comentario?: string };
   if (!Array.isArray(ids) || ids.length === 0 || ids.length > 500 || !["encaminhar", "voltar", "resolver"].includes(acao ?? "")) {
     return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
   }
   const unicos = Array.from(new Set(ids.filter((i) => typeof i === "string" && i)));
 
+  // Qualquer pessoa aprovada pode registrar que o órgão resolveu, desde que deixe um comentário.
+  const comentario = typeof comentarioBruto === "string" ? comentarioBruto.trim().slice(0, 300) : "";
+  if (acao === "resolver" && comentario.length < 3) return NextResponse.json({ error: "Escreva um comentário sobre a resolução (o que o órgão fez)." }, { status: 400 });
   const [{ data: perfil }, { data: linhas, error: erroLeitura }] = await Promise.all([
-    supabase.from("profiles").select("is_admin").eq("id", user.id).single(),
+    supabase.from("profiles").select("is_admin, status").eq("id", user.id).single(),
     supabase
       .from("obras_revisao")
       .select("id_acao, responsavel_id, kml_anexado, sem_duplicacao, documentos_obrigatorios, concluido, encaminhada_em")
@@ -33,6 +36,7 @@ export async function POST(request: NextRequest) {
   ]);
   if (erroLeitura) return NextResponse.json({ error: "Falha ao ler as ações." }, { status: 500 });
   const ehAdmin = !!perfil?.is_admin;
+  if (perfil?.status !== "aprovado") return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
 
   const porId = new Map((linhas ?? []).map((l) => [l.id_acao as string, l]));
   const liberadas: string[] = [];
@@ -44,7 +48,7 @@ export async function POST(request: NextRequest) {
       ignoradas.push({ id, motivo: "ação sem análise registrada" });
       continue;
     }
-    if (!ehAdmin && l.responsavel_id !== user.id) {
+    if (acao !== "resolver" && !ehAdmin && l.responsavel_id !== user.id) {
       ignoradas.push({ id, motivo: "análise está com outra pessoa" });
       continue;
     }
@@ -82,7 +86,9 @@ export async function POST(request: NextRequest) {
       const tudoConfirmado = Object.values(novo).every((v) => v === "confirmado");
       const responsavelId = (l.responsavel_id as string | null) ?? user.id;
 
-      const { error } = await supabase
+      // Quem não é o responsável nem admin só registra a resolução (a regra do banco trava o resto).
+      const cliente = ehAdmin || l.responsavel_id === user.id ? supabase : createAdminClient();
+      const { error } = await cliente
         .from("obras_revisao")
         .update(
           tudoConfirmado
@@ -96,10 +102,11 @@ export async function POST(request: NextRequest) {
                 encaminhada_por: null,
                 pendencia_resolvida_em: agora,
                 pendencia_resolvida_por: user.id,
+                pendencia_resolvida_obs: comentario,
                 atualizado_em: agora,
               }
             : // Sobrou item que nunca foi analisado: não dá pra concluir; volta pra fila já com o resolvido confirmado.
-              { ...novo, encaminhada_em: null, encaminhada_por: null, pendencia_resolvida_em: agora, pendencia_resolvida_por: user.id, atualizado_em: agora }
+              { ...novo, encaminhada_em: null, encaminhada_por: null, pendencia_resolvida_em: agora, pendencia_resolvida_por: user.id, pendencia_resolvida_obs: comentario, atualizado_em: agora }
         )
         .eq("id_acao", id);
       if (error) {
@@ -115,7 +122,7 @@ export async function POST(request: NextRequest) {
           "novas_acoes",
           id,
           "concluido",
-          "pendência resolvida pelo órgão"
+          "pendência resolvida pelo órgão: " + comentario
         );
       } else {
         devolvidas++;

@@ -55,6 +55,13 @@ export function PendenciasPorOrgao({
   const [aviso, setAviso] = useState<string | null>(null);
   // Comentários editados aqui, por ação e item (valem até a página recarregar).
   const [obsEditada, setObsEditada] = useState<Record<string, string>>({});
+  // Comentário de quem registra que o órgão resolveu (obrigatório), por confirmação aberta.
+  const [comentarioResolucao, setComentarioResolucao] = useState("");
+  const abrirConfirmacao = (chave: string) => {
+    setComentarioResolucao("");
+    setConfirmando(chave);
+  };
+  const comentarioOk = comentarioResolucao.trim().length >= 3;
 
   function alternar(orgao: string) {
     setAbertos((atual) => {
@@ -65,7 +72,7 @@ export function PendenciasPorOrgao({
     });
   }
 
-  async function executar(chave: string, ids: string[], acao: "voltar" | "resolver") {
+  async function executar(chave: string, ids: string[], acao: "voltar" | "resolver", comentario?: string) {
     setProcessando(chave);
     setErro(null);
     setAviso(null);
@@ -73,7 +80,7 @@ export function PendenciasPorOrgao({
       const resp = await fetch(config.encaminharEndpoint, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ ids, acao }),
+        body: JSON.stringify({ ids, acao, comentario }),
       });
       const json = (await resp.json().catch(() => ({}))) as {
         error?: string;
@@ -162,11 +169,19 @@ export function PendenciasPorOrgao({
               </button>
               <div className="flex flex-wrap items-center gap-2">
               {confirmando === `g:${g.orgao}` ? (
-                <span className="flex items-center gap-1.5 rounded-full bg-status-good-bg px-2 py-1 text-xs font-medium text-status-good">
+                <span className="flex flex-wrap items-center gap-1.5 rounded-2xl bg-status-good-bg px-2.5 py-1.5 text-xs font-medium text-status-good">
                   {g.orgao} resolveu todas as {g.acoes.length} pendência(s)? As ações serão concluídas.
+                  <input
+                    autoFocus
+                    value={comentarioResolucao}
+                    maxLength={300}
+                    onChange={(e) => setComentarioResolucao(e.target.value)}
+                    placeholder="Comentário (obrigatório): o que o órgão fez"
+                    className="min-w-[14rem] rounded-lg border border-black/10 bg-surface px-2 py-1 text-xs font-normal text-ink-primary focus:outline-none"
+                  />
                   <button
-                    onClick={() => executar(`g:${g.orgao}`, g.acoes.map((a) => a.idAcao), "resolver")}
-                    disabled={processando !== null}
+                    onClick={() => executar(`g:${g.orgao}`, g.acoes.map((a) => a.idAcao), "resolver", comentarioResolucao)}
+                    disabled={processando !== null || !comentarioOk}
                     className="rounded-full bg-status-good px-2 py-0.5 text-white disabled:opacity-50"
                   >
                     {processando === `g:${g.orgao}` ? "..." : "Sim"}
@@ -177,7 +192,7 @@ export function PendenciasPorOrgao({
                 </span>
               ) : (
                 <button
-                  onClick={() => setConfirmando(`g:${g.orgao}`)}
+                  onClick={() => abrirConfirmacao(`g:${g.orgao}`)}
                   disabled={processando !== null}
                   className="flex items-center gap-1.5 rounded-full bg-status-good px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
                   title="Marca os itens pendentes como resolvidos e conclui a análise de todas as ações deste órgão"
@@ -212,14 +227,22 @@ export function PendenciasPorOrgao({
                             {a.responsavelNome ? ` · responsável: ${a.responsavelNome}` : ""}
                           </p>
                         </div>
-                        {pode && (
+                        {(
                           <div className="flex shrink-0 flex-wrap items-center gap-2">
                             {confirmando === `a:${a.idAcao}` ? (
-                              <span className="flex items-center gap-1.5 rounded-full bg-status-good-bg px-2 py-1 text-xs font-medium text-status-good">
+                              <span className="flex flex-wrap items-center gap-1.5 rounded-2xl bg-status-good-bg px-2.5 py-1.5 text-xs font-medium text-status-good">
                                 Órgão resolveu? A ação será concluída.
+                                <input
+                                  autoFocus
+                                  value={comentarioResolucao}
+                                  maxLength={300}
+                                  onChange={(e) => setComentarioResolucao(e.target.value)}
+                                  placeholder="Comentário (obrigatório): o que o órgão fez"
+                                  className="min-w-[14rem] rounded-lg border border-black/10 bg-surface px-2 py-1 text-xs font-normal text-ink-primary focus:outline-none"
+                                />
                                 <button
-                                  onClick={() => executar(`a:${a.idAcao}`, [a.idAcao], "resolver")}
-                                  disabled={processando !== null}
+                                  onClick={() => executar(`a:${a.idAcao}`, [a.idAcao], "resolver", comentarioResolucao)}
+                                  disabled={processando !== null || !comentarioOk}
                                   className="rounded-full bg-status-good px-2 py-0.5 text-white disabled:opacity-50"
                                 >
                                   {processando === `a:${a.idAcao}` ? "..." : "Sim"}
@@ -230,7 +253,7 @@ export function PendenciasPorOrgao({
                               </span>
                             ) : (
                               <button
-                                onClick={() => setConfirmando(`a:${a.idAcao}`)}
+                                onClick={() => abrirConfirmacao(`a:${a.idAcao}`)}
                                 disabled={processando !== null}
                                 className="flex items-center gap-1.5 rounded-full bg-status-good px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
                                 title="Marca os itens pendentes como resolvidos e conclui a análise"
@@ -239,6 +262,7 @@ export function PendenciasPorOrgao({
                                 Órgão resolveu
                               </button>
                             )}
+                            {pode && (
                             <button
                               onClick={() => executar(`v:${a.idAcao}`, [a.idAcao], "voltar")}
                               disabled={processando !== null}
@@ -248,6 +272,7 @@ export function PendenciasPorOrgao({
                               <Undo2 size={13} />
                               {processando === `v:${a.idAcao}` ? "Voltando..." : "Voltar para análise"}
                             </button>
+                            )}
                           </div>
                         )}
                       </div>

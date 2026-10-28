@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
 
-  const corpo = (await request.json().catch(() => null)) as { ids?: unknown; acao?: unknown } | null;
+  const corpo = (await request.json().catch(() => null)) as { ids?: unknown; acao?: unknown; comentario?: unknown } | null;
   const acao = corpo?.acao as Acao;
   const ids = corpo?.ids;
   if (!Array.isArray(ids) || ids.length === 0 || ids.length > 500 || !["encaminhar", "voltar", "resolver"].includes(acao)) {
@@ -27,12 +27,16 @@ export async function POST(request: NextRequest) {
   const unicos = Array.from(new Set(ids.filter((i): i is string => typeof i === "string" && /^\d{1,12}$/.test(i))));
   if (unicos.length === 0) return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
 
+  // Qualquer pessoa aprovada pode registrar que o órgão resolveu, desde que deixe um comentário.
+  const comentario = typeof corpo?.comentario === "string" ? corpo.comentario.trim().slice(0, 300) : "";
+  if (acao === "resolver" && comentario.length < 3) return NextResponse.json({ error: "Escreva um comentário sobre a resolução (o que o órgão fez)." }, { status: 400 });
   const [{ data: perfil }, { data: linhas, error: erroLeitura }] = await Promise.all([
-    supabase.from("profiles").select("is_admin").eq("id", user.id).single(),
+    supabase.from("profiles").select("is_admin, status").eq("id", user.id).single(),
     supabase.from("obras_exec_revisao").select("id_acao, responsavel_id, itens, obs, concluido, encaminhada_em").in("id_acao", unicos),
   ]);
   if (erroLeitura) return NextResponse.json({ error: "Falha ao ler as ações." }, { status: 500 });
   const ehAdmin = !!perfil?.is_admin;
+  if (perfil?.status !== "aprovado") return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
 
   const porId = new Map((linhas ?? []).map((l) => [l.id_acao as string, l]));
   const liberadas: string[] = [];
@@ -44,7 +48,7 @@ export async function POST(request: NextRequest) {
       ignoradas.push({ id, motivo: "ação sem análise registrada" });
       continue;
     }
-    if (!ehAdmin && l.responsavel_id !== user.id) {
+    if (acao !== "resolver" && !ehAdmin && l.responsavel_id !== user.id) {
       ignoradas.push({ id, motivo: "análise está com outra pessoa" });
       continue;
     }
@@ -85,7 +89,9 @@ export async function POST(request: NextRequest) {
       const tudoConfirmado = CAMPOS_EXECUCAO.every((c) => itens[c] === "confirmado");
       const responsavelId = (l.responsavel_id as string | null) ?? user.id;
 
-      const { error } = await supabase
+      // Quem não é o responsável nem admin só registra a resolução.
+      const cliente = ehAdmin || l.responsavel_id === user.id ? supabase : createAdminClient();
+      const { error } = await cliente
         .from("obras_exec_revisao")
         .update(
           tudoConfirmado
@@ -100,10 +106,11 @@ export async function POST(request: NextRequest) {
                 encaminhada_por: null,
                 pendencia_resolvida_em: agora,
                 pendencia_resolvida_por: user.id,
+                pendencia_resolvida_obs: comentario,
                 atualizado_em: agora,
               }
             : // Sobrou item nunca analisado: não dá para concluir; volta para a fila já com o resolvido confirmado.
-              { itens, obs, encaminhada_em: null, encaminhada_por: null, pendencia_resolvida_em: agora, pendencia_resolvida_por: user.id, atualizado_em: agora }
+              { itens, obs, encaminhada_em: null, encaminhada_por: null, pendencia_resolvida_em: agora, pendencia_resolvida_por: user.id, pendencia_resolvida_obs: comentario, atualizado_em: agora }
         )
         .eq("id_acao", id);
       if (error) {
@@ -113,7 +120,7 @@ export async function POST(request: NextRequest) {
       if (tudoConfirmado) {
         concluidas++;
         // Conclusão entra no nome do responsável (a regra do log só deixa gravar em nome próprio).
-        await registrarAnalise(responsavelId === user.id ? supabase : createAdminClient(), responsavelId, "novas_em_execucao", id, "concluido", "pendência resolvida pelo órgão");
+        await registrarAnalise(responsavelId === user.id ? supabase : createAdminClient(), responsavelId, "novas_em_execucao", id, "concluido", "pendência resolvida pelo órgão: " + comentario);
       } else {
         devolvidas++;
       }
