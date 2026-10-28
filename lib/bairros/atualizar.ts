@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { wktParaLinhasLonLat } from "@/lib/kml/base";
 import { bairrosDoTracado, carregarBairros } from "@/lib/bairros/calcular";
+import { pontosEContornosDoKml } from "@/lib/bairros/kmlGuardado";
 
 export type ResumoBairros = { processadas: number; comBairro: number; semBairro: number; terminou: boolean };
 
@@ -35,15 +36,18 @@ export async function atualizarBairros(admin: SupabaseClient, opcoes: { limiteMs
       for (const l of linhas ?? []) if (l.wkt) wkts.set(l.id_acao as string, l.wkt as string);
     }
 
-    const calculos: { id_acao: string; fonte: string; assinatura: string; extensao_m: number; metros_fora: number; qtd_bairros: number; calculado_em: string }[] = [];
-    const itens: { id_acao: string; municipio: string; bairro: string; metros: number; pct: number }[] = [];
+    const calculos: { id_acao: string; fonte: string; assinatura: string; extensao_m: number; metros_fora: number; qtd_bairros: number; pontos: number; pontos_fora: number; calculado_em: string }[] = [];
+    const itens: { id_acao: string; municipio: string; bairro: string; metros: number; pct: number; pontos: number }[] = [];
     const agora = new Date().toISOString();
 
     for (const p of pendentes) {
       const wkt = wkts.get(p.id_acao);
-      const r = wkt ? bairrosDoTracado(wktParaLinhasLonLat(wkt), bairros) : { extensaoM: 0, metrosFora: 0, bairros: [] };
-      calculos.push({ id_acao: p.id_acao, fonte: p.fonte, assinatura: p.assinatura, extensao_m: Math.round(r.extensaoM), metros_fora: r.metrosFora, qtd_bairros: r.bairros.length, calculado_em: agora });
-      for (const b of r.bairros) itens.push({ id_acao: p.id_acao, municipio: b.municipio, bairro: b.bairro, metros: b.metros, pct: b.pct });
+      // Linhas do traçado + pontos e contornos de polígonos do KML guardado (se houver).
+      const extras = await pontosEContornosDoKml(admin, p.id_acao);
+      const linhas = [...(wkt ? wktParaLinhasLonLat(wkt) : []), ...extras.contornos];
+      const r = bairrosDoTracado(linhas, bairros, extras.pontos);
+      calculos.push({ id_acao: p.id_acao, fonte: p.fonte, assinatura: p.assinatura, extensao_m: Math.round(r.extensaoM), metros_fora: r.metrosFora, qtd_bairros: r.bairros.length, pontos: r.pontos, pontos_fora: r.pontosFora, calculado_em: agora });
+      for (const b of r.bairros) itens.push({ id_acao: p.id_acao, municipio: b.municipio, bairro: b.bairro, metros: b.metros, pct: b.pct, pontos: b.pontos });
       resumo.processadas++;
       if (r.bairros.length > 0) resumo.comBairro++;
       else resumo.semBairro++;

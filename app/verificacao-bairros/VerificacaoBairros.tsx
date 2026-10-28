@@ -16,6 +16,8 @@ export type LinhaLista = {
   bairro: string | null;
   metros: number | null;
   pct: number | null;
+  pontos: number | null;
+  pontos_fora: number | null;
   nome_acao: string | null;
   orgao: string | null;
   status: string | null;
@@ -29,7 +31,8 @@ export type ItemLista = {
   fonte: "sobreposicoes" | "kml";
   extensaoM: number;
   metrosFora: number;
-  bairros: { municipio: string; bairro: string; metros: number; pct: number }[];
+  pontosFora: number;
+  bairros: { municipio: string; bairro: string; metros: number; pct: number; pontos: number }[];
 };
 
 const TAMANHO = 50;
@@ -45,7 +48,12 @@ function situacaoDe(i: ItemLista): Exclude<Situacao, "todas"> {
   if (i.bairros.length > 1) return "varios";
   return "um";
 }
-const parteFora = (i: ItemLista) => i.bairros.length > 0 && i.extensaoM > 0 && i.metrosFora / i.extensaoM >= 0.1;
+const trechoFora = (i: ItemLista) => i.extensaoM > 0 && i.metrosFora / i.extensaoM >= 0.1;
+const parteFora = (i: ItemLista) => i.bairros.length > 0 && (trechoFora(i) || i.pontosFora > 0);
+const textoFora = (i: ItemLista) =>
+  [trechoFora(i) ? `${porcento(i.metrosFora / i.extensaoM)} do trecho` : "", i.pontosFora > 0 ? `${i.pontosFora} ponto(s)` : ""].filter(Boolean).join(" e ") + " fora";
+const detalhe = (b: { pct: number; pontos: number }, extensaoM: number) =>
+  [extensaoM > 0 ? porcento(b.pct) : "", b.pontos > 0 ? `${b.pontos} ponto${b.pontos > 1 ? "s" : ""}` : ""].filter(Boolean).join(" + ");
 
 export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemLista[]; ehAdmin: boolean; resumo: { verificadas: number; pendentes: number; ultima: string | null } | null }) {
   const router = useRouter();
@@ -278,16 +286,16 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
                             <button
                               key={b.municipio + b.bairro}
                               onClick={() => setVerMapa({ id: i.id, nome: i.nome, bairroFoco: b.bairro })}
-                              title={`${inteiro(b.metros)} m dentro deste bairro. Clique para ver no mapa.`}
+                              title={`${inteiro(b.metros)} m e ${b.pontos} ponto(s) dentro deste bairro. Clique para ver no mapa.`}
                               className={`rounded-full px-2.5 py-0.5 text-xs font-medium hover:opacity-80 ${foco ? "bg-series-1 text-white" : "bg-status-good-bg text-status-good"}`}
                             >
-                              {b.municipio} - {b.bairro} <span className="opacity-70">({porcento(b.pct)})</span>
+                              {b.municipio} - {b.bairro} <span className="opacity-70">({detalhe(b, i.extensaoM)})</span>
                             </button>
                           );
                         })}
                         {parteFora(i) && (
-                          <span className="rounded-full bg-status-warning-bg px-2.5 py-0.5 text-xs font-medium text-status-warning" title="Parte do trecho não cai em nenhum bairro mapeado">
-                            {porcento(i.metrosFora / i.extensaoM)} fora
+                          <span className="rounded-full bg-status-warning-bg px-2.5 py-0.5 text-xs font-medium text-status-warning" title="Parte do trecho ou alguns pontos não caem em nenhum bairro mapeado">
+                            {textoFora(i)}
                           </span>
                         )}
                       </div>
@@ -342,8 +350,12 @@ type DadosMapa = {
   fonte: "sobreposicoes" | "kml";
   extensaoM: number;
   metrosFora: number;
+  pontosFora: number;
+  totalPontos: number;
   linhas: [number, number][][];
-  bairros: { municipio: string; bairro: string; metros: number; pct: number; aneis: [number, number][][] }[];
+  pontos: [number, number][];
+  contornos: [number, number][][];
+  bairros: { municipio: string; bairro: string; metros: number; pct: number; pontos: number; aneis: [number, number][][] }[];
 };
 
 const CORES = ["#2563eb", "#16a34a", "#9333ea", "#ea580c", "#0891b2", "#db2777", "#65a30d", "#4f46e5"];
@@ -396,18 +408,20 @@ function JanelaMapa({ id, nome, bairroFoco, aoFechar }: { id: string; nome: stri
           <>
             <MapaBairros dados={dados} bairroFoco={bairroFoco} />
             <p className="mt-3 text-xs text-ink-muted">
-              Traçado: {dados.fonte === "kml" ? "KML guardado" : "mapa de obras"} · {(dados.extensaoM / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} km.{" "}
+              Traçado: {dados.fonte === "kml" ? "KML guardado" : "mapa de obras"} · {(dados.extensaoM / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} km · {dados.totalPontos} ponto(s) do KML.{" "}
               {dados.bairros.length === 0 ? "Não cai em nenhum bairro mapeado." : ""}
             </p>
             <ul className="mt-2 flex flex-wrap gap-2">
               {dados.bairros.map((b, i) => (
                 <li key={b.municipio + b.bairro} className="flex items-center gap-1.5 rounded-full border border-black/10 px-2.5 py-1 text-xs text-ink-secondary">
                   <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: CORES[i % CORES.length] }} />
-                  {b.municipio} - {b.bairro}: {inteiro(b.metros)} m ({porcento(b.pct)})
+                  {b.municipio} - {b.bairro}: {dados.extensaoM > 0 ? `${inteiro(b.metros)} m (${porcento(b.pct)})` : ""}{dados.extensaoM > 0 && b.pontos > 0 ? " + " : ""}{b.pontos > 0 ? `${b.pontos} ponto${b.pontos > 1 ? "s" : ""}` : ""}
                 </li>
               ))}
-              {dados.metrosFora > 0 && dados.bairros.length > 0 && (
-                <li className="rounded-full border border-status-warning/30 bg-status-warning-bg px-2.5 py-1 text-xs text-status-warning">fora dos bairros: {inteiro(dados.metrosFora)} m</li>
+              {(dados.metrosFora > 0 || dados.pontosFora > 0) && dados.bairros.length > 0 && (
+                <li className="rounded-full border border-status-warning/30 bg-status-warning-bg px-2.5 py-1 text-xs text-status-warning">
+                  fora dos bairros: {[dados.metrosFora > 0 ? `${inteiro(dados.metrosFora)} m` : "", dados.pontosFora > 0 ? `${dados.pontosFora} ponto(s)` : ""].filter(Boolean).join(" e ")}
+                </li>
               )}
             </ul>
           </>
@@ -439,6 +453,8 @@ function MapaBairros({ dados, bairroFoco }: { dados: DadosMapa; bairroFoco?: str
       });
       const grupoLinhas = L.featureGroup().addTo(mapa);
       for (const l of dados.linhas) L.polyline(l, { color: "#dc2626", weight: 4, opacity: 0.95 }).addTo(grupoLinhas);
+      for (const c of dados.contornos ?? []) L.polygon(c, { color: "#7c3aed", weight: 2, fillOpacity: 0.15 }).addTo(grupoLinhas);
+      for (const p of dados.pontos ?? []) L.circleMarker(p, { radius: 6, color: "#ffffff", weight: 2, fillColor: "#dc2626", fillOpacity: 1 }).addTo(grupoLinhas);
       const b = grupoLinhas.getBounds();
       const bt = todos.getBounds();
       if (b.isValid()) mapa.fitBounds(bt.isValid() ? b.extend(bt) : b, { padding: [30, 30], maxZoom: 17 });

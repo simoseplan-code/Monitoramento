@@ -5,11 +5,13 @@ type Poligono = number[][][]; // [anel externo, ...furos], cada ponto [lon, lat]
 
 export type Bairro = { n: string; m: string; z?: string; b: [number, number, number, number]; g: Poligono[] };
 
-export type BairroDaAcao = { municipio: string; bairro: string; metros: number; pct: number };
+export type BairroDaAcao = { municipio: string; bairro: string; metros: number; pct: number; pontos: number };
 
 export type ResultadoBairros = {
   extensaoM: number;
   metrosFora: number;
+  pontos: number;
+  pontosFora: number;
   bairros: BairroDaAcao[];
 };
 
@@ -42,15 +44,18 @@ function dentroDoBairro(p: Coord, z: Bairro): boolean {
   return false;
 }
 
-/** Em que bairros o traçado cai e quantos metros ficam em cada um. */
-export function bairrosDoTracado(linhas: Coord[][], bairros: Bairro[]): ResultadoBairros {
+/**
+ * Em que bairros o traçado cai. `linhas` (trechos, e o contorno dos polígonos) contam em metros;
+ * `pontos` (locais marcados no KML) contam em quantidade.
+ */
+export function bairrosDoTracado(linhas: Coord[][], bairros: Bairro[], pontosKml: Coord[] = []): ResultadoBairros {
   const extensaoM = linhas.reduce((s, l) => s + comprimentoM(l), 0);
-  const pontos = linhas.flatMap((l) => amostrar(l, PASSO_M));
-  if (pontos.length === 0 || extensaoM === 0) return { extensaoM, metrosFora: 0, bairros: [] };
+  const amostras = extensaoM > 0 ? linhas.flatMap((l) => amostrar(l, PASSO_M)) : [];
+  if (amostras.length === 0 && pontosKml.length === 0) return { extensaoM, metrosFora: 0, pontos: 0, pontosFora: 0, bairros: [] };
 
-  // Só os bairros cuja caixa encosta na caixa do traçado.
+  // Só os bairros cuja caixa encosta na caixa do que foi marcado.
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
-  for (const p of pontos) {
+  for (const p of [...amostras, ...pontosKml]) {
     if (p[0] < x0) x0 = p[0];
     if (p[0] > x1) x1 = p[0];
     if (p[1] < y0) y0 = p[1];
@@ -58,23 +63,40 @@ export function bairrosDoTracado(linhas: Coord[][], bairros: Bairro[]): Resultad
   }
   const candidatos = bairros.filter((b) => !(b.b[2] < x0 || b.b[0] > x1 || b.b[3] < y0 || b.b[1] > y1));
 
-  const metrosPorPonto = extensaoM / pontos.length;
-  const conta = new Map<Bairro, number>();
-  let fora = 0;
-  for (const p of pontos) {
+  const metrosPorAmostra = amostras.length ? extensaoM / amostras.length : 0;
+  const amostrasPorBairro = new Map<Bairro, number>();
+  const pontosPorBairro = new Map<Bairro, number>();
+  let foraAmostras = 0;
+  for (const p of amostras) {
     const achado = candidatos.find((b) => dentroDoBairro(p, b));
-    if (achado) conta.set(achado, (conta.get(achado) ?? 0) + 1);
-    else fora++;
+    if (achado) amostrasPorBairro.set(achado, (amostrasPorBairro.get(achado) ?? 0) + 1);
+    else foraAmostras++;
+  }
+  let pontosFora = 0;
+  for (const p of pontosKml) {
+    const achado = candidatos.find((b) => dentroDoBairro(p, b));
+    if (achado) pontosPorBairro.set(achado, (pontosPorBairro.get(achado) ?? 0) + 1);
+    else pontosFora++;
   }
 
   const lista: BairroDaAcao[] = [];
-  let descartado = 0;
-  for (const [b, n] of conta) {
-    const metros = n * metrosPorPonto;
-    const pct = metros / extensaoM;
-    if (pct < MIN_PCT && metros < MIN_METROS) descartado += n;
-    else lista.push({ municipio: b.m, bairro: b.n, metros: Math.round(metros), pct: Math.round(pct * 1000) / 1000 });
+  let descartadoAmostras = 0;
+  for (const b of new Set([...amostrasPorBairro.keys(), ...pontosPorBairro.keys()])) {
+    const n = amostrasPorBairro.get(b) ?? 0;
+    const pontos = pontosPorBairro.get(b) ?? 0;
+    const metros = n * metrosPorAmostra;
+    // Com trecho, a % é a parte do trecho; ação só de pontos, a % é a parte dos pontos.
+    const pct = extensaoM > 0 ? metros / extensaoM : pontos / pontosKml.length;
+    const soEncosta = pontos === 0 && pct < MIN_PCT && metros < MIN_METROS;
+    if (soEncosta) descartadoAmostras += n;
+    else lista.push({ municipio: b.m, bairro: b.n, metros: Math.round(metros), pct: Math.round(pct * 1000) / 1000, pontos });
   }
-  lista.sort((a, b) => b.metros - a.metros);
-  return { extensaoM, metrosFora: Math.round((fora + descartado) * metrosPorPonto), bairros: lista };
+  lista.sort((a, b) => b.metros - a.metros || b.pontos - a.pontos);
+  return {
+    extensaoM,
+    metrosFora: Math.round((foraAmostras + descartadoAmostras) * metrosPorAmostra),
+    pontos: pontosKml.length,
+    pontosFora,
+    bairros: lista,
+  };
 }

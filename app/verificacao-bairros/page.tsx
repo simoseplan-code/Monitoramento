@@ -42,11 +42,12 @@ export default async function VerificacaoBairrosPage() {
         fonte: l.fonte,
         extensaoM: l.extensao_m,
         metrosFora: l.metros_fora,
+        pontosFora: l.pontos_fora ?? 0,
         bairros: [],
       };
       porAcao.set(l.id_acao, item);
     }
-    if (l.bairro && l.municipio) item.bairros.push({ municipio: l.municipio, bairro: l.bairro, metros: l.metros ?? 0, pct: l.pct ?? 0 });
+    if (l.bairro && l.municipio) item.bairros.push({ municipio: l.municipio, bairro: l.bairro, metros: l.metros ?? 0, pct: l.pct ?? 0, pontos: l.pontos ?? 0 });
   }
   const itens = Array.from(porAcao.values());
   for (const i of itens) i.bairros.sort((a, b) => b.metros - a.metros);
