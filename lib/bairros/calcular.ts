@@ -64,26 +64,35 @@ export function bairrosDoTracado(linhas: Coord[][], bairros: Bairro[], pontosKml
   const candidatos = bairros.filter((b) => !(b.b[2] < x0 || b.b[0] > x1 || b.b[3] < y0 || b.b[1] > y1));
 
   const metrosPorAmostra = amostras.length ? extensaoM / amostras.length : 0;
-  const amostrasPorBairro = new Map<Bairro, number>();
-  const pontosPorBairro = new Map<Bairro, number>();
+  // Agrupa pelo nome (município + bairro): o arquivo tem dois polígonos com o mesmo nome em Teresina
+  // (São Sebastião e Uruguai), e cada bairro só pode aparecer uma vez por ação.
+  const chave = (b: Bairro) => `${b.m}|${b.n}`;
+  const nomes = new Map<string, Bairro>();
+  const amostrasPorBairro = new Map<string, number>();
+  const pontosPorBairro = new Map<string, number>();
   let foraAmostras = 0;
   for (const p of amostras) {
     const achado = candidatos.find((b) => dentroDoBairro(p, b));
-    if (achado) amostrasPorBairro.set(achado, (amostrasPorBairro.get(achado) ?? 0) + 1);
-    else foraAmostras++;
+    if (achado) {
+      nomes.set(chave(achado), achado);
+      amostrasPorBairro.set(chave(achado), (amostrasPorBairro.get(chave(achado)) ?? 0) + 1);
+    } else foraAmostras++;
   }
   let pontosFora = 0;
   for (const p of pontosKml) {
     const achado = candidatos.find((b) => dentroDoBairro(p, b));
-    if (achado) pontosPorBairro.set(achado, (pontosPorBairro.get(achado) ?? 0) + 1);
-    else pontosFora++;
+    if (achado) {
+      nomes.set(chave(achado), achado);
+      pontosPorBairro.set(chave(achado), (pontosPorBairro.get(chave(achado)) ?? 0) + 1);
+    } else pontosFora++;
   }
 
   const lista: BairroDaAcao[] = [];
   let descartadoAmostras = 0;
-  for (const b of new Set([...amostrasPorBairro.keys(), ...pontosPorBairro.keys()])) {
-    const n = amostrasPorBairro.get(b) ?? 0;
-    const pontos = pontosPorBairro.get(b) ?? 0;
+  for (const k of new Set([...amostrasPorBairro.keys(), ...pontosPorBairro.keys()])) {
+    const b = nomes.get(k)!;
+    const n = amostrasPorBairro.get(k) ?? 0;
+    const pontos = pontosPorBairro.get(k) ?? 0;
     const metros = n * metrosPorAmostra;
     // Com trecho, a % é a parte do trecho; ação só de pontos, a % é a parte dos pontos.
     const pct = extensaoM > 0 ? metros / extensaoM : pontos / pontosKml.length;

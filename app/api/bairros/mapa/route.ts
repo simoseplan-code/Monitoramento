@@ -53,9 +53,10 @@ export async function GET(request: NextRequest) {
 
   const todos = await carregarBairros();
   const bairros = (itens ?? []).map((b) => {
-    const z = todos.find((x) => x.m === b.municipio && x.n === b.bairro);
     const aneis: LatLon[][] = [];
-    for (const poligono of z?.g ?? []) for (const anel of poligono) aneis.push(reduzir(anel as [number, number][], 400));
+    for (const z of todos.filter((x) => x.m === b.municipio && x.n === b.bairro)) {
+      for (const poligono of z.g) for (const anel of poligono) aneis.push(reduzir(anel as [number, number][], 400));
+    }
     return { municipio: b.municipio as string, bairro: b.bairro as string, metros: b.metros as number, pct: b.pct as number, pontos: (b.pontos as number) ?? 0, aneis };
   });
 
