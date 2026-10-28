@@ -600,13 +600,14 @@ function MapaBairros({ dados, bairroFoco }: { dados: DadosMapa; bairroFoco?: str
       const bt = todos.getBounds();
       // Enquadra no traçado (o contorno do município e dos bairros fica visível ao redor).
       const enquadrar = () => {
-        mapa?.invalidateSize();
-        if (b.isValid()) mapa?.fitBounds(b, { padding: [40, 40], maxZoom: 17 });
-        else if (bt.isValid()) mapa?.fitBounds(bt, { padding: [30, 30] });
+        if (cancelado || !mapa) return;
+        mapa.invalidateSize();
+        if (b.isValid()) mapa.fitBounds(b, { padding: [40, 40], maxZoom: 17 });
+        else if (bt.isValid()) mapa.fitBounds(bt, { padding: [30, 30] });
+        else mapa.setView([-7.5, -43], 6);
       };
       enquadrar();
       setTimeout(enquadrar, 200);
-      else mapa.setView([-7.5, -43], 6);
     })();
     return () => {
       cancelado = true;
