@@ -17,6 +17,10 @@ type Linha = {
   extensao_m: number;
   metros_fora: number;
   pontos_fora: number | null;
+  metros_urbano: number | null;
+  metros_rural: number | null;
+  pontos_urbano: number | null;
+  pontos_rural: number | null;
   municipio: string | null;
   bairro: string | null;
   metros: number | null;
@@ -27,6 +31,18 @@ type Linha = {
   status: string | null;
   estagio_atual: string | null;
 };
+
+// Zona urbana / rural (IBGE): a parte do trecho (ou dos pontos, se não houver trecho) em setor urbano e rural.
+function zonaDe(l: Linha): { classe: string; texto: string } {
+  const comTrecho = (l.metros_urbano ?? 0) + (l.metros_rural ?? 0) > 0;
+  const u = comTrecho ? l.metros_urbano ?? 0 : l.pontos_urbano ?? 0;
+  const r = comTrecho ? l.metros_rural ?? 0 : l.pontos_rural ?? 0;
+  const total = u + r;
+  if (total === 0) return { classe: "", texto: "" };
+  const fu = u / total;
+  const classe = fu >= 0.9 ? "Urbana" : fu <= 0.1 ? "Rural" : "Urbana e rural";
+  return { classe, texto: classe === "Urbana e rural" ? `Urbana ${Math.round(fu * 100)}% · Rural ${Math.round((1 - fu) * 100)}%` : `${classe} (${Math.round((classe === "Urbana" ? fu : 1 - fu) * 100)}%)` };
+}
 
 const ORIGEM: Record<string, string> = { sobreposicoes: "Linhas do mapa", kml: "KML guardado", mapa: "Pontos ou polígonos do mapa" };
 
@@ -88,18 +104,18 @@ export async function POST(request: NextRequest) {
 
   // ───────── Ações (uma linha por ação) ─────────
   const ws = wb.addWorksheet("Ações", { views: [{ state: "frozen", ySplit: 4, showGridLines: false }] });
-  ws.columns = [{ width: 10 }, { width: 60 }, { width: 14 }, { width: 14 }, { width: 24 }, { width: 22 }, { width: 11 }, { width: 10 }, { width: 14 }, { width: 55 }, { width: 28 }, { width: 13 }, { width: 13 }];
-  ws.mergeCells(1, 1, 1, 13);
+  ws.columns = [{ width: 10 }, { width: 60 }, { width: 14 }, { width: 14 }, { width: 24 }, { width: 22 }, { width: 11 }, { width: 10 }, { width: 14 }, { width: 55 }, { width: 28 }, { width: 13 }, { width: 13 }, { width: 24 }];
+  ws.mergeCells(1, 1, 1, 14);
   ws.getCell(1, 1).value = "Verificação de bairros";
   ws.getCell(1, 1).font = { bold: true, size: 15, color: { argb: AZUL_ESCURO } };
   ws.getRow(1).height = 26;
-  ws.mergeCells(2, 1, 2, 13);
+  ws.mergeCells(2, 1, 2, 14);
   ws.getCell(2, 1).value = `Gerado em ${agora} por ${perfil.nome ?? "Usuário"} · ${porAcao.size.toLocaleString("pt-BR")} ação(ões)` + (filtros.length ? ` · Filtros: ${filtros.join("; ")}` : "");
   ws.getCell(2, 1).font = { size: 9, color: { argb: "FF6B6A66" } };
   ws.getCell(2, 1).alignment = { wrapText: true, vertical: "top" };
   ws.getRow(2).height = filtros.length > 2 ? 42 : 24;
-  cabecalho(ws, ["ID", "Nome da ação", "Órgão", "Status", "Estágio", "Origem do traçado", "Extensão (km)", "Nº de bairros", "Situação", "Município - Bairro", "Fora dos bairros", "Criada em", "Ano de conclusão"], 4);
-  ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: 13 } };
+  cabecalho(ws, ["ID", "Nome da ação", "Órgão", "Status", "Estágio", "Origem do traçado", "Extensão (km)", "Nº de bairros", "Situação", "Município - Bairro", "Fora dos bairros", "Criada em", "Ano de conclusão", "Zona (urbana / rural)"], 4);
+  ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: 14 } };
 
   let r = 5;
   for (const [id, ls] of porAcao) {
@@ -124,6 +140,7 @@ export async function POST(request: NextRequest) {
       fora,
       datas.get(id)?.criada ?? "",
       datas.get(id)?.conclusao ?? "",
+      zonaDe(base).texto,
     ];
     row.getCell(1).font = { color: { argb: "FF1D4ED8" }, underline: true };
     row.getCell(7).numFmt = "#,##0.00";

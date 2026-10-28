@@ -5,6 +5,7 @@ import { carregarBairros, carregarMunicipios } from "@/lib/bairros/calcular";
 import { wktParaLinhasLonLat } from "@/lib/kml/base";
 import { pontosEContornosDoKml } from "@/lib/bairros/kmlGuardado";
 import { geomExtraDe } from "@/lib/bairros/geometriaMapa";
+import { carregarSetores } from "@/lib/bairros/setores";
 
 export const runtime = "nodejs";
 
@@ -35,7 +36,7 @@ export async function GET(request: NextRequest) {
   if (!/^\d{1,12}$/.test(id)) return NextResponse.json({ error: "ID inválido." }, { status: 400 });
 
   const [{ data: calculo }, { data: itens }] = await Promise.all([
-    supabase.from("acao_bairros_calculo").select("fonte, extensao_m, metros_fora, pontos, pontos_fora").eq("id_acao", id).maybeSingle(),
+    supabase.from("acao_bairros_calculo").select("fonte, extensao_m, metros_fora, pontos, pontos_fora, metros_urbano, metros_rural, pontos_urbano, pontos_rural").eq("id_acao", id).maybeSingle(),
     supabase.from("acao_bairros").select("municipio, bairro, metros, pct, pontos").eq("id_acao", id).order("metros", { ascending: false }),
   ]);
   if (!calculo) return NextResponse.json({ error: "Esta ação ainda não foi verificada." }, { status: 404 });
@@ -51,7 +52,37 @@ export async function GET(request: NextRequest) {
   const pontos: LatLon[] = (doMapa?.pontos ?? doKml.pontos).slice(0, 2000).map((p) => [p[1], p[0]]);
   const contornos: LatLon[][] = (doMapa?.poligonos ?? doKml.contornos).slice(0, 200).map((c) => reduzir(c, 400));
 
-  const [todos, municipios] = await Promise.all([carregarBairros(), carregarMunicipios()]);
+  const [todos, municipios, setores] = await Promise.all([carregarBairros(), carregarMunicipios(), carregarSetores()]);
+
+  // Zona (setor censitário do IBGE): o traçado é partido em trechos urbanos e rurais, e os setores
+  // por onde ele passa vão para o mapa como contorno.
+  type Zona = "U" | "R" | "";
+  const trechos: { zona: Zona; pts: LatLon[] }[] = [];
+  const setoresTocados = new Set<number>();
+  for (const l of linhas) {
+    let primeiroDaLinha = true;
+    for (const p of l) {
+      const i = setores.setorDe([p[1], p[0]]);
+      if (i >= 0) setoresTocados.add(i);
+      const z: Zona = i >= 0 ? setores.setores[i].s : "";
+      const ultimo = primeiroDaLinha ? undefined : trechos[trechos.length - 1];
+      primeiroDaLinha = false;
+      if (ultimo && ultimo.zona === z) ultimo.pts.push(p);
+      else {
+        const anterior = ultimo ? ultimo.pts[ultimo.pts.length - 1] : undefined;
+        trechos.push({ zona: z, pts: anterior ? [anterior, p] : [p] });
+      }
+    }
+  }
+  const pontosZ = pontos.map((p) => {
+    const i = setores.setorDe([p[1], p[0]]);
+    if (i >= 0) setoresTocados.add(i);
+    return { p, zona: (i >= 0 ? setores.setores[i].s : "") as Zona };
+  });
+  const setoresMapa = Array.from(setoresTocados)
+    .slice(0, 120)
+    .map((i) => ({ zona: setores.setores[i].s as Zona, municipio: setores.setores[i].m, anel: reduzir(setores.setores[i].g[0] as [number, number][], 300) }));
+
   const bairros = (itens ?? []).map((b) => {
     const aneis: LatLon[][] = [];
     // bairro vazio = parte fora dos bairros: desenha o contorno do município
@@ -62,5 +93,5 @@ export async function GET(request: NextRequest) {
     return { municipio: b.municipio as string, bairro: b.bairro as string, metros: b.metros as number, pct: b.pct as number, pontos: (b.pontos as number) ?? 0, aneis };
   });
 
-  return NextResponse.json({ fonte: calculo.fonte, extensaoM: calculo.extensao_m, metrosFora: calculo.metros_fora, pontosFora: calculo.pontos_fora ?? 0, totalPontos: calculo.pontos ?? 0, linhas, pontos, contornos, bairros });
+  return NextResponse.json({ fonte: calculo.fonte, extensaoM: calculo.extensao_m, metrosFora: calculo.metros_fora, pontosFora: calculo.pontos_fora ?? 0, totalPontos: calculo.pontos ?? 0, zona: { metrosUrbano: calculo.metros_urbano ?? 0, metrosRural: calculo.metros_rural ?? 0, pontosUrbano: calculo.pontos_urbano ?? 0, pontosRural: calculo.pontos_rural ?? 0 }, linhas, trechos, pontos, pontosZ, setores: setoresMapa, contornos, bairros });
 }

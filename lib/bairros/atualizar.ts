@@ -3,6 +3,7 @@ import { wktParaLinhasLonLat } from "@/lib/kml/base";
 import { bairrosDoTracado, carregarBairros, carregarMunicipios } from "@/lib/bairros/calcular";
 import { pontosEContornosDoKml } from "@/lib/bairros/kmlGuardado";
 import { atualizarGeometriaDoMapa, geomExtraDe } from "@/lib/bairros/geometriaMapa";
+import { carregarSetores } from "@/lib/bairros/setores";
 
 export type ResumoBairros = { processadas: number; comBairro: number; semBairro: number; terminou: boolean; pontosPoligonosDoMapa: string };
 
@@ -15,7 +16,7 @@ type Pendente = { id_acao: string; fonte: "sobreposicoes" | "kml" | "mapa"; assi
  */
 export async function atualizarBairros(admin: SupabaseClient, opcoes: { limiteMs: number; baixarMapa?: boolean; refazerTudo?: boolean }): Promise<ResumoBairros> {
   const inicio = Date.now();
-  const [bairros, municipios] = await Promise.all([carregarBairros(), carregarMunicipios()]);
+  const [bairros, municipios, setores] = await Promise.all([carregarBairros(), carregarMunicipios(), carregarSetores()]);
 
   // "Refazer tudo": esquece os cálculos guardados; todas as ações voltam a ficar pendentes.
   if (opcoes.refazerTudo) {
@@ -55,7 +56,7 @@ export async function atualizarBairros(admin: SupabaseClient, opcoes: { limiteMs
     }
 
     const extrasDoMapa = await geomExtraDe(admin, pendentes.map((p) => p.id_acao));
-    const calculos: { id_acao: string; fonte: string; assinatura: string; extensao_m: number; metros_fora: number; qtd_bairros: number; pontos: number; pontos_fora: number; calculado_em: string }[] = [];
+    const calculos: { id_acao: string; fonte: string; assinatura: string; extensao_m: number; metros_fora: number; qtd_bairros: number; pontos: number; pontos_fora: number; metros_urbano: number; metros_rural: number; pontos_urbano: number; pontos_rural: number; calculado_em: string }[] = [];
     const itens: { id_acao: string; municipio: string; bairro: string; metros: number; pct: number; pontos: number }[] = [];
     const agora = new Date().toISOString();
 
@@ -67,8 +68,8 @@ export async function atualizarBairros(admin: SupabaseClient, opcoes: { limiteMs
       const pontos = doMapa?.pontos ?? doKml.pontos;
       const contornos = doMapa?.poligonos ?? doKml.contornos;
       const linhas = [...(wkt ? wktParaLinhasLonLat(wkt) : []), ...contornos];
-      const r = bairrosDoTracado(linhas, bairros, pontos, municipios);
-      calculos.push({ id_acao: p.id_acao, fonte: p.fonte, assinatura: p.assinatura, extensao_m: Math.round(r.extensaoM), metros_fora: r.metrosFora, qtd_bairros: r.bairros.length, pontos: r.pontos, pontos_fora: r.pontosFora, calculado_em: agora });
+      const r = bairrosDoTracado(linhas, bairros, pontos, municipios, setores);
+      calculos.push({ id_acao: p.id_acao, fonte: p.fonte, assinatura: p.assinatura, extensao_m: Math.round(r.extensaoM), metros_fora: r.metrosFora, qtd_bairros: r.bairros.length, pontos: r.pontos, pontos_fora: r.pontosFora, metros_urbano: r.zona.metrosUrbano, metros_rural: r.zona.metrosRural, pontos_urbano: r.zona.pontosUrbano, pontos_rural: r.zona.pontosRural, calculado_em: agora });
       for (const b of r.bairros) itens.push({ id_acao: p.id_acao, municipio: b.municipio, bairro: b.bairro, metros: b.metros, pct: b.pct, pontos: b.pontos });
       // Parte que está num município mas em nenhum bairro: bairro vazio = "sem bairro mapeado".
       for (const s of r.semBairro) itens.push({ id_acao: p.id_acao, municipio: s.municipio, bairro: "", metros: s.metros, pct: s.pct, pontos: s.pontos });

@@ -1,4 +1,5 @@
 import { amostrar, comprimentoM } from "@/lib/kml/analisar";
+import type { IndiceSetores } from "@/lib/bairros/setores";
 
 type Coord = [number, number]; // [lon, lat]
 type Poligono = number[][][]; // [anel externo, ...furos], cada ponto [lon, lat]
@@ -20,7 +21,11 @@ export type ResultadoBairros = {
   pontosFora: number;
   bairros: BairroDaAcao[];
   semBairro: SemBairroDaAcao[];
+  /** Quanto do trecho (m) e quantos pontos caem em setor urbano e em setor rural (IBGE). */
+  zona: { metrosUrbano: number; metrosRural: number; pontosUrbano: number; pontosRural: number };
 };
+
+const ZONA_ZERO = { metrosUrbano: 0, metrosRural: 0, pontosUrbano: 0, pontosRural: 0 };
 
 // Um ponto a cada 15 m basta para saber em que bairros o trecho passa.
 const PASSO_M = 15;
@@ -62,10 +67,10 @@ function dentroDaZona(p: Coord, z: Zona): boolean {
  * `pontosKml` (locais marcados) contam em quantidade. O que não cai em nenhum bairro é atribuído ao
  * município onde está (`semBairro`), para pelo menos saber de que cidade é.
  */
-export function bairrosDoTracado(linhas: Coord[][], bairros: Bairro[], pontosKml: Coord[] = [], municipios: Municipio[] = []): ResultadoBairros {
+export function bairrosDoTracado(linhas: Coord[][], bairros: Bairro[], pontosKml: Coord[] = [], municipios: Municipio[] = [], setores?: IndiceSetores): ResultadoBairros {
   const extensaoM = linhas.reduce((s, l) => s + comprimentoM(l), 0);
   const amostras = extensaoM > 0 ? linhas.flatMap((l) => amostrar(l, PASSO_M)) : [];
-  if (amostras.length === 0 && pontosKml.length === 0) return { extensaoM, metrosFora: 0, pontos: 0, pontosFora: 0, bairros: [], semBairro: [] };
+  if (amostras.length === 0 && pontosKml.length === 0) return { extensaoM, metrosFora: 0, pontos: 0, pontosFora: 0, bairros: [], semBairro: [], zona: ZONA_ZERO };
 
   // Só as zonas cuja caixa encosta na caixa do que foi marcado.
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
@@ -92,8 +97,12 @@ export function bairrosDoTracado(linhas: Coord[][], bairros: Bairro[], pontosKml
   let foraAmostras = 0;
   let pontosFora = 0;
   const soma = (m: Map<string, number>, k: string) => m.set(k, (m.get(k) ?? 0) + 1);
+  let amostrasU = 0, amostrasR = 0, pontosU = 0, pontosR = 0;
 
   for (const p of amostras) {
+    const z = setores?.zonaDe(p);
+    if (z === "U") amostrasU++;
+    else if (z === "R") amostrasR++;
     const achado = candidatos.find((b) => dentroDaZona(p, b));
     if (achado) {
       nomes.set(chave(achado), achado);
@@ -105,6 +114,9 @@ export function bairrosDoTracado(linhas: Coord[][], bairros: Bairro[], pontosKml
     }
   }
   for (const p of pontosKml) {
+    const z = setores?.zonaDe(p);
+    if (z === "U") pontosU++;
+    else if (z === "R") pontosR++;
     const achado = candidatos.find((b) => dentroDaZona(p, b));
     if (achado) {
       nomes.set(chave(achado), achado);
@@ -151,5 +163,6 @@ export function bairrosDoTracado(linhas: Coord[][], bairros: Bairro[], pontosKml
     pontosFora,
     bairros: lista,
     semBairro,
+    zona: { metrosUrbano: Math.round(amostrasU * metrosPorAmostra), metrosRural: Math.round(amostrasR * metrosPorAmostra), pontosUrbano: pontosU, pontosRural: pontosR },
   };
 }

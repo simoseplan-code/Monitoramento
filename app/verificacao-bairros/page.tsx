@@ -59,6 +59,7 @@ export default async function VerificacaoBairrosPage() {
         metrosFora: l.metros_fora,
         pontosFora: l.pontos_fora ?? 0,
         semBairro: [],
+        zona: { metrosUrbano: l.metros_urbano ?? 0, metrosRural: l.metros_rural ?? 0, pontosUrbano: l.pontos_urbano ?? 0, pontosRural: l.pontos_rural ?? 0 },
         criadaEm: datas.get(l.id_acao)?.criada ?? null,
         anoConclusao: datas.get(l.id_acao)?.conclusao ?? "(vazio)",
         bairros: [],

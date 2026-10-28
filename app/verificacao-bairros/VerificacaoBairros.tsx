@@ -18,6 +18,10 @@ export type LinhaLista = {
   pct: number | null;
   pontos: number | null;
   pontos_fora: number | null;
+  metros_urbano: number | null;
+  metros_rural: number | null;
+  pontos_urbano: number | null;
+  pontos_rural: number | null;
   nome_acao: string | null;
   orgao: string | null;
   status: string | null;
@@ -35,6 +39,7 @@ export type ItemLista = {
   criadaEm: string | null;
   anoConclusao: string;
   semBairro: { municipio: string; metros: number; pct: number; pontos: number }[];
+  zona: { metrosUrbano: number; metrosRural: number; pontosUrbano: number; pontosRural: number };
   bairros: { municipio: string; bairro: string; metros: number; pct: number; pontos: number }[];
 };
 
@@ -59,6 +64,28 @@ const foraDoMapa = (i: ItemLista) => (i.extensaoM > 0 && i.metrosFora / i.extens
 const textoForaDoMapa = (i: ItemLista) =>
   [i.extensaoM > 0 && i.metrosFora / i.extensaoM >= 0.1 ? `${porcento(i.metrosFora / i.extensaoM)} do trecho` : "", i.pontosFora > 0 ? `${i.pontosFora} ponto(s)` : ""].filter(Boolean).join(" e ") + " fora do Piauí";
 const VAZIO = "(vazio)";
+// Zona urbana / rural (setor censitário do IBGE). Com trecho, vale a parte do trecho; só pontos, a parte dos pontos.
+const SEM_ZONA = "(sem classificação)";
+const partesZona = (i: ItemLista) => {
+  const u = i.zona.metrosUrbano + i.zona.metrosRural > 0 ? i.zona.metrosUrbano : i.zona.pontosUrbano;
+  const r = i.zona.metrosUrbano + i.zona.metrosRural > 0 ? i.zona.metrosRural : i.zona.pontosRural;
+  return { u, r, total: u + r };
+};
+const classeZona = (i: ItemLista) => {
+  const { u, total } = partesZona(i);
+  if (total === 0) return SEM_ZONA;
+  const fu = u / total;
+  return fu >= 0.9 ? "Urbana" : fu <= 0.1 ? "Rural" : "Urbana e rural";
+};
+const textoZona = (i: ItemLista) => {
+  const { u, r, total } = partesZona(i);
+  if (total === 0) return "";
+  const c = classeZona(i);
+  if (c === "Urbana") return `Urbana (${Math.round((u / total) * 100)}%)`;
+  if (c === "Rural") return `Rural (${Math.round((r / total) * 100)}%)`;
+  return `Urbana ${Math.round((u / total) * 100)}% · Rural ${Math.round((r / total) * 100)}%`;
+};
+const ZONAS = ["Urbana", "Rural", "Urbana e rural", SEM_ZONA];
 const anoDe = (d: string | null) => (d ? d.slice(0, 4) : VAZIO);
 const dataBR = (d: string | null) => {
   if (!d) return "-";
@@ -80,6 +107,7 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
   // null = todos os anos marcados.
   const [anosCriacao, setAnosCriacao] = useState<Set<string> | null>(null);
   const [anosConclusao, setAnosConclusao] = useState<Set<string> | null>(null);
+  const [zonas, setZonas] = useState<Set<string> | null>(null);
   const [pagina, setPagina] = useState(1);
   const [verMapa, setVerMapa] = useState<{ id: string; nome: string; bairroFoco?: string } | null>(null);
 
@@ -107,6 +135,7 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
   };
   const opcoesCriacao = useMemo(() => opcoesAno((i) => anoDe(i.criadaEm)), [itens]); // eslint-disable-line react-hooks/exhaustive-deps
   const opcoesConclusao = useMemo(() => opcoesAno((i) => i.anoConclusao), [itens]); // eslint-disable-line react-hooks/exhaustive-deps
+  const opcoesZona = useMemo(() => ZONAS.map((z) => ({ valor: z, qtd: itens.filter((i) => classeZona(i) === z).length })).filter((o) => o.qtd > 0), [itens]);
   const statusLista = useMemo(() => Array.from(new Set(itens.map((i) => i.status).filter(Boolean) as string[])).sort(), [itens]);
 
   const filtradas = useMemo(() => {
@@ -121,11 +150,12 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
         if (fonte && i.fonte !== fonte) return false;
         if (anosCriacao && !anosCriacao.has(anoDe(i.criadaEm))) return false;
         if (anosConclusao && !anosConclusao.has(i.anoConclusao)) return false;
+        if (zonas && !zonas.has(classeZona(i))) return false;
         if (situacao === "parte_fora" ? !parteFora(i) : situacao !== "todas" && situacaoDe(i) !== situacao) return false;
         return true;
       })
       .sort((a, b) => Number(a.id) - Number(b.id));
-  }, [itens, busca, municipio, bairro, orgao, status, fonte, situacao, anosCriacao, anosConclusao]);
+  }, [itens, busca, municipio, bairro, orgao, status, fonte, situacao, anosCriacao, anosConclusao, zonas]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtradas.length / TAMANHO));
   const paginaAtual = Math.min(pagina, totalPaginas);
@@ -144,6 +174,7 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
         busca && `Busca: "${busca}"`,
         anosCriacao && `Ano de criação: ${Array.from(anosCriacao).sort().join(", ") || "nenhum"}`,
         anosConclusao && `Ano de conclusão: ${Array.from(anosConclusao).sort().join(", ") || "nenhum"}`,
+        zonas && `Zona: ${Array.from(zonas).join(", ") || "nenhuma"}`,
         municipio && `Município: ${municipio}`,
         bairro && `Bairro: ${bairro}`,
         orgao && `Órgão: ${orgao}`,
@@ -337,8 +368,9 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
             <option value="mapa">Só pontos ou polígonos do mapa</option>
           </select>
           <FiltroCheckbox rotulo="Ano de criação" opcoes={opcoesCriacao} selecionados={anosCriacao} aoMudar={(v) => mudar(setAnosCriacao)(v)} />
+          <FiltroCheckbox rotulo="Zona" opcoes={opcoesZona} selecionados={zonas} aoMudar={(v) => mudar(setZonas)(v)} />
           <FiltroCheckbox rotulo="Ano de conclusão" opcoes={opcoesConclusao} selecionados={anosConclusao} aoMudar={(v) => mudar(setAnosConclusao)(v)} />
-          {(busca || municipio || bairro || orgao || status || situacao !== "todas" || fonte || anosCriacao || anosConclusao) && (
+          {(busca || municipio || bairro || orgao || status || situacao !== "todas" || fonte || anosCriacao || anosConclusao || zonas) && (
             <button
               onClick={() => {
                 setBusca("");
@@ -350,6 +382,7 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
                 setFonte("");
                 setAnosCriacao(null);
                 setAnosConclusao(null);
+                setZonas(null);
                 setPagina(1);
               }}
               className="text-xs font-medium text-series-1 hover:underline"
@@ -387,6 +420,7 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
                 <th className="px-4 py-3">Criada em</th>
                 <th className="px-4 py-3">Ano de conclusão</th>
                 <th className="px-4 py-3">Município - Bairro</th>
+                <th className="px-4 py-3">Zona</th>
                 <th className="px-4 py-3">KML</th>
               </tr>
             </thead>
@@ -442,6 +476,18 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
                     )}
                   </td>
                   <td className="px-4 py-3">
+                    {classeZona(i) === SEM_ZONA ? (
+                      <span className="text-xs text-ink-muted">-</span>
+                    ) : (
+                      <span
+                        title="Setor censitário do IBGE (Censo 2022): urbano ou rural"
+                        className={`whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-medium ${classeZona(i) === "Urbana" ? "bg-status-critical/10 text-status-critical" : classeZona(i) === "Rural" ? "bg-status-warning-bg text-status-warning" : "bg-plane text-ink-secondary"}`}
+                      >
+                        {textoZona(i)}
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3">
                     <button
                       onClick={() => setVerMapa({ id: i.id, nome: i.nome })}
                       className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-black/10 px-2.5 py-1 text-xs font-medium text-ink-secondary hover:bg-plane"
@@ -454,7 +500,7 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
               ))}
               {visiveis.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-ink-muted">
+                  <td colSpan={8} className="px-4 py-10 text-center text-sm text-ink-muted">
                     {itens.length === 0 ? "Nenhuma ação verificada ainda. Rode o SQL 0081 e clique em Atualizar verificação." : "Nenhuma ação com esses filtros."}
                   </td>
                 </tr>
@@ -493,11 +539,16 @@ type DadosMapa = {
   pontosFora: number;
   totalPontos: number;
   linhas: [number, number][][];
+  zona: { metrosUrbano: number; metrosRural: number; pontosUrbano: number; pontosRural: number };
+  trechos: { zona: "U" | "R" | ""; pts: [number, number][] }[];
+  pontosZ: { p: [number, number]; zona: "U" | "R" | "" }[];
+  setores: { zona: "U" | "R" | ""; municipio: string; anel: [number, number][] }[];
   pontos: [number, number][];
   contornos: [number, number][][];
   bairros: { municipio: string; bairro: string; metros: number; pct: number; pontos: number; aneis: [number, number][][] }[];
 };
 
+const COR_ZONA = { U: "#dc2626", R: "#d97706" } as const;
 const CORES = ["#2563eb", "#16a34a", "#9333ea", "#ea580c", "#0891b2", "#db2777", "#65a30d", "#4f46e5"];
 
 function JanelaMapa({ id, nome, bairroFoco, aoFechar }: { id: string; nome: string; bairroFoco?: string; aoFechar: () => void }) {
@@ -551,6 +602,24 @@ function JanelaMapa({ id, nome, bairroFoco, aoFechar }: { id: string; nome: stri
               Traçado: {dados.fonte === "kml" ? "KML guardado" : dados.fonte === "mapa" ? "pontos e polígonos do mapa de obras" : "mapa de obras"} · {(dados.extensaoM / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} km · {dados.totalPontos} ponto(s) do KML.{" "}
               {dados.bairros.length === 0 ? "Não cai em nenhum bairro mapeado." : ""}
             </p>
+            <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-secondary">
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-1 w-5 rounded" style={{ background: COR_ZONA.U }} /> Zona urbana
+              </span>
+              <span className="flex items-center gap-1.5">
+                <span className="inline-block h-1 w-5 rounded" style={{ background: COR_ZONA.R }} /> Zona rural
+              </span>
+              {(dados.zona.metrosUrbano > 0 || dados.zona.metrosRural > 0) && (
+                <span className="text-ink-muted">
+                  Trecho: {inteiro(dados.zona.metrosUrbano)} m urbano · {inteiro(dados.zona.metrosRural)} m rural
+                </span>
+              )}
+              {(dados.zona.pontosUrbano > 0 || dados.zona.pontosRural > 0) && (
+                <span className="text-ink-muted">
+                  Pontos: {dados.zona.pontosUrbano} urbano · {dados.zona.pontosRural} rural
+                </span>
+              )}
+            </p>
             <ul className="mt-2 flex flex-wrap gap-2">
               {dados.bairros.map((b, i) => (
                 <li key={b.municipio + b.bairro} className="flex items-center gap-1.5 rounded-full border border-black/10 px-2.5 py-1 text-xs text-ink-secondary">
@@ -592,10 +661,26 @@ function MapaBairros({ dados, bairroFoco }: { dados: DadosMapa; bairroFoco?: str
             .addTo(todos);
         }
       });
+      // Setores censitários por onde o traçado passa (urbano e rural), por baixo de tudo.
+      for (const s of dados.setores ?? []) {
+        if (!s.zona) continue;
+        L.polygon(s.anel, { color: COR_ZONA[s.zona], weight: 1, dashArray: "3 4", fillColor: COR_ZONA[s.zona], fillOpacity: 0.07, interactive: true })
+          .bindTooltip(`Setor ${s.zona === "U" ? "urbano" : "rural"} (${s.municipio})`, { sticky: true })
+          .addTo(mapa);
+      }
       const grupoLinhas = L.featureGroup().addTo(mapa);
-      for (const l of dados.linhas) L.polyline(l, { color: "#dc2626", weight: 4, opacity: 0.95 }).addTo(grupoLinhas);
+      // Traçado colorido pela zona em que passa: vermelho = urbana, âmbar = rural, cinza = sem classificação.
+      for (const t of dados.trechos ?? []) {
+        L.polyline(t.pts, { color: t.zona ? COR_ZONA[t.zona] : "#6b7280", weight: 5, opacity: 0.95 })
+          .bindTooltip(t.zona === "U" ? "Trecho em zona urbana" : t.zona === "R" ? "Trecho em zona rural" : "Trecho sem classificação de zona", { sticky: true })
+          .addTo(grupoLinhas);
+      }
       for (const c of dados.contornos ?? []) L.polygon(c, { color: "#7c3aed", weight: 2, fillOpacity: 0.15 }).addTo(grupoLinhas);
-      for (const p of dados.pontos ?? []) L.circleMarker(p, { radius: 6, color: "#ffffff", weight: 2, fillColor: "#dc2626", fillOpacity: 1 }).addTo(grupoLinhas);
+      for (const z of dados.pontosZ ?? []) {
+        L.circleMarker(z.p, { radius: 6, color: "#ffffff", weight: 2, fillColor: z.zona ? COR_ZONA[z.zona] : "#6b7280", fillOpacity: 1 })
+          .bindTooltip(z.zona === "U" ? "Ponto em zona urbana" : z.zona === "R" ? "Ponto em zona rural" : "Ponto sem classificação de zona")
+          .addTo(grupoLinhas);
+      }
       const b = grupoLinhas.getBounds();
       const bt = todos.getBounds();
       // Enquadra no traçado (o contorno do município e dos bairros fica visível ao redor).
