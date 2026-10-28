@@ -598,8 +598,14 @@ function MapaBairros({ dados, bairroFoco }: { dados: DadosMapa; bairroFoco?: str
       for (const p of dados.pontos ?? []) L.circleMarker(p, { radius: 6, color: "#ffffff", weight: 2, fillColor: "#dc2626", fillOpacity: 1 }).addTo(grupoLinhas);
       const b = grupoLinhas.getBounds();
       const bt = todos.getBounds();
-      if (b.isValid()) mapa.fitBounds(bt.isValid() ? b.extend(bt) : b, { padding: [30, 30], maxZoom: 17 });
-      else if (bt.isValid()) mapa.fitBounds(bt, { padding: [30, 30] });
+      // Enquadra no traçado (o contorno do município e dos bairros fica visível ao redor).
+      const enquadrar = () => {
+        mapa?.invalidateSize();
+        if (b.isValid()) mapa?.fitBounds(b, { padding: [40, 40], maxZoom: 17 });
+        else if (bt.isValid()) mapa?.fitBounds(bt, { padding: [30, 30] });
+      };
+      enquadrar();
+      setTimeout(enquadrar, 200);
       else mapa.setView([-7.5, -43], 6);
     })();
     return () => {
