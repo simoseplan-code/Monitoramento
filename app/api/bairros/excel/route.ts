@@ -66,6 +66,17 @@ export async function POST(request: NextRequest) {
   }
   linhas.sort((a, b) => Number(a.id_acao) - Number(b.id_acao) || (b.metros ?? 0) - (a.metros ?? 0));
 
+  // Data de criação e ano de conclusão (recebimento provisório; se não houver, o definitivo).
+  const datas = new Map<string, { criada: string; conclusao: string }>();
+  for (let i = 0; i < ids.length; i += 200) {
+    const { data } = await supabase.from("obras").select("id_acao, data_criacao, data_receb_definitivo, data_receb_provisorio").in("id_acao", ids.slice(i, i + 200));
+    for (const o of data ?? []) {
+      const rec = (o.data_receb_provisorio as string | null) || (o.data_receb_definitivo as string | null);
+      const c = ((o.data_criacao as string | null) ?? "").slice(0, 10).split("-");
+      datas.set(o.id_acao as string, { criada: c.length === 3 ? `${c[2]}/${c[1]}/${c[0]}` : "", conclusao: rec ? rec.slice(0, 4) : "" });
+    }
+  }
+
   // Agrupa por ação.
   const porAcao = new Map<string, Linha[]>();
   for (const l of linhas) porAcao.set(l.id_acao, [...(porAcao.get(l.id_acao) ?? []), l]);
@@ -77,18 +88,18 @@ export async function POST(request: NextRequest) {
 
   // ───────── Ações (uma linha por ação) ─────────
   const ws = wb.addWorksheet("Ações", { views: [{ state: "frozen", ySplit: 4, showGridLines: false }] });
-  ws.columns = [{ width: 10 }, { width: 60 }, { width: 14 }, { width: 14 }, { width: 24 }, { width: 22 }, { width: 11 }, { width: 10 }, { width: 14 }, { width: 55 }, { width: 28 }];
-  ws.mergeCells(1, 1, 1, 11);
+  ws.columns = [{ width: 10 }, { width: 60 }, { width: 14 }, { width: 14 }, { width: 24 }, { width: 22 }, { width: 11 }, { width: 10 }, { width: 14 }, { width: 55 }, { width: 28 }, { width: 13 }, { width: 13 }];
+  ws.mergeCells(1, 1, 1, 13);
   ws.getCell(1, 1).value = "Verificação de bairros";
   ws.getCell(1, 1).font = { bold: true, size: 15, color: { argb: AZUL_ESCURO } };
   ws.getRow(1).height = 26;
-  ws.mergeCells(2, 1, 2, 11);
+  ws.mergeCells(2, 1, 2, 13);
   ws.getCell(2, 1).value = `Gerado em ${agora} por ${perfil.nome ?? "Usuário"} · ${porAcao.size.toLocaleString("pt-BR")} ação(ões)` + (filtros.length ? ` · Filtros: ${filtros.join("; ")}` : "");
   ws.getCell(2, 1).font = { size: 9, color: { argb: "FF6B6A66" } };
   ws.getCell(2, 1).alignment = { wrapText: true, vertical: "top" };
   ws.getRow(2).height = filtros.length > 2 ? 42 : 24;
-  cabecalho(ws, ["ID", "Nome da ação", "Órgão", "Status", "Estágio", "Origem do traçado", "Extensão (km)", "Nº de bairros", "Situação", "Município - Bairro", "Fora dos bairros"], 4);
-  ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: 11 } };
+  cabecalho(ws, ["ID", "Nome da ação", "Órgão", "Status", "Estágio", "Origem do traçado", "Extensão (km)", "Nº de bairros", "Situação", "Município - Bairro", "Fora dos bairros", "Criada em", "Ano de conclusão"], 4);
+  ws.autoFilter = { from: { row: 4, column: 1 }, to: { row: 4, column: 13 } };
 
   let r = 5;
   for (const [id, ls] of porAcao) {
@@ -110,6 +121,8 @@ export async function POST(request: NextRequest) {
       bairros.length === 0 ? "Sem bairro mapeado" : bairros.length === 1 ? "Um só bairro" : "Mais de um bairro",
       bairros.map((l) => `${l.municipio} - ${l.bairro} (${detalhe(l)})`).join("; "),
       fora,
+      datas.get(id)?.criada ?? "",
+      datas.get(id)?.conclusao ?? "",
     ];
     row.getCell(1).font = { color: { argb: "FF1D4ED8" }, underline: true };
     row.getCell(7).numFmt = "#,##0.00";
@@ -121,9 +134,9 @@ export async function POST(request: NextRequest) {
 
   // ───────── Por bairro (uma linha por ação e bairro) ─────────
   const wb2 = wb.addWorksheet("Por bairro", { views: [{ state: "frozen", ySplit: 1, showGridLines: false }] });
-  wb2.columns = [{ width: 10 }, { width: 60 }, { width: 14 }, { width: 14 }, { width: 20 }, { width: 28 }, { width: 12 }, { width: 14 }, { width: 10 }];
-  cabecalho(wb2, ["ID", "Nome da ação", "Órgão", "Status", "Município", "Bairro", "Metros no bairro", "% do trecho", "Pontos"], 1);
-  wb2.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 9 } };
+  wb2.columns = [{ width: 10 }, { width: 60 }, { width: 14 }, { width: 14 }, { width: 20 }, { width: 28 }, { width: 12 }, { width: 14 }, { width: 10 }, { width: 13 }, { width: 13 }];
+  cabecalho(wb2, ["ID", "Nome da ação", "Órgão", "Status", "Município", "Bairro", "Metros no bairro", "% do trecho", "Pontos", "Criada em", "Ano de conclusão"], 1);
+  wb2.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: 11 } };
   let r2 = 2;
   for (const l of linhas) {
     const row = wb2.getRow(r2++);
@@ -137,6 +150,8 @@ export async function POST(request: NextRequest) {
       l.bairro ? l.metros ?? 0 : null,
       l.bairro && l.extensao_m > 0 ? l.pct ?? 0 : null,
       l.bairro ? l.pontos ?? 0 : null,
+      datas.get(l.id_acao)?.criada ?? "",
+      datas.get(l.id_acao)?.conclusao ?? "",
     ];
     row.getCell(1).font = { color: { argb: "FF1D4ED8" }, underline: true };
     row.getCell(7).numFmt = "#,##0";

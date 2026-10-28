@@ -32,6 +32,8 @@ export type ItemLista = {
   extensaoM: number;
   metrosFora: number;
   pontosFora: number;
+  criadaEm: string | null;
+  anoConclusao: string;
   bairros: { municipio: string; bairro: string; metros: number; pct: number; pontos: number }[];
 };
 
@@ -52,6 +54,13 @@ const trechoFora = (i: ItemLista) => i.extensaoM > 0 && i.metrosFora / i.extensa
 const parteFora = (i: ItemLista) => i.bairros.length > 0 && (trechoFora(i) || i.pontosFora > 0);
 const textoFora = (i: ItemLista) =>
   [trechoFora(i) ? `${porcento(i.metrosFora / i.extensaoM)} do trecho` : "", i.pontosFora > 0 ? `${i.pontosFora} ponto(s)` : ""].filter(Boolean).join(" e ") + " fora";
+const VAZIO = "(vazio)";
+const anoDe = (d: string | null) => (d ? d.slice(0, 4) : VAZIO);
+const dataBR = (d: string | null) => {
+  if (!d) return "-";
+  const p = d.slice(0, 10).split("-");
+  return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : d;
+};
 const detalhe = (b: { pct: number; pontos: number }, extensaoM: number) =>
   [extensaoM > 0 ? porcento(b.pct) : "", b.pontos > 0 ? `${b.pontos} ponto${b.pontos > 1 ? "s" : ""}` : ""].filter(Boolean).join(" + ");
 
@@ -64,6 +73,9 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
   const [status, setStatus] = useState("");
   const [fonte, setFonte] = useState("");
   const [situacao, setSituacao] = useState<Situacao>("todas");
+  // null = todos os anos marcados.
+  const [anosCriacao, setAnosCriacao] = useState<Set<string> | null>(null);
+  const [anosConclusao, setAnosConclusao] = useState<Set<string> | null>(null);
   const [pagina, setPagina] = useState(1);
   const [verMapa, setVerMapa] = useState<{ id: string; nome: string; bairroFoco?: string } | null>(null);
 
@@ -84,6 +96,13 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
     return Array.from(m, ([nome, qtd]) => ({ nome, qtd })).sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR"));
   }, [itens, municipio]);
   const orgaos = useMemo(() => Array.from(new Set(itens.map((i) => i.orgao).filter(Boolean) as string[])).sort(), [itens]);
+  const opcoesAno = (valor: (i: ItemLista) => string) => {
+    const m = new Map<string, number>();
+    for (const i of itens) m.set(valor(i), (m.get(valor(i)) ?? 0) + 1);
+    return Array.from(m, ([valor, qtd]) => ({ valor, qtd })).sort((a, b) => (a.valor === VAZIO ? 1 : b.valor === VAZIO ? -1 : a.valor.localeCompare(b.valor)));
+  };
+  const opcoesCriacao = useMemo(() => opcoesAno((i) => anoDe(i.criadaEm)), [itens]); // eslint-disable-line react-hooks/exhaustive-deps
+  const opcoesConclusao = useMemo(() => opcoesAno((i) => i.anoConclusao), [itens]); // eslint-disable-line react-hooks/exhaustive-deps
   const statusLista = useMemo(() => Array.from(new Set(itens.map((i) => i.status).filter(Boolean) as string[])).sort(), [itens]);
 
   const filtradas = useMemo(() => {
@@ -96,11 +115,13 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
         if (orgao && i.orgao !== orgao) return false;
         if (status && i.status !== status) return false;
         if (fonte && i.fonte !== fonte) return false;
+        if (anosCriacao && !anosCriacao.has(anoDe(i.criadaEm))) return false;
+        if (anosConclusao && !anosConclusao.has(i.anoConclusao)) return false;
         if (situacao === "parte_fora" ? !parteFora(i) : situacao !== "todas" && situacaoDe(i) !== situacao) return false;
         return true;
       })
       .sort((a, b) => Number(a.id) - Number(b.id));
-  }, [itens, busca, municipio, bairro, orgao, status, fonte, situacao]);
+  }, [itens, busca, municipio, bairro, orgao, status, fonte, situacao, anosCriacao, anosConclusao]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtradas.length / TAMANHO));
   const paginaAtual = Math.min(pagina, totalPaginas);
@@ -117,6 +138,8 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
     try {
       const filtros = [
         busca && `Busca: "${busca}"`,
+        anosCriacao && `Ano de criação: ${Array.from(anosCriacao).sort().join(", ") || "nenhum"}`,
+        anosConclusao && `Ano de conclusão: ${Array.from(anosConclusao).sort().join(", ") || "nenhum"}`,
         municipio && `Município: ${municipio}`,
         bairro && `Bairro: ${bairro}`,
         orgao && `Órgão: ${orgao}`,
@@ -297,7 +320,9 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
             <option value="kml">KML guardado</option>
             <option value="mapa">Só pontos ou polígonos do mapa</option>
           </select>
-          {(busca || municipio || bairro || orgao || status || situacao !== "todas" || fonte) && (
+          <FiltroCheckbox rotulo="Ano de criação" opcoes={opcoesCriacao} selecionados={anosCriacao} aoMudar={(v) => mudar(setAnosCriacao)(v)} />
+          <FiltroCheckbox rotulo="Ano de conclusão" opcoes={opcoesConclusao} selecionados={anosConclusao} aoMudar={(v) => mudar(setAnosConclusao)(v)} />
+          {(busca || municipio || bairro || orgao || status || situacao !== "todas" || fonte || anosCriacao || anosConclusao) && (
             <button
               onClick={() => {
                 setBusca("");
@@ -307,6 +332,8 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
                 setStatus("");
                 setSituacao("todas");
                 setFonte("");
+                setAnosCriacao(null);
+                setAnosConclusao(null);
                 setPagina(1);
               }}
               className="text-xs font-medium text-series-1 hover:underline"
@@ -341,6 +368,8 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
                 <th className="px-4 py-3">ID</th>
                 <th className="px-4 py-3">Ação</th>
                 <th className="px-4 py-3">Órgão</th>
+                <th className="px-4 py-3">Criada em</th>
+                <th className="px-4 py-3">Ano de conclusão</th>
                 <th className="px-4 py-3">Município - Bairro</th>
                 <th className="px-4 py-3">KML</th>
               </tr>
@@ -356,6 +385,8 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
                     {i.status && <span className="text-[11px] text-ink-muted">{i.status}</span>}
                   </td>
                   <td className="px-4 py-3 text-ink-secondary">{i.orgao ?? "-"}</td>
+                  <td className="whitespace-nowrap px-4 py-3 text-ink-secondary">{dataBR(i.criadaEm)}</td>
+                  <td className="px-4 py-3 text-ink-secondary">{i.anoConclusao === VAZIO ? "-" : i.anoConclusao}</td>
                   <td className="px-4 py-3">
                     {i.bairros.length === 0 ? (
                       <span className="rounded-full bg-status-neutral-bg px-2 py-0.5 text-xs font-medium text-status-neutral" title="O trecho não cai em nenhum bairro do arquivo (município sem bairros mapeados ou fora dos limites)">
@@ -397,7 +428,7 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
               ))}
               {visiveis.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="px-4 py-10 text-center text-sm text-ink-muted">
+                  <td colSpan={7} className="px-4 py-10 text-center text-sm text-ink-muted">
                     {itens.length === 0 ? "Nenhuma ação verificada ainda. Rode o SQL 0081 e clique em Atualizar verificação." : "Nenhuma ação com esses filtros."}
                   </td>
                 </tr>
@@ -550,4 +581,68 @@ function MapaBairros({ dados, bairroFoco }: { dados: DadosMapa; bairroFoco?: str
     };
   }, [dados, bairroFoco]);
   return <div ref={divRef} className="h-[28rem] w-full overflow-hidden rounded-lg border border-black/5" />;
+}
+
+// ---------- filtro com caixas de seleção (como no Excel) ----------
+
+function FiltroCheckbox({
+  rotulo,
+  opcoes,
+  selecionados,
+  aoMudar,
+}: {
+  rotulo: string;
+  opcoes: { valor: string; qtd: number }[];
+  selecionados: Set<string> | null; // null = todos marcados
+  aoMudar: (v: Set<string> | null) => void;
+}) {
+  const [aberto, setAberto] = useState(false);
+  const raiz = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!aberto) return;
+    const fora = (e: MouseEvent) => {
+      if (raiz.current && !raiz.current.contains(e.target as Node)) setAberto(false);
+    };
+    document.addEventListener("mousedown", fora);
+    return () => document.removeEventListener("mousedown", fora);
+  }, [aberto]);
+
+  const marcar = (valor: string, marcado: boolean) => {
+    const atual = new Set(selecionados ?? opcoes.map((o) => o.valor));
+    if (marcado) atual.add(valor);
+    else atual.delete(valor);
+    aoMudar(atual.size === opcoes.length ? null : atual);
+  };
+  const resumo = selecionados === null ? "todos" : selecionados.size === 0 ? "nenhum" : selecionados.size <= 3 ? Array.from(selecionados).sort().join(", ") : `${selecionados.size} de ${opcoes.length}`;
+
+  return (
+    <div ref={raiz} className="relative">
+      <button onClick={() => setAberto((a) => !a)} className={campo + " flex items-center gap-2 " + (selecionados ? "border-series-1 text-series-1" : "")}>
+        {rotulo}: <strong className="font-semibold">{resumo}</strong>
+      </button>
+      {aberto && (
+        <div className="absolute left-0 z-30 mt-1.5 w-56 rounded-xl border border-black/10 bg-surface p-2 shadow-card">
+          <div className="mb-1.5 flex items-center justify-between px-1 text-[11px]">
+            <button onClick={() => aoMudar(null)} className="font-medium text-series-1 hover:underline">
+              Marcar todos
+            </button>
+            <button onClick={() => aoMudar(new Set())} className="font-medium text-ink-muted hover:underline">
+              Limpar
+            </button>
+          </div>
+          <ul className="max-h-60 space-y-0.5 overflow-y-auto pr-1">
+            {opcoes.map((o) => (
+              <li key={o.valor}>
+                <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-xs text-ink-secondary hover:bg-plane">
+                  <input type="checkbox" checked={selecionados ? selecionados.has(o.valor) : true} onChange={(e) => marcar(o.valor, e.target.checked)} className="h-3.5 w-3.5 shrink-0" />
+                  <span className="min-w-0 flex-1 truncate">{o.valor}</span>
+                  <span className="tabular shrink-0 text-[10px] text-ink-muted">{inteiro(o.qtd)}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
+    </div>
+  );
 }

@@ -30,6 +30,21 @@ export default async function VerificacaoBairrosPage() {
     if (!data || data.length < 1000) break;
   }
 
+  // Data de criação e ano de conclusão (recebimento provisório; se não houver, o definitivo).
+  const datas = new Map<string, { criada: string | null; conclusao: string }>();
+  for (let de = 0; ; de += 1000) {
+    const { data, error } = await supabase.from("obras").select("id_acao, data_criacao, data_receb_definitivo, data_receb_provisorio").order("id_acao").range(de, de + 999);
+    if (error) {
+      erro = erro ?? error.message;
+      break;
+    }
+    for (const o of data ?? []) {
+      const rec = (o.data_receb_provisorio as string | null) || (o.data_receb_definitivo as string | null);
+      datas.set(o.id_acao as string, { criada: (o.data_criacao as string | null) ?? null, conclusao: rec ? rec.slice(0, 4) : "(vazio)" });
+    }
+    if (!data || data.length < 1000) break;
+  }
+
   const porAcao = new Map<string, ItemLista>();
   for (const l of linhas) {
     let item = porAcao.get(l.id_acao);
@@ -43,6 +58,8 @@ export default async function VerificacaoBairrosPage() {
         extensaoM: l.extensao_m,
         metrosFora: l.metros_fora,
         pontosFora: l.pontos_fora ?? 0,
+        criadaEm: datas.get(l.id_acao)?.criada ?? null,
+        anoConclusao: datas.get(l.id_acao)?.conclusao ?? "(vazio)",
         bairros: [],
       };
       porAcao.set(l.id_acao, item);
