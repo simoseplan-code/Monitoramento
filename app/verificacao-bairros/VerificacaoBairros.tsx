@@ -3,7 +3,7 @@
 import "leaflet/dist/leaflet.css";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { Loader2, MapPinned, RefreshCw, Search, X } from "lucide-react";
+import { Download, Loader2, MapPinned, RefreshCw, Search, X } from "lucide-react";
 import type { Map as MapaLeaflet } from "leaflet";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
 
@@ -67,6 +67,8 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
   const [pagina, setPagina] = useState(1);
   const [verMapa, setVerMapa] = useState<{ id: string; nome: string; bairroFoco?: string } | null>(null);
 
+  const [exportando, setExportando] = useState(false);
+  const [erroExcel, setErroExcel] = useState<string | null>(null);
   const [atualizando, setAtualizando] = useState(false);
   const [msg, setMsg] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
 
@@ -107,6 +109,48 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
     set(v);
     setPagina(1);
   };
+
+  // Excel com as ações que estão na lista (com os filtros de agora).
+  async function exportarExcel() {
+    setExportando(true);
+    setErroExcel(null);
+    try {
+      const filtros = [
+        busca && `Busca: "${busca}"`,
+        municipio && `Município: ${municipio}`,
+        bairro && `Bairro: ${bairro}`,
+        orgao && `Órgão: ${orgao}`,
+        status && `Status: ${status}`,
+        situacao !== "todas" && `Situação: ${{ um: "dentro de um só bairro", varios: "passa por mais de um bairro", parte_fora: "parte fora dos bairros", sem: "sem bairro mapeado" }[situacao]}`,
+        fonte && `Origem do traçado: ${{ sobreposicoes: "linhas do mapa", kml: "KML guardado", mapa: "pontos ou polígonos do mapa" }[fonte] ?? fonte}`,
+      ].filter(Boolean);
+      const resp = await fetch("/api/bairros/excel", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ ids: filtradas.map((i) => i.id), filtros }),
+        credentials: "same-origin",
+      });
+      if (!resp.ok) {
+        const json = (await resp.json().catch(() => ({}))) as { error?: string };
+        setErroExcel(json.error ?? "Não foi possível gerar o Excel.");
+        return;
+      }
+      const blob = await resp.blob();
+      const nome = resp.headers.get("content-disposition")?.match(/filename="([^"]+)"/)?.[1] ?? "verificacao-bairros.xlsx";
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = nome;
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setErroExcel("Sem conexão com o servidor.");
+    } finally {
+      setExportando(false);
+    }
+  }
 
   // Calcula em lotes curtos: cada chamada trabalha uns 40 s e a tela chama de novo até acabar.
   async function atualizar() {
@@ -271,9 +315,21 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
             </button>
           )}
         </div>
-        <p className="mt-3 text-xs text-ink-muted">
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+        <p className="text-xs text-ink-muted">
           <strong className="text-ink-primary">{inteiro(filtradas.length)}</strong> de {inteiro(itens.length)} ação(ões) · {inteiro(contagem.um)} em um só bairro · {inteiro(contagem.varios)} em mais de um · {inteiro(contagem.sem)} sem bairro mapeado
         </p>
+        <button
+          onClick={exportarExcel}
+          disabled={exportando || filtradas.length === 0}
+          className="flex items-center gap-1.5 rounded-full bg-status-good px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+          title="Baixa as ações da lista, com os filtros de agora"
+        >
+          {exportando ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+          {exportando ? "Gerando..." : "Exportar Excel"}
+        </button>
+        </div>
+        {erroExcel && <p className="mt-2 text-xs font-medium text-status-critical">{erroExcel}</p>}
       </section>
 
       {/* Lista */}
