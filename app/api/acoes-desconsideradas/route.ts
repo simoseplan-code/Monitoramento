@@ -35,11 +35,18 @@ export async function POST(request: NextRequest) {
     if (acao === "adicionar") {
       if (ids.length === 0 || ids.length > LIMITE_IDS) return NextResponse.json({ error: "Informe de 1 a 5.000 IDs." }, { status: 400 });
       const agora = new Date().toISOString();
-      for (let i = 0; i < ids.length; i += 500) {
-        const lote = ids.slice(i, i + 500).map((id) => ({ id_acao: id, desconsiderada_em: agora, desconsiderada_por: user.id, por_nome: perfil.nome ?? null }));
-        // Quem já estava na lista continua como estava (não troca quem pôs).
-        const { error } = await supabase.from("acoes_desconsideradas").upsert(lote, { onConflict: "id_acao", ignoreDuplicates: true });
-        if (error) throw new Error(error.message);
+      // Quem já estava na lista continua como estava (não troca quem pôs): só entram os IDs novos.
+      const jaTem = new Set<string>();
+      for (let i = 0; i < ids.length; i += 200) {
+        const { data, error } = await supabase.from("acoes_desconsideradas").select("id_acao").in("id_acao", ids.slice(i, i + 200));
+        if (error) throw new Error(`ler a lista: ${error.message}`);
+        for (const r of data ?? []) jaTem.add(r.id_acao as string);
+      }
+      const novos = ids.filter((id) => !jaTem.has(id));
+      for (let i = 0; i < novos.length; i += 500) {
+        const lote = novos.slice(i, i + 500).map((id) => ({ id_acao: id, desconsiderada_em: agora, desconsiderada_por: user.id, por_nome: perfil.nome ?? null }));
+        const { error } = await supabase.from("acoes_desconsideradas").insert(lote);
+        if (error) throw new Error(`gravar: ${error.message}`);
       }
     } else if (acao === "devolver") {
       if (ids.length === 0 || ids.length > LIMITE_IDS) return NextResponse.json({ error: "Informe de 1 a 5.000 IDs." }, { status: 400 });
@@ -55,7 +62,8 @@ export async function POST(request: NextRequest) {
     }
     return NextResponse.json({ ok: true, lista: await listaAtual(supabase) });
   } catch (e) {
-    console.error("acoes-desconsideradas:", e instanceof Error ? e.message : e);
-    return NextResponse.json({ error: "Não foi possível salvar. Se o SQL 0085 ainda não foi rodado, rode-o primeiro." }, { status: 500 });
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("acoes-desconsideradas:", msg);
+    return NextResponse.json({ error: `Não foi possível salvar: ${msg}` }, { status: 500 });
   }
 }
