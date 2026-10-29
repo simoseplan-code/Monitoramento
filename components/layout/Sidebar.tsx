@@ -41,11 +41,12 @@ type NavItem = {
   grupo?: GrupoMenu;
 };
 
-type GrupoMenu = "gestao" | "diarias" | "siafe" | "georef";
+type GrupoMenu = "gestao" | "retiradas" | "diarias" | "siafe" | "georef";
 
 // Classes escritas por extenso para o Tailwind encontrá-las.
 const GRUPOS: Record<GrupoMenu, { titulo: string; faixa: string; texto: string }> = {
   gestao: { titulo: "Gestão", faixa: "border-l-series-1", texto: "text-series-1" },
+  retiradas: { titulo: "Retiradas", faixa: "border-l-series-8", texto: "text-series-8" },
   siafe: { titulo: "Verificação SIAFE", faixa: "border-l-series-7", texto: "text-series-7" },
   diarias: { titulo: "Verificações diárias", faixa: "border-l-series-6", texto: "text-series-6" },
   georef: { titulo: "Georreferenciamento", faixa: "border-l-series-4", texto: "text-status-warning" },
@@ -83,6 +84,8 @@ export function Sidebar({
     { href: "/equipe", label: "Equipe", icon: Users, count: counts.pendentesAprovacao || undefined, adminOnly: true, grupo: "gestao" },
     { href: "/admin", label: "Administração", icon: ShieldCheck, adminOnly: true, grupo: "gestao" },
     { href: "/analise-concluidas", label: "Análise de obras concluídas", icon: Banknote, adminOnly: true, grupo: "gestao" },
+    // Retiradas
+    { href: "/acoes-desconsideradas", label: "Ações desconsideradas", icon: EyeOff, grupo: "retiradas" },
     // Verificações diárias
     { href: "/novas-acoes", label: "Novas Ações", icon: ClipboardCheck, count: counts.novasAcoesPendentes || undefined, grupo: "diarias" },
     { href: "/novas-em-execucao", label: "Novas em Execução", icon: PlayCircle, count: counts.novasExecucaoPendentes || undefined, grupo: "diarias" },
@@ -95,7 +98,6 @@ export function Sidebar({
     // Sem grupo
     { href: "/unidade-quantidade", label: "Unidade/Quantidade", icon: Ruler, count: counts.sugestoesUnidadePendentes || undefined },
     { href: "/orgaos", label: "Órgãos", icon: Building2 },
-    { href: "/acoes-desconsideradas", label: "Ações desconsideradas", icon: EyeOff },
     // Georreferenciamento
     { href: "/arquivos-kml", label: "Arquivos KML", icon: MapPinned, grupo: "georef" },
     { href: "/sobreposicoes", label: "Sobreposições", icon: Layers, count: counts.sobreposicoesPendentes || undefined, adminOnly: true, grupo: "georef" },
