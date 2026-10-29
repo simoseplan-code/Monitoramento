@@ -1,7 +1,7 @@
 import React from "react";
 import { Document, Text, View } from "@react-pdf/renderer";
 import { C, Cartao, Kpis, Pagina, Tabela } from "@/lib/pdf/RelatorioPdf";
-import { vinculacao } from "@/lib/acoesFiltro";
+import { anoDeRecebimento, dataBR, vinculacao } from "@/lib/acoesFiltro";
 import type { ListagemMontada } from "@/lib/acoesDados";
 
 // PDF da tela Ações: a lista do que está filtrado (ex.: concluídas que não estão vinculadas).
@@ -47,13 +47,15 @@ export function AcoesPdf({ r, geradoEm, geradoPor, soNaoVinculadas = false }: { 
         <Tabela
           colunas={[
             { titulo: "ID", flex: 0.7 },
-            { titulo: "Nome da ação", flex: 3.6 },
-            { titulo: "Órgão", flex: 1 },
-            { titulo: "Nº SIAFE", flex: 1 },
-            { titulo: "Status", flex: 1 },
+            { titulo: "Nome da ação", flex: 3.2 },
+            { titulo: "Órgão", flex: 0.9 },
+            { titulo: "Nº SIAFE", flex: 0.9 },
+            { titulo: "Status", flex: 0.9 },
+            { titulo: "Criada em", flex: 0.9 },
+            { titulo: "Recebim.", flex: 0.7 },
             ...(soNaoVinculadas ? [] : [{ titulo: "Situação", flex: 1 }]),
           ]}
-          linhas={lista.map((a) => [a.id, curto(a.nome || "-", 95), a.orgao ?? "-", a.numeroSiafe ?? "-", a.status ?? "-", ...(soNaoVinculadas ? [] : [vinculacao(a)])])}
+          linhas={lista.map((a) => [a.id, curto(a.nome || "-", 95), a.orgao ?? "-", a.numeroSiafe ?? "-", a.status ?? "-", dataBR(a.criadaEm), anoDeRecebimento(a) === "(vazio)" ? "-" : anoDeRecebimento(a), ...(soNaoVinculadas ? [] : [vinculacao(a)])])}
           vazio="Nenhuma ação nos filtros atuais."
         />
       </Pagina>

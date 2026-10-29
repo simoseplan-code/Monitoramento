@@ -40,6 +40,13 @@ export function anoDeRecebimento(a: AcaoLinha): string {
   return d ? d.slice(0, 4) : VAZIO;
 }
 
+/** Data (AAAA-MM-DD...) em dd/mm/aaaa; "-" quando não há. */
+export function dataBR(d: string | null): string {
+  if (!d) return "-";
+  const p = d.slice(0, 10).split("-");
+  return p.length === 3 ? `${p[2]}/${p[1]}/${p[0]}` : d;
+}
+
 export const siafeValido = (n: string | null) => !!n && /^\d{8}$/.test(n.trim());
 
 const ou = (v: string | null | undefined) => (v && v.trim() !== "" && v.trim() !== "-" ? v.trim() : VAZIO);
