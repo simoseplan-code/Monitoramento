@@ -1,4 +1,3 @@
-import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
@@ -20,8 +19,7 @@ export default async function ConfiguracaoTdPage() {
       supabase.from("td_acoes_filha").select("id_acao, id_acao_mae, criado_em").order("criado_em"),
     ]);
 
-  // Configuração é só para admin e chefe.
-  if (!profile?.is_admin) redirect("/");
+  // Aberta a toda a equipe aprovada (o middleware já barra quem não está aprovado).
 
   // Dados de cada ação (nome, órgão, status) vêm da base sincronizada, buscados por ID em blocos.
   const ids = Array.from(new Set([...(maes ?? []).map((m) => m.id_acao), ...(filhas ?? []).map((f) => f.id_acao)]));
@@ -43,9 +41,9 @@ export default async function ConfiguracaoTdPage() {
 
   return (
     <AppShell
-      nome={profile.nome ?? "Usuário"}
-      cargo={profile.cargo}
-      isAdmin
+      nome={profile?.nome ?? "Usuário"}
+      cargo={profile?.cargo}
+      isAdmin={!!profile?.is_admin}
       counts={{ acoes: totalAcoes ?? 0, pendentesAprovacao: pendentesAprovacao ?? 0, novasAcoesPendentes }}
       titulo="Configuração de TD"
       subtitulo={`${lista.length} ação(ões) mãe, ${(filhas ?? []).length} ação(ões) filha(s)`}

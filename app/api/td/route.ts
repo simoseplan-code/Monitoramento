@@ -14,8 +14,8 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
 
-  const { data: perfil } = await supabase.from("profiles").select("is_admin, status").eq("id", user.id).single();
-  if (!perfil?.is_admin || perfil.status !== "aprovado") return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+  const { data: perfil } = await supabase.from("profiles").select("status").eq("id", user.id).single();
+  if (perfil?.status !== "aprovado") return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
 
   const corpo = (await request.json().catch(() => null)) as { acao?: unknown; id?: unknown; idMae?: unknown } | null;
   const acao = corpo?.acao as Acao;
