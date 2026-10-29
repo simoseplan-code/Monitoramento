@@ -43,7 +43,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (soNaoVinculadas) {
       const ids: string[] = [];
       for (let de = 0; ; de += 1000) {
-        const { data } = await supabase.from("acoes_desconsideradas").select("id_acao").eq("tela", "nao_vinculadas").order("id_acao").range(de, de + 999);
+        const { data } = await supabase.from("acoes_desconsideradas").select("id_acao").in("tela", ["nao_vinculadas", "todas"]).order("id_acao").range(de, de + 999);
         ids.push(...(data ?? []).map((r) => r.id_acao as string));
         if (!data || data.length < 1000) break;
       }

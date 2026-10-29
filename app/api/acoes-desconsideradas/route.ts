@@ -1,22 +1,12 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { TELAS_DESCONSIDERADAS, listarDesconsideradas } from "@/lib/desconsideradas";
 
 export const runtime = "nodejs";
 
-// Lista compartilhada de IDs desconsiderados da análise "Ações não vinculadas ao SIAFE".
-// Qualquer pessoa aprovada inclui e devolve; o banco também trava (RLS).
+// Listas compartilhadas de IDs desconsiderados das análises (uma por análise, mais a "todas").
+// Qualquer pessoa aprovada mexe nas listas abertas; "todas" e "obras concluídas" são só de admin e chefe.
 const LIMITE_IDS = 5000;
-
-async function listaAtual(supabase: Awaited<ReturnType<typeof createClient>>, tela: string) {
-  const linhas: { id: string; em: string; por: string | null }[] = [];
-  for (let de = 0; ; de += 1000) {
-    const { data, error } = await supabase.from("acoes_desconsideradas").select("id_acao, desconsiderada_em, por_nome").eq("tela", tela).order("id_acao").range(de, de + 999);
-    if (error) throw new Error(error.message);
-    for (const r of data ?? []) linhas.push({ id: r.id_acao as string, em: r.desconsiderada_em as string, por: (r.por_nome as string | null) ?? null });
-    if (!data || data.length < 1000) break;
-  }
-  return linhas;
-}
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -28,9 +18,11 @@ export async function POST(request: NextRequest) {
   if (perfil?.status !== "aprovado") return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
 
   const corpo = (await request.json().catch(() => null)) as { tela?: string; acao?: string; ids?: unknown } | null;
-  // Cada análise tem a sua lista; a da análise de obras concluídas é só de admin e chefe.
-  const tela = corpo?.tela === "concluidas" ? "concluidas" : "nao_vinculadas";
-  if (tela === "concluidas" && !perfil.is_admin) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+  const definicao = TELAS_DESCONSIDERADAS.find((t) => t.chave === corpo?.tela);
+  if (!definicao) return NextResponse.json({ error: "Lista inválida." }, { status: 400 });
+  const tela = definicao.chave;
+  if (definicao.restrita && !perfil.is_admin) return NextResponse.json({ error: "Só admin e chefe mexem nesta lista." }, { status: 403 });
+
   const ids = Array.isArray(corpo?.ids) ? Array.from(new Set(corpo.ids.filter((i): i is string => typeof i === "string" && /^\d{1,12}$/.test(i)))) : [];
   const acao = corpo?.acao;
 
@@ -63,7 +55,8 @@ export async function POST(request: NextRequest) {
     } else {
       return NextResponse.json({ error: "Ação inválida." }, { status: 400 });
     }
-    return NextResponse.json({ ok: true, lista: await listaAtual(supabase, tela) });
+    const lista = (await listarDesconsideradas(supabase, [tela])).map(({ tela: _t, ...resto }) => resto);
+    return NextResponse.json({ ok: true, lista });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("acoes-desconsideradas:", msg);

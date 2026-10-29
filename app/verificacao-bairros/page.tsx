@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
+import { idsDesconsiderados } from "@/lib/desconsideradas";
 import { VerificacaoBairros, type ItemLista, type LinhaLista } from "./VerificacaoBairros";
 
 export default async function VerificacaoBairrosPage() {
@@ -70,7 +71,9 @@ export default async function VerificacaoBairrosPage() {
     if (l.municipio && l.bairro === "") item.semBairro.push({ municipio: l.municipio, metros: l.metros ?? 0, pct: l.pct ?? 0, pontos: l.pontos ?? 0 });
     else if (l.bairro && l.municipio) item.bairros.push({ municipio: l.municipio, bairro: l.bairro, metros: l.metros ?? 0, pct: l.pct ?? 0, pontos: l.pontos ?? 0 });
   }
-  const itens = Array.from(porAcao.values());
+  // IDs que a equipe desconsiderou (lista desta análise + lista "Todas").
+  const fora = new Set(await idsDesconsiderados(supabase, "bairros"));
+  const itens = Array.from(porAcao.values()).filter((i) => !fora.has(i.id));
   for (const i of itens) i.bairros.sort((a, b) => b.metros - a.metros);
 
   const resumo = (Array.isArray(resumoRpc) ? resumoRpc[0] : resumoRpc) as { verificadas: number; pendentes: number; ultima: string | null } | null;

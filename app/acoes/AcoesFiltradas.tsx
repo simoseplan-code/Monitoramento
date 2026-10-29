@@ -43,6 +43,7 @@ export function AcoesFiltradas({
   inicial,
   modo = "todas",
   desconsideradas = [],
+  globais = [],
 }: {
   acoes: AcaoLinha[];
   filtroGravado: { estado: unknown; atualizadoEm: string } | null;
@@ -51,6 +52,8 @@ export function AcoesFiltradas({
   modo?: "todas" | "nao_vinculadas";
   /** IDs que a equipe tirou da análise (lista compartilhada). */
   desconsideradas?: Desconsiderada[];
+  /** IDs desconsiderados de todas as análises (lista "Todas"). */
+  globais?: string[];
 }) {
   const naoVinc = modo === "nao_vinculadas";
   const tela = naoVinc ? "acoes_nao_vinculadas" : "acoes";
@@ -81,7 +84,8 @@ export function AcoesFiltradas({
   // Lista compartilhada de IDs desconsiderados: vale para todos e entra no filtro, no PDF e no Excel.
   const { desc, ocupado: descOcupado, erro: descErro, mudar: mudarDesconsideradas, idsDesc } = useDesconsideradas("nao_vinculadas", desconsideradas, () => setPagina(1));
 
-  const filtradas = useMemo(() => filtrar(acoes, { ...estado, excluir: idsDesc }), [acoes, estado, idsDesc]);
+  const excluirTudo = useMemo(() => [idsDesc, ...globais].join(" "), [idsDesc, globais]);
+  const filtradas = useMemo(() => filtrar(acoes, { ...estado, excluir: excluirTudo }), [acoes, estado, excluirTudo]);
   const contagem = useMemo(() => contagemVinculacao(filtradas), [filtradas]);
   const totalPaginas = Math.max(1, Math.ceil(filtradas.length / TAMANHO));
   const paginaAtual = Math.min(pagina, totalPaginas);
@@ -199,7 +203,7 @@ export function AcoesFiltradas({
         <p className="text-xs text-ink-muted">
           <strong className="text-ink-primary">{inteiro(filtradas.length)}</strong> de {inteiro(acoes.length)} ação(ões){naoVinc ? " não vinculada(s)" : <> · {inteiro(contagem.vinculadas)} vinculada(s) ·{" "}
           <strong className="text-status-critical">{inteiro(contagem.naoVinculadas)} não vinculada(s)</strong></>}
-          {desc.length > 0 && <> · {inteiro(desc.length)} ID(s) desconsiderado(s) pela equipe</>}
+          {desc.length + globais.length > 0 && <> · {inteiro(new Set([...desc.map((d) => d.id), ...globais]).size)} ID(s) desconsiderado(s) pela equipe</>}
         </p>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {!naoVinc && <button onClick={soNaoVinculadas} className="rounded-full border border-black/10 bg-surface px-3.5 py-1.5 text-xs font-semibold text-ink-secondary hover:bg-plane" title="Marca só as ações pendentes e sem número no filtro de Vinculação">
@@ -320,6 +324,7 @@ export function AcoesFiltradas({
             valores={valores}
             ocultar={naoVinc ? ["vinculacao"] : []}
             permitirExcluir={naoVinc}
+            globaisN={globais.length}
             desconsideradas={desc}
             descOcupado={descOcupado}
             descErro={descErro}
@@ -341,6 +346,7 @@ function PainelFiltros({
   valores,
   ocultar,
   permitirExcluir,
+  globaisN,
   desconsideradas,
   descOcupado,
   descErro,
@@ -353,6 +359,7 @@ function PainelFiltros({
   valores: Record<string, { valor: string; qtd: number }[]>;
   ocultar: string[];
   permitirExcluir: boolean;
+  globaisN: number;
   desconsideradas: Desconsiderada[];
   descOcupado: boolean;
   descErro: string | null;
@@ -452,6 +459,7 @@ function PainelFiltros({
           aoAdicionar={(ids) => aoMudarDesconsideradas("adicionar", ids)}
           aoDevolver={(ids) => aoMudarDesconsideradas("devolver", ids)}
           aoDevolverTodos={() => aoMudarDesconsideradas("devolver_todos")}
+          globais={globaisN}
         />
       )}
 

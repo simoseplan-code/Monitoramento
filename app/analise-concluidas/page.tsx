@@ -4,6 +4,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import type { ObraConcluida } from "@/lib/analiseConcluidas";
 import { AnaliseConcluidas } from "./AnaliseConcluidas";
+import { idsDaLista } from "@/lib/desconsideradas";
 
 const COLUNAS =
   "id_acao, nome_acao, orgao, status, estagio_atual, tipologia, classificacao, tipo_outros_documentos, acao_conveniada, percentual_execucao, data_receb_definitivo, data_receb_provisorio, valor_original, valor_total";
@@ -71,6 +72,7 @@ export default async function AnaliseConcluidasPage() {
     for (const r of data ?? []) desconsideradas.push({ id: r.id_acao as string, em: r.desconsiderada_em as string, por: (r.por_nome as string | null) ?? null });
     if (!data || data.length < 1000) break;
   }
+  const globais = await idsDaLista(supabase, "todas");
   const filtroGravado = gravado ? { estado: gravado.estado as unknown, atualizadoEm: gravado.atualizado_em as string } : null;
 
   const obras: ObraConcluida[] = linhas.map((l) => ({
@@ -104,7 +106,7 @@ export default async function AnaliseConcluidasPage() {
           Falha ao carregar os dados: {erro}. Se a mensagem fala de coluna que não existe, rode o SQL 0078 e sincronize com o SIMO.
         </p>
       ) : (
-        <AnaliseConcluidas obras={obras} filtroGravado={filtroGravado} desconsideradas={desconsideradas} />
+        <AnaliseConcluidas obras={obras} filtroGravado={filtroGravado} desconsideradas={desconsideradas} globais={globais} />
       )}
     </AppShell>
   );

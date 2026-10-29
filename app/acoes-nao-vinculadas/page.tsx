@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { carregarAcoes } from "@/lib/acoesDados";
+import { idsDaLista } from "@/lib/desconsideradas";
 import { AcoesFiltradas } from "@/app/acoes/AcoesFiltradas";
 
 // Ações sem número automático (não vinculadas ao SIAFE): pendentes (têm nº SIAFE, mas sem vínculo) e
@@ -12,7 +13,7 @@ export default async function AcoesNaoVinculadasPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: profile }, { count: pendentesAprovacao }, novasAcoesPendentes, { acoes, erro }, { data: gravado }, desconsideradas] = await Promise.all([
+  const [{ data: profile }, { count: pendentesAprovacao }, novasAcoesPendentes, { acoes, erro }, { data: gravado }, desconsideradas, globais] = await Promise.all([
     supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
     contarNovasAcoesPendentes(supabase),
@@ -30,6 +31,8 @@ export default async function AcoesNaoVinculadasPage() {
       }
       return lista;
     })(),
+    // IDs desconsiderados de todas as análises (lista "Todas").
+    idsDaLista(supabase, "todas"),
   ]);
   const naoVinculadas = acoes.filter((a) => !a.numeroAutomatico);
   const filtroGravado = gravado ? { estado: gravado.estado as unknown, atualizadoEm: gravado.atualizado_em as string } : null;
@@ -46,7 +49,7 @@ export default async function AcoesNaoVinculadasPage() {
       {erro ? (
         <p className="rounded-lg bg-status-critical/10 px-3 py-2 text-xs text-status-critical">Falha ao carregar as ações: {erro}</p>
       ) : (
-        <AcoesFiltradas acoes={naoVinculadas} filtroGravado={filtroGravado} inicial={{}} modo="nao_vinculadas" desconsideradas={desconsideradas} />
+        <AcoesFiltradas acoes={naoVinculadas} filtroGravado={filtroGravado} inicial={{}} modo="nao_vinculadas" desconsideradas={desconsideradas} globais={globais} />
       )}
     </AppShell>
   );

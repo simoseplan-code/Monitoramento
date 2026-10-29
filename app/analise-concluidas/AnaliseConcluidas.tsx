@@ -30,7 +30,7 @@ const dinheiro = (v: number) => brl.format(v);
 const pct = (v: number) => `${(v * 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}%`;
 const inteiro = (v: number) => v.toLocaleString("pt-BR");
 
-export function AnaliseConcluidas({ obras, filtroGravado, desconsideradas = [] }: { obras: ObraConcluida[]; filtroGravado: { estado: unknown; atualizadoEm: string } | null; desconsideradas?: Desconsiderada[] }) {
+export function AnaliseConcluidas({ obras, filtroGravado, desconsideradas = [], globais = [] }: { obras: ObraConcluida[]; filtroGravado: { estado: unknown; atualizadoEm: string } | null; desconsideradas?: Desconsiderada[]; globais?: string[] }) {
   const padrao = useMemo(() => estadoPadrao(obras), [obras]);
   const valores = useMemo(() => valoresDosFiltros(obras), [obras]);
   // Se a pessoa gravou um filtro, a tela já abre nele.
@@ -43,7 +43,8 @@ export function AnaliseConcluidas({ obras, filtroGravado, desconsideradas = [] }
 
   // Lista compartilhada de IDs desconsiderados: vale para todos e entra nos números, no PDF e no Excel.
   const { desc, ocupado: descOcupado, erro: descErro, mudar: mudarDesconsideradas, idsDesc } = useDesconsideradas("concluidas", desconsideradas);
-  const filtradas = useMemo(() => filtrar(obras, { ...estado, excluir: idsDesc }), [obras, estado, idsDesc]);
+  const excluirTudo = useMemo(() => [idsDesc, ...globais].join(" "), [idsDesc, globais]);
+  const filtradas = useMemo(() => filtrar(obras, { ...estado, excluir: excluirTudo }), [obras, estado, excluirTudo]);
   const tabela = useMemo(() => tabelaPorAno(filtradas), [filtradas]);
   const q = useMemo(() => quantitativos(filtradas), [filtradas]);
   const semValores = obras.length > 0 && obras.every((o) => o.original == null);
@@ -203,6 +204,7 @@ export function AnaliseConcluidas({ obras, filtroGravado, desconsideradas = [] }
                 aoAdicionar={(ids) => mudarDesconsideradas("adicionar", ids)}
                 aoDevolver={(ids) => mudarDesconsideradas("devolver", ids)}
                 aoDevolverTodos={() => mudarDesconsideradas("devolver_todos")}
+                globais={globais.length}
               />
             }
             estado={estado}

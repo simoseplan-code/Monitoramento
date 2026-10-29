@@ -7,8 +7,8 @@ import { lerIds } from "@/lib/acoesFiltro";
 // Lista de IDs que a equipe toda decidiu DESCONSIDERAR de uma análise (uma lista por tela).
 // A lista fica no banco (tabela acoes_desconsideradas): vale para todas as pessoas.
 
-export type Desconsiderada = { id: string; em: string; por: string | null };
-export type TelaDesconsideradas = "nao_vinculadas" | "concluidas";
+export type Desconsiderada = { id: string; em: string; por: string | null; nome?: string | null; orgao?: string | null; status?: string | null };
+export type TelaDesconsideradas = "todas" | "nao_vinculadas" | "concluidas" | "siafe_duplicado" | "bairros";
 
 const inteiro = (v: number) => v.toLocaleString("pt-BR");
 
@@ -49,6 +49,7 @@ export function DesconsiderarIds({
   aoAdicionar,
   aoDevolver,
   aoDevolverTodos,
+  globais = 0,
 }: {
   lista: Desconsiderada[];
   ocupado: boolean;
@@ -56,6 +57,8 @@ export function DesconsiderarIds({
   aoAdicionar: (ids: string[]) => Promise<boolean>;
   aoDevolver: (ids: string[]) => Promise<boolean>;
   aoDevolverTodos: () => Promise<boolean>;
+  /** Quantos IDs a lista "todas as análises" já tira desta tela. */
+  globais?: number;
 }) {
   const [texto, setTexto] = useState("");
   const [verLista, setVerLista] = useState(false);
@@ -116,6 +119,11 @@ export function DesconsiderarIds({
         </ul>
       )}
       {erro && <p className="text-[11px] font-medium text-status-critical">{erro}</p>}
+      {globais > 0 && (
+        <p className="text-[11px] leading-snug text-ink-secondary">
+          Mais {inteiro(globais)} ID(s) saem daqui pela lista "Todas as análises" (menu Ações desconsideradas).
+        </p>
+      )}
       <p className="text-[11px] leading-snug text-ink-muted">A lista vale para todas as pessoas: some da lista, do PDF e do Excel de todo mundo, até alguém devolver.</p>
     </div>
   );

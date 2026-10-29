@@ -106,7 +106,7 @@ export function descreverFiltros(estado: EstadoFiltros, valores: Record<string, 
 export async function carregarDesconsideradas(supabase: SupabaseClient): Promise<string[]> {
   const ids: string[] = [];
   for (let de = 0; ; de += 1000) {
-    const { data, error } = await supabase.from("acoes_desconsideradas").select("id_acao").eq("tela", "concluidas").order("id_acao").range(de, de + 999);
+    const { data, error } = await supabase.from("acoes_desconsideradas").select("id_acao").in("tela", ["concluidas", "todas"]).order("id_acao").range(de, de + 999);
     if (error) break; // se o SQL 0086 ainda não rodou, segue sem a lista
     ids.push(...(data ?? []).map((r) => r.id_acao as string));
     if (!data || data.length < 1000) break;
