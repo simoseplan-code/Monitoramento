@@ -79,6 +79,7 @@ export function Sidebar({
     // Gestão
     { href: "/", label: "Dashboard Gestão", icon: LayoutGrid, grupo: "gestao" },
     { href: "/acoes", label: "Ações", icon: ClipboardList, count: counts.acoes, grupo: "gestao" },
+    { href: "/orgaos", label: "Órgãos", icon: Building2, grupo: "gestao" },
     { href: "/historico", label: "Histórico", icon: History, grupo: "gestao" },
     { href: "/desempenho", label: "Desempenho", icon: BarChart3, adminOnly: true, grupo: "gestao" },
     { href: "/equipe", label: "Equipe", icon: Users, count: counts.pendentesAprovacao || undefined, adminOnly: true, grupo: "gestao" },
@@ -90,14 +91,12 @@ export function Sidebar({
     { href: "/novas-acoes", label: "Novas Ações", icon: ClipboardCheck, count: counts.novasAcoesPendentes || undefined, grupo: "diarias" },
     { href: "/novas-em-execucao", label: "Novas em Execução", icon: PlayCircle, count: counts.novasExecucaoPendentes || undefined, grupo: "diarias" },
     { href: "/termos", label: "Termos (Outros Docs)", icon: FileCheck2, count: counts.termosPendentes || undefined, grupo: "diarias" },
+    { href: "/unidade-quantidade", label: "Unidade/Quantidade", icon: Ruler, count: counts.sugestoesUnidadePendentes || undefined, grupo: "diarias" },
     // Verificação SIAFE
     { href: "/siafe-duplicado", label: "SIAFE duplicado", icon: Copy, grupo: "siafe" },
     { href: "/acoes-nao-vinculadas", label: "Não vinculadas SIAFE", icon: Unlink, grupo: "siafe" },
     { href: "/vinculacao", label: "Vinculação SIAFE", icon: Link2, count: counts.vinculacaoPendentes || undefined, grupo: "siafe" },
     { href: "/configuracao-td", label: "Configuração de TD", icon: ListTree, grupo: "siafe" },
-    // Sem grupo
-    { href: "/unidade-quantidade", label: "Unidade/Quantidade", icon: Ruler, count: counts.sugestoesUnidadePendentes || undefined },
-    { href: "/orgaos", label: "Órgãos", icon: Building2 },
     // Georreferenciamento
     { href: "/arquivos-kml", label: "Arquivos KML", icon: MapPinned, grupo: "georef" },
     { href: "/sobreposicoes", label: "Sobreposições", icon: Layers, count: counts.sobreposicoesPendentes || undefined, adminOnly: true, grupo: "georef" },
