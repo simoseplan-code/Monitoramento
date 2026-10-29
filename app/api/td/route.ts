@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { registrarAnalise } from "@/lib/analisesLog";
 
 type Acao = "adicionar_mae" | "adicionar_filha" | "remover_mae" | "remover_filha";
@@ -37,7 +38,8 @@ export async function POST(request: NextRequest) {
   }
 
   // Adicionar: a ação precisa existir na base do SIMO.
-  const { data: obra } = await supabase.from("obras").select("id_acao, nome_acao").eq("id_acao", id).maybeSingle();
+  // Lê a base completa: a Configuração de TD não esconde os IDs desconsiderados em "Todas as análises".
+  const { data: obra } = await createAdminClient().from("obras").select("id_acao, nome_acao").eq("id_acao", id).maybeSingle();
   if (!obra) return NextResponse.json({ error: `Não encontrei a ação ${id} na base. Confira o ID.` }, { status: 404 });
 
   if (acao === "adicionar_mae") {

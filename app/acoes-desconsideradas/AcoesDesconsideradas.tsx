@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Loader2, Search, X } from "lucide-react";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
 import { useDesconsideradas, type Desconsiderada } from "@/components/DesconsiderarIds";
-import { TELAS_DESCONSIDERADAS, type ChaveTela } from "@/lib/desconsideradas";
+import { TELAS_DESCONSIDERADAS, type ChaveTela } from "@/lib/desconsideradasTelas";
 import { lerIds } from "@/lib/acoesFiltro";
 
 const inteiro = (v: number) => v.toLocaleString("pt-BR");

@@ -1,17 +1,12 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 
 // IDs que a equipe decidiu DESCONSIDERAR das análises (tabela acoes_desconsideradas).
 // Uma lista por análise (tela) e uma lista "todas", que vale para todas as análises.
 
-export const TELAS_DESCONSIDERADAS = [
-  { chave: "todas", rotulo: "Todas as análises", restrita: true, ajuda: "Os IDs daqui saem de TODAS as análises abaixo." },
-  { chave: "nao_vinculadas", rotulo: "Não vinculadas SIAFE", restrita: false, ajuda: "Saem só da aba Não vinculadas SIAFE." },
-  { chave: "concluidas", rotulo: "Obras concluídas", restrita: true, ajuda: "Saem só da Análise de obras concluídas." },
-  { chave: "siafe_duplicado", rotulo: "SIAFE duplicado", restrita: false, ajuda: "Saem só da lista de SIAFE duplicado." },
-  { chave: "bairros", rotulo: "Verificação de bairros", restrita: false, ajuda: "Saem só da Verificação de bairros." },
-] as const;
-
-export type ChaveTela = (typeof TELAS_DESCONSIDERADAS)[number]["chave"];
+import { TELAS_DESCONSIDERADAS } from "@/lib/desconsideradasTelas";
+export { TELAS_DESCONSIDERADAS };
+export type { ChaveTela } from "@/lib/desconsideradasTelas";
 
 export type DesconsideradaComDetalhe = {
   id: string;
@@ -39,7 +34,8 @@ export async function listarDesconsideradas(supabase: SupabaseClient, telas: str
   const ids = Array.from(new Set(linhas.map((l) => l.id)));
   const info = new Map<string, { nome: string | null; orgao: string | null; status: string | null }>();
   for (let i = 0; i < ids.length; i += 200) {
-    const { data } = await supabase.from("obras").select("id_acao, nome_acao, orgao, status").in("id_acao", ids.slice(i, i + 200));
+    // Base completa (as ações da lista "Todas" ficam escondidas para o acesso comum).
+    const { data } = await createAdminClient().from("obras").select("id_acao, nome_acao, orgao, status").in("id_acao", ids.slice(i, i + 200));
     for (const o of data ?? []) info.set(o.id_acao as string, { nome: (o.nome_acao as string | null) ?? null, orgao: (o.orgao as string | null) ?? null, status: (o.status as string | null) ?? null });
   }
   return linhas.map((l) => ({ ...l, nome: info.get(l.id)?.nome ?? null, orgao: info.get(l.id)?.orgao ?? null, status: info.get(l.id)?.status ?? null }));

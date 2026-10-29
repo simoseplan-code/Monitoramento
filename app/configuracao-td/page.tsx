@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { ConfiguracaoTd, type AcaoInfo, type Mae } from "./ConfiguracaoTd";
 
 export default async function ConfiguracaoTdPage() {
@@ -22,10 +23,13 @@ export default async function ConfiguracaoTdPage() {
   // Aberta a toda a equipe aprovada (o middleware já barra quem não está aprovado).
 
   // Dados de cada ação (nome, órgão, status) vêm da base sincronizada, buscados por ID em blocos.
+  // A Configuração de TD é a única tela que NÃO esconde os IDs desconsiderados em "Todas as análises":
+  // por isso lê a base com o acesso do servidor, sem o filtro.
+  const baseCompleta = createAdminClient();
   const ids = Array.from(new Set([...(maes ?? []).map((m) => m.id_acao), ...(filhas ?? []).map((f) => f.id_acao)]));
   const infoPorId: Record<string, AcaoInfo> = {};
   for (let i = 0; i < ids.length; i += 200) {
-    const { data } = await supabase
+    const { data } = await baseCompleta
       .from("obras")
       .select("id_acao, nome_acao, orgao, status, estagio_atual")
       .in("id_acao", ids.slice(i, i + 200));
