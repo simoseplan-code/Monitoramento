@@ -123,7 +123,7 @@ export function Sidebar({
         </div>
       )}
 
-      <nav className="flex-1 space-y-1 px-3">
+      <nav className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-2 [scrollbar-width:thin]">
         {!colapsada && (
           <p className="px-2 pb-2 pt-1 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
             Menu principal
