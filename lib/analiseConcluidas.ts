@@ -96,6 +96,8 @@ export type EstadoFiltros = {
   busca: string;
   /** IDs separados por espaço, vírgula ou quebra de linha. Vazio = todos. */
   ids: string;
+  /** IDs que a equipe tirou da análise (lista compartilhada); não vai no filtro gravado. */
+  excluir: string;
 };
 
 export const PCT_MINIMO_PADRAO = 80;
@@ -126,15 +128,17 @@ export function estadoPadrao(obras: ObraConcluida[]): EstadoFiltros {
   for (const f of FILTROS) selecao[f.chave] = null;
   if (obras.some((o) => ou(o.classificacao) === "OBRA")) selecao.classificacao = new Set(["OBRA"]);
   selecao.tipoOutros = new Set([VAZIO]);
-  return { selecao, pctMinimo: PCT_MINIMO_PADRAO, busca: "", ids: "" };
+  return { selecao, pctMinimo: PCT_MINIMO_PADRAO, busca: "", ids: "", excluir: "" };
 }
 
 export function filtrar(obras: ObraConcluida[], estado: EstadoFiltros): ObraConcluida[] {
   const busca = estado.busca.trim().toLowerCase();
   const idsPedidos = new Set(lerIds(estado.ids));
+  const excluidos = new Set(lerIds(estado.excluir ?? ""));
   const minimo = estado.pctMinimo == null ? null : estado.pctMinimo / 100;
   return obras.filter((o) => {
     if (minimo != null && (o.pct == null || o.pct < minimo - 1e-9)) return false;
+    if (excluidos.size > 0 && excluidos.has(o.id)) return false;
     if (idsPedidos.size > 0 && !idsPedidos.has(o.id)) return false;
     if (busca && !(o.id.toLowerCase().includes(busca) || o.nome.toLowerCase().includes(busca))) return false;
     for (const f of FILTROS) {
@@ -205,6 +209,7 @@ export function estadoDeGravado(g: unknown, padrao: EstadoFiltros, valores: Reco
     pctMinimo: typeof x.pctMinimo === "number" || x.pctMinimo === null ? (x.pctMinimo ?? null) : padrao.pctMinimo,
     busca: typeof x.busca === "string" ? x.busca : "",
     ids: typeof x.ids === "string" ? x.ids : "",
+    excluir: "",
   };
 }
 

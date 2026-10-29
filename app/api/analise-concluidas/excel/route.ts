@@ -1,6 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { carregarObrasConcluidas, montarRelatorio } from "@/lib/analiseConcluidasDados";
+import { carregarDesconsideradas, carregarObrasConcluidas, montarRelatorio } from "@/lib/analiseConcluidasDados";
 import { gerarExcelAnalise } from "@/lib/analiseConcluidasExcel";
 
 export const runtime = "nodejs";
@@ -21,7 +21,7 @@ export async function POST(request: NextRequest) {
   try {
     const { obras, erro } = await carregarObrasConcluidas(supabase);
     if (erro) return NextResponse.json({ error: "Não consegui ler as obras." }, { status: 500 });
-    const relatorio = montarRelatorio(obras, corpo?.estado);
+    const relatorio = montarRelatorio(obras, corpo?.estado, await carregarDesconsideradas(supabase));
     const agora = new Date().toLocaleString("pt-BR", { timeZone: "America/Fortaleza", dateStyle: "short", timeStyle: "short" });
     const buffer = await gerarExcelAnalise(relatorio, perfil.nome ?? "Usuário", agora);
     const hoje = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);

@@ -23,7 +23,7 @@ export default async function AcoesNaoVinculadasPage() {
     (async () => {
       const lista: { id: string; em: string; por: string | null }[] = [];
       for (let de = 0; ; de += 1000) {
-        const { data, error } = await supabase.from("acoes_desconsideradas").select("id_acao, desconsiderada_em, por_nome").order("id_acao").range(de, de + 999);
+        const { data, error } = await supabase.from("acoes_desconsideradas").select("id_acao, desconsiderada_em, por_nome").eq("tela", "nao_vinculadas").order("id_acao").range(de, de + 999);
         if (error) break;
         for (const r of data ?? []) lista.push({ id: r.id_acao as string, em: r.desconsiderada_em as string, por: (r.por_nome as string | null) ?? null });
         if (!data || data.length < 1000) break;

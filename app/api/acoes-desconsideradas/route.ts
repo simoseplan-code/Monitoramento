@@ -7,10 +7,10 @@ export const runtime = "nodejs";
 // Qualquer pessoa aprovada inclui e devolve; o banco também trava (RLS).
 const LIMITE_IDS = 5000;
 
-async function listaAtual(supabase: Awaited<ReturnType<typeof createClient>>) {
+async function listaAtual(supabase: Awaited<ReturnType<typeof createClient>>, tela: string) {
   const linhas: { id: string; em: string; por: string | null }[] = [];
   for (let de = 0; ; de += 1000) {
-    const { data, error } = await supabase.from("acoes_desconsideradas").select("id_acao, desconsiderada_em, por_nome").order("id_acao").range(de, de + 999);
+    const { data, error } = await supabase.from("acoes_desconsideradas").select("id_acao, desconsiderada_em, por_nome").eq("tela", tela).order("id_acao").range(de, de + 999);
     if (error) throw new Error(error.message);
     for (const r of data ?? []) linhas.push({ id: r.id_acao as string, em: r.desconsiderada_em as string, por: (r.por_nome as string | null) ?? null });
     if (!data || data.length < 1000) break;
@@ -24,10 +24,13 @@ export async function POST(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  const { data: perfil } = await supabase.from("profiles").select("nome, status").eq("id", user.id).single();
+  const { data: perfil } = await supabase.from("profiles").select("nome, status, is_admin").eq("id", user.id).single();
   if (perfil?.status !== "aprovado") return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
 
-  const corpo = (await request.json().catch(() => null)) as { acao?: string; ids?: unknown } | null;
+  const corpo = (await request.json().catch(() => null)) as { tela?: string; acao?: string; ids?: unknown } | null;
+  // Cada análise tem a sua lista; a da análise de obras concluídas é só de admin e chefe.
+  const tela = corpo?.tela === "concluidas" ? "concluidas" : "nao_vinculadas";
+  if (tela === "concluidas" && !perfil.is_admin) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
   const ids = Array.isArray(corpo?.ids) ? Array.from(new Set(corpo.ids.filter((i): i is string => typeof i === "string" && /^\d{1,12}$/.test(i)))) : [];
   const acao = corpo?.acao;
 
@@ -38,29 +41,29 @@ export async function POST(request: NextRequest) {
       // Quem já estava na lista continua como estava (não troca quem pôs): só entram os IDs novos.
       const jaTem = new Set<string>();
       for (let i = 0; i < ids.length; i += 200) {
-        const { data, error } = await supabase.from("acoes_desconsideradas").select("id_acao").in("id_acao", ids.slice(i, i + 200));
+        const { data, error } = await supabase.from("acoes_desconsideradas").select("id_acao").eq("tela", tela).in("id_acao", ids.slice(i, i + 200));
         if (error) throw new Error(`ler a lista: ${error.message}`);
         for (const r of data ?? []) jaTem.add(r.id_acao as string);
       }
       const novos = ids.filter((id) => !jaTem.has(id));
       for (let i = 0; i < novos.length; i += 500) {
-        const lote = novos.slice(i, i + 500).map((id) => ({ id_acao: id, desconsiderada_em: agora, desconsiderada_por: user.id, por_nome: perfil.nome ?? null }));
+        const lote = novos.slice(i, i + 500).map((id) => ({ tela, id_acao: id, desconsiderada_em: agora, desconsiderada_por: user.id, por_nome: perfil.nome ?? null }));
         const { error } = await supabase.from("acoes_desconsideradas").insert(lote);
         if (error) throw new Error(`gravar: ${error.message}`);
       }
     } else if (acao === "devolver") {
       if (ids.length === 0 || ids.length > LIMITE_IDS) return NextResponse.json({ error: "Informe de 1 a 5.000 IDs." }, { status: 400 });
       for (let i = 0; i < ids.length; i += 500) {
-        const { error } = await supabase.from("acoes_desconsideradas").delete().in("id_acao", ids.slice(i, i + 500));
+        const { error } = await supabase.from("acoes_desconsideradas").delete().eq("tela", tela).in("id_acao", ids.slice(i, i + 500));
         if (error) throw new Error(error.message);
       }
     } else if (acao === "devolver_todos") {
-      const { error } = await supabase.from("acoes_desconsideradas").delete().neq("id_acao", "");
+      const { error } = await supabase.from("acoes_desconsideradas").delete().eq("tela", tela);
       if (error) throw new Error(error.message);
     } else {
       return NextResponse.json({ error: "Ação inválida." }, { status: 400 });
     }
-    return NextResponse.json({ ok: true, lista: await listaAtual(supabase) });
+    return NextResponse.json({ ok: true, lista: await listaAtual(supabase, tela) });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("acoes-desconsideradas:", msg);

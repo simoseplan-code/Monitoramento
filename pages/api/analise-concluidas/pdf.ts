@@ -2,7 +2,7 @@ import { createElement } from "react";
 import type { NextApiRequest, NextApiResponse } from "next";
 import { createServerClient, serializeCookieHeader, type CookieOptions } from "@supabase/ssr";
 import { renderToBuffer } from "@react-pdf/renderer";
-import { carregarObrasConcluidas, montarRelatorio } from "@/lib/analiseConcluidasDados";
+import { carregarDesconsideradas, carregarObrasConcluidas, montarRelatorio } from "@/lib/analiseConcluidasDados";
 import { AnaliseConcluidasPdf } from "@/lib/pdf/AnaliseConcluidasPdf";
 
 // Pages Router de propósito (mesmo motivo dos outros PDFs): o gerador usa o React instalado, e o
@@ -36,7 +36,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { obras, erro } = await carregarObrasConcluidas(supabase);
     if (erro) return res.status(500).json({ error: "Não consegui ler as obras." });
-    const relatorio = montarRelatorio(obras, (req.body as { estado?: unknown } | undefined)?.estado);
+    const relatorio = montarRelatorio(obras, (req.body as { estado?: unknown } | undefined)?.estado, await carregarDesconsideradas(supabase));
     const geradoEm = new Date().toLocaleString("pt-BR", { timeZone: "America/Fortaleza", dateStyle: "short", timeStyle: "short" });
     const buffer = await renderToBuffer(
       createElement(AnaliseConcluidasPdf, { r: relatorio, geradoEm, geradoPor: perfil.nome ?? "Usuário" }) as Parameters<typeof renderToBuffer>[0]

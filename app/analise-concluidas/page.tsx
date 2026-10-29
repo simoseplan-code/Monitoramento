@@ -63,6 +63,14 @@ export default async function AnaliseConcluidasPage() {
 
   // Filtro que a pessoa gravou (se o SQL 0079 ainda não foi rodado, simplesmente não há).
   const { data: gravado } = await supabase.from("filtros_salvos").select("estado, atualizado_em").eq("usuario_id", user!.id).eq("tela", "analise_concluidas").maybeSingle();
+  // IDs que a equipe desconsiderou desta análise (lista compartilhada; vazia se o SQL 0086 ainda não rodou).
+  const desconsideradas: { id: string; em: string; por: string | null }[] = [];
+  for (let de = 0; ; de += 1000) {
+    const { data, error } = await supabase.from("acoes_desconsideradas").select("id_acao, desconsiderada_em, por_nome").eq("tela", "concluidas").order("id_acao").range(de, de + 999);
+    if (error) break;
+    for (const r of data ?? []) desconsideradas.push({ id: r.id_acao as string, em: r.desconsiderada_em as string, por: (r.por_nome as string | null) ?? null });
+    if (!data || data.length < 1000) break;
+  }
   const filtroGravado = gravado ? { estado: gravado.estado as unknown, atualizadoEm: gravado.atualizado_em as string } : null;
 
   const obras: ObraConcluida[] = linhas.map((l) => ({
@@ -96,7 +104,7 @@ export default async function AnaliseConcluidasPage() {
           Falha ao carregar os dados: {erro}. Se a mensagem fala de coluna que não existe, rode o SQL 0078 e sincronize com o SIMO.
         </p>
       ) : (
-        <AnaliseConcluidas obras={obras} filtroGravado={filtroGravado} />
+        <AnaliseConcluidas obras={obras} filtroGravado={filtroGravado} desconsideradas={desconsideradas} />
       )}
     </AppShell>
   );

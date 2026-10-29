@@ -95,15 +95,29 @@ export function descreverFiltros(estado: EstadoFiltros, valores: Record<string, 
   if (estado.busca.trim()) frases.push(`Busca por ID ou nome: "${estado.busca.trim()}"`);
   const ids = lerIds(estado.ids);
   if (ids.length > 0) frases.push(`IDs informados: ${ids.length}`);
+  const nExcluidos = lerIds(estado.excluir ?? "").length;
+  if (nExcluidos > 0) frases.push(`${nExcluidos} ID(s) desconsiderado(s) da análise`);
   frases.push("Ano: recebimento provisório; se não houver, o definitivo");
   return frases;
 }
 
 /** Aplica o filtro enviado pela tela e devolve tudo que os relatórios precisam. */
-export function montarRelatorio(obras: ObraConcluida[], estadoEnviado: unknown) {
+/** IDs que a equipe desconsiderou da análise de obras concluídas (lista compartilhada). */
+export async function carregarDesconsideradas(supabase: SupabaseClient): Promise<string[]> {
+  const ids: string[] = [];
+  for (let de = 0; ; de += 1000) {
+    const { data, error } = await supabase.from("acoes_desconsideradas").select("id_acao").eq("tela", "concluidas").order("id_acao").range(de, de + 999);
+    if (error) break; // se o SQL 0086 ainda não rodou, segue sem a lista
+    ids.push(...(data ?? []).map((r) => r.id_acao as string));
+    if (!data || data.length < 1000) break;
+  }
+  return ids;
+}
+
+export function montarRelatorio(obras: ObraConcluida[], estadoEnviado: unknown, desconsideradas: string[] = []) {
   const valores = valoresDosFiltros(obras);
   const padrao = estadoPadrao(obras);
-  const estado = estadoEnviado ? estadoDeGravado(estadoEnviado, padrao, valores) : padrao;
+  const estado = { ...(estadoEnviado ? estadoDeGravado(estadoEnviado, padrao, valores) : padrao), excluir: desconsideradas.join(" ") };
   const filtradas = filtrar(obras, estado);
   return {
     totalNaBase: obras.length,
