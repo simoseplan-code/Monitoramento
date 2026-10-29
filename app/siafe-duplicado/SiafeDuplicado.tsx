@@ -13,6 +13,8 @@ export type AcaoDoGrupo = {
   estagio: string | null;
   vinculada: boolean;
   criadaEm: string | null;
+  /** Já está na lista "Todas as análises" (Ações desconsideradas). */
+  desconsiderada: boolean;
 };
 export type GrupoSiafe = { siafe: string; acoes: AcaoDoGrupo[] };
 
@@ -25,7 +27,7 @@ function csvEscape(v: unknown): string {
   return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export function SiafeDuplicado({ grupos, desconsideradas }: { grupos: GrupoSiafe[]; desconsideradas: number }) {
+export function SiafeDuplicado({ grupos }: { grupos: GrupoSiafe[] }) {
   const [busca, setBusca] = useState("");
   const [orgao, setOrgao] = useState("");
   const [status, setStatus] = useState("");
@@ -76,7 +78,7 @@ export function SiafeDuplicado({ grupos, desconsideradas }: { grupos: GrupoSiafe
       <section className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
         <p className="text-xs text-ink-muted">
           Cada linha é um <strong className="text-ink-secondary">número de SIAFE</strong> que aparece em mais de uma ação. Clique no número para ver as ações que usam o mesmo contrato.
-          {desconsideradas > 0 && <> {inteiro(desconsideradas)} ID(s) desconsiderado(s) pela equipe não entram aqui (menu Ações desconsideradas).</>}
+          {" "}Esta tela mostra <strong className="text-ink-secondary">todas</strong> as ações, inclusive as já desconsideradas (marcadas), para você escolher quais desconsiderar.
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <label className="relative">
@@ -182,6 +184,7 @@ export function SiafeDuplicado({ grupos, desconsideradas }: { grupos: GrupoSiafe
                         <tr key={a.id} className="border-t border-black/5">
                           <td className="tabular px-4 py-2 font-medium text-ink-primary">
                             <IdAcaoLink id={a.id} />
+                            {a.desconsiderada && <span className="ml-1.5 rounded-full bg-status-neutral-bg px-1.5 py-0.5 text-[10px] font-medium text-status-neutral" title="Já está na lista Todas as análises">desconsiderada</span>}
                           </td>
                           <td className="px-4 py-2 text-ink-secondary">{a.nome}</td>
                           <td className="px-4 py-2 text-ink-secondary">{a.orgao ?? "-"}</td>

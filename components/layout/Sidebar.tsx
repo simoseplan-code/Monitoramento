@@ -37,6 +37,16 @@ type NavItem = {
   icon: LucideIcon;
   count?: number;
   adminOnly?: boolean;
+  /** Itens do mesmo grupo ficam juntos, dentro de uma caixa com faixa colorida. */
+  grupo?: GrupoMenu;
+};
+
+type GrupoMenu = "siafe" | "diarias";
+
+// Classes escritas por extenso para o Tailwind encontrá-las.
+const GRUPOS: Record<GrupoMenu, { titulo: string; faixa: string; texto: string }> = {
+  siafe: { titulo: "Verificação SIAFE", faixa: "border-l-series-7", texto: "text-series-7" },
+  diarias: { titulo: "Verificações diárias", faixa: "border-l-series-6", texto: "text-series-6" },
 };
 
 export function Sidebar({
@@ -65,16 +75,16 @@ export function Sidebar({
   const itens: NavItem[] = [
     { href: "/", label: "Dashboard Gestão", icon: LayoutGrid },
     { href: "/acoes", label: "Ações", icon: ClipboardList, count: counts.acoes },
-    { href: "/acoes-nao-vinculadas", label: "Não vinculadas SIAFE", icon: Unlink },
-    { href: "/siafe-duplicado", label: "SIAFE duplicado", icon: Copy },
-    { href: "/novas-acoes", label: "Novas Ações", icon: ClipboardCheck, count: counts.novasAcoesPendentes || undefined },
-    { href: "/novas-em-execucao", label: "Novas em Execução", icon: PlayCircle, count: counts.novasExecucaoPendentes || undefined },
+    { href: "/novas-acoes", label: "Novas Ações", icon: ClipboardCheck, count: counts.novasAcoesPendentes || undefined, grupo: "diarias" },
+    { href: "/novas-em-execucao", label: "Novas em Execução", icon: PlayCircle, count: counts.novasExecucaoPendentes || undefined, grupo: "diarias" },
     { href: "/arquivos-kml", label: "Arquivos KML", icon: MapPinned },
     { href: "/verificacao-bairros", label: "Verificação de bairros", icon: MapPin },
-    { href: "/vinculacao", label: "Vinculação SIAFE", icon: Link2, count: counts.vinculacaoPendentes || undefined },
+    { href: "/siafe-duplicado", label: "SIAFE duplicado", icon: Copy, grupo: "siafe" },
+    { href: "/acoes-nao-vinculadas", label: "Não vinculadas SIAFE", icon: Unlink, grupo: "siafe" },
+    { href: "/vinculacao", label: "Vinculação SIAFE", icon: Link2, count: counts.vinculacaoPendentes || undefined, grupo: "siafe" },
+    { href: "/configuracao-td", label: "Configuração de TD", icon: ListTree, grupo: "siafe" },
     { href: "/termos", label: "Termos (Outros Docs)", icon: FileCheck2, count: counts.termosPendentes || undefined },
     { href: "/sobreposicoes", label: "Sobreposições", icon: Layers, count: counts.sobreposicoesPendentes || undefined, adminOnly: true },
-    { href: "/configuracao-td", label: "Configuração de TD", icon: ListTree },
     { href: "/acoes-desconsideradas", label: "Ações desconsideradas", icon: EyeOff },
     { href: "/unidade-quantidade", label: "Unidade/Quantidade", icon: Ruler, count: counts.sugestoesUnidadePendentes || undefined },
     { href: "/orgaos", label: "Órgãos", icon: Building2 },
@@ -91,6 +101,36 @@ export function Sidebar({
     .slice(0, 2)
     .map((p) => p[0]?.toUpperCase())
     .join("");
+
+  const visiveis = itens.filter((item) => !item.adminOnly || isAdmin);
+  // Junta os itens vizinhos do mesmo grupo num bloco só.
+  const blocos: { grupo?: GrupoMenu; itens: NavItem[] }[] = [];
+  for (const item of visiveis) {
+    const ultimo = blocos[blocos.length - 1];
+    if (ultimo && ultimo.grupo === item.grupo) ultimo.itens.push(item);
+    else blocos.push({ grupo: item.grupo, itens: [item] });
+  }
+
+  const itemDoMenu = (item: NavItem) => {
+    const ativo = pathname === item.href;
+    const Icon = item.icon;
+    return (
+      <Link
+        key={item.label}
+        href={item.href}
+        className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
+          ativo ? "bg-series-1 text-white shadow-card" : "text-ink-secondary hover:bg-plane hover:text-ink-primary"
+        }`}
+        title={colapsada ? item.label : undefined}
+      >
+        <Icon size={18} strokeWidth={2} />
+        {!colapsada && <span className="truncate">{item.label}</span>}
+        {!colapsada && item.count ? (
+          <span className={`ml-auto rounded-full px-2 py-0.5 text-xs font-semibold ${ativo ? "bg-white/20 text-white" : "bg-status-warning-bg text-status-warning"}`}>{item.count}</span>
+        ) : null}
+      </Link>
+    );
+  };
 
   return (
     <aside
@@ -129,36 +169,18 @@ export function Sidebar({
             Menu principal
           </p>
         )}
-        {itens
-          .filter((item) => !item.adminOnly || isAdmin)
-          .map((item) => {
-            const ativo = pathname === item.href;
-            const Icon = item.icon;
-            return (
-              <Link
-                key={item.label}
-                href={item.href}
-                className={`group flex items-center gap-3 rounded-lg px-3 py-2 text-sm font-medium transition-colors ${
-                  ativo
-                    ? "bg-series-1 text-white shadow-card"
-                    : "text-ink-secondary hover:bg-plane hover:text-ink-primary"
-                }`}
-                title={colapsada ? item.label : undefined}
-              >
-                <Icon size={18} strokeWidth={2} />
-                {!colapsada && <span className="truncate">{item.label}</span>}
-                {!colapsada && item.count ? (
-                  <span
-                    className={`ml-auto rounded-full px-2 py-0.5 text-xs font-semibold ${
-                      ativo ? "bg-white/20 text-white" : "bg-status-warning-bg text-status-warning"
-                    }`}
-                  >
-                    {item.count}
-                  </span>
-                ) : null}
-              </Link>
-            );
-          })}
+        {blocos.map((bloco, i) =>
+          bloco.grupo ? (
+            <div key={i} className={`my-2 rounded-xl border border-l-4 border-black/5 bg-plane/60 py-1.5 ${GRUPOS[bloco.grupo].faixa} ${colapsada ? "px-0.5" : "px-1.5"}`}>
+              {!colapsada && <p className={`px-2 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-wide ${GRUPOS[bloco.grupo].texto}`}>{GRUPOS[bloco.grupo].titulo}</p>}
+              <div className="space-y-1">{bloco.itens.map(itemDoMenu)}</div>
+            </div>
+          ) : (
+            <div key={i} className="space-y-1">
+              {bloco.itens.map(itemDoMenu)}
+            </div>
+          )
+        )}
       </nav>
 
       <button

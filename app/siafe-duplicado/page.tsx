@@ -1,7 +1,8 @@
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
-import { idsDesconsiderados } from "@/lib/desconsideradas";
+import { idsDaLista } from "@/lib/desconsideradas";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { SiafeDuplicado, type GrupoSiafe } from "./SiafeDuplicado";
 
 type Linha = {
@@ -27,14 +28,16 @@ export default async function SiafeDuplicadoPage() {
     supabase.from("obras").select("id_acao", { count: "exact", head: true }),
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
     contarNovasAcoesPendentes(supabase),
-    // IDs que a equipe desconsiderou (lista desta análise + lista "Todas").
-    idsDesconsiderados(supabase, "siafe_duplicado"),
+    // Só para marcar: esta tela NÃO tira as ações desconsideradas, é aqui que se acham as que vão ser desconsideradas.
+    idsDaLista(supabase, "todas"),
   ]);
 
+  const baseCompleta = createAdminClient();
   const linhas: Linha[] = [];
   let erro: string | null = null;
   for (let de = 0; ; de += 1000) {
-    const { data, error } = await supabase
+    // Lê a base completa (sem o filtro de "Todas as análises"): aqui se vê justamente o que ainda vai ser desconsiderado.
+    const { data, error } = await baseCompleta
       .from("obras")
       .select("id_acao, nome_acao, orgao, status, estagio_atual, numero_siafe, numero_automatico, data_criacao")
       .not("numero_siafe", "is", null)
@@ -48,11 +51,11 @@ export default async function SiafeDuplicadoPage() {
     if (!data || data.length < 1000) break;
   }
 
-  const desconsiderados = new Set(fora);
+  const jaDesconsideradas = new Set(fora);
   const porSiafe = new Map<string, GrupoSiafe["acoes"]>();
   for (const l of linhas) {
     const numero = (l.numero_siafe ?? "").trim();
-    if (!numero || numero === "-" || desconsiderados.has(l.id_acao)) continue;
+    if (!numero || numero === "-") continue;
     const lista = porSiafe.get(numero) ?? [];
     lista.push({
       id: l.id_acao,
@@ -62,6 +65,7 @@ export default async function SiafeDuplicadoPage() {
       estagio: l.estagio_atual,
       vinculada: !!l.numero_automatico,
       criadaEm: l.data_criacao,
+      desconsiderada: jaDesconsideradas.has(l.id_acao),
     });
     porSiafe.set(numero, lista);
   }
@@ -83,7 +87,7 @@ export default async function SiafeDuplicadoPage() {
       {erro ? (
         <p className="rounded-lg bg-status-critical/10 px-3 py-2 text-xs text-status-critical">Falha ao carregar as ações: {erro}</p>
       ) : (
-        <SiafeDuplicado grupos={grupos} desconsideradas={fora.length} />
+        <SiafeDuplicado grupos={grupos} />
       )}
     </AppShell>
   );
