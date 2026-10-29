@@ -41,12 +41,14 @@ type NavItem = {
   grupo?: GrupoMenu;
 };
 
-type GrupoMenu = "siafe" | "diarias";
+type GrupoMenu = "gestao" | "diarias" | "siafe" | "georef";
 
 // Classes escritas por extenso para o Tailwind encontrá-las.
 const GRUPOS: Record<GrupoMenu, { titulo: string; faixa: string; texto: string }> = {
+  gestao: { titulo: "Gestão", faixa: "border-l-series-1", texto: "text-series-1" },
   siafe: { titulo: "Verificação SIAFE", faixa: "border-l-series-7", texto: "text-series-7" },
   diarias: { titulo: "Verificações diárias", faixa: "border-l-series-6", texto: "text-series-6" },
+  georef: { titulo: "Georreferenciamento", faixa: "border-l-series-4", texto: "text-status-warning" },
 };
 
 export function Sidebar({
@@ -73,26 +75,31 @@ export function Sidebar({
   const [colapsada, setColapsada] = useState(false);
 
   const itens: NavItem[] = [
-    { href: "/", label: "Dashboard Gestão", icon: LayoutGrid },
-    { href: "/acoes", label: "Ações", icon: ClipboardList, count: counts.acoes },
+    // Gestão
+    { href: "/", label: "Dashboard Gestão", icon: LayoutGrid, grupo: "gestao" },
+    { href: "/acoes", label: "Ações", icon: ClipboardList, count: counts.acoes, grupo: "gestao" },
+    { href: "/historico", label: "Histórico", icon: History, grupo: "gestao" },
+    { href: "/desempenho", label: "Desempenho", icon: BarChart3, adminOnly: true, grupo: "gestao" },
+    { href: "/equipe", label: "Equipe", icon: Users, count: counts.pendentesAprovacao || undefined, adminOnly: true, grupo: "gestao" },
+    { href: "/admin", label: "Administração", icon: ShieldCheck, adminOnly: true, grupo: "gestao" },
+    { href: "/analise-concluidas", label: "Análise de obras concluídas", icon: Banknote, adminOnly: true, grupo: "gestao" },
+    // Verificações diárias
     { href: "/novas-acoes", label: "Novas Ações", icon: ClipboardCheck, count: counts.novasAcoesPendentes || undefined, grupo: "diarias" },
     { href: "/novas-em-execucao", label: "Novas em Execução", icon: PlayCircle, count: counts.novasExecucaoPendentes || undefined, grupo: "diarias" },
-    { href: "/arquivos-kml", label: "Arquivos KML", icon: MapPinned },
-    { href: "/verificacao-bairros", label: "Verificação de bairros", icon: MapPin },
+    { href: "/termos", label: "Termos (Outros Docs)", icon: FileCheck2, count: counts.termosPendentes || undefined, grupo: "diarias" },
+    // Verificação SIAFE
     { href: "/siafe-duplicado", label: "SIAFE duplicado", icon: Copy, grupo: "siafe" },
     { href: "/acoes-nao-vinculadas", label: "Não vinculadas SIAFE", icon: Unlink, grupo: "siafe" },
     { href: "/vinculacao", label: "Vinculação SIAFE", icon: Link2, count: counts.vinculacaoPendentes || undefined, grupo: "siafe" },
     { href: "/configuracao-td", label: "Configuração de TD", icon: ListTree, grupo: "siafe" },
-    { href: "/termos", label: "Termos (Outros Docs)", icon: FileCheck2, count: counts.termosPendentes || undefined },
-    { href: "/sobreposicoes", label: "Sobreposições", icon: Layers, count: counts.sobreposicoesPendentes || undefined, adminOnly: true },
-    { href: "/acoes-desconsideradas", label: "Ações desconsideradas", icon: EyeOff },
+    // Sem grupo
     { href: "/unidade-quantidade", label: "Unidade/Quantidade", icon: Ruler, count: counts.sugestoesUnidadePendentes || undefined },
     { href: "/orgaos", label: "Órgãos", icon: Building2 },
-    { href: "/historico", label: "Histórico", icon: History },
-    { href: "/desempenho", label: "Desempenho", icon: BarChart3, adminOnly: true },
-    { href: "/equipe", label: "Equipe", icon: Users, count: counts.pendentesAprovacao || undefined, adminOnly: true },
-    { href: "/admin", label: "Administração", icon: ShieldCheck, adminOnly: true },
-    { href: "/analise-concluidas", label: "Análise de obras concluídas", icon: Banknote, adminOnly: true },
+    { href: "/acoes-desconsideradas", label: "Ações desconsideradas", icon: EyeOff },
+    // Georreferenciamento
+    { href: "/arquivos-kml", label: "Arquivos KML", icon: MapPinned, grupo: "georef" },
+    { href: "/sobreposicoes", label: "Sobreposições", icon: Layers, count: counts.sobreposicoesPendentes || undefined, adminOnly: true, grupo: "georef" },
+    { href: "/verificacao-bairros", label: "Verificação de bairros", icon: MapPin, grupo: "georef" },
   ];
 
   const iniciais = nome
