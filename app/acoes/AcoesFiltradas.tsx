@@ -32,6 +32,8 @@ function csvEscape(v: unknown): string {
   return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
+export type Desconsiderada = { id: string; em: string; por: string | null };
+
 export type Inicial = { busca?: string; orgao?: string; filtro?: string };
 
 export function AcoesFiltradas({
@@ -39,12 +41,15 @@ export function AcoesFiltradas({
   filtroGravado,
   inicial,
   modo = "todas",
+  desconsideradas = [],
 }: {
   acoes: AcaoLinha[];
   filtroGravado: { estado: unknown; atualizadoEm: string } | null;
   inicial: Inicial;
   /** "nao_vinculadas": só ações sem número automático; sem a coluna Situação e com campo de IDs para desconsiderar. */
   modo?: "todas" | "nao_vinculadas";
+  /** IDs que a equipe tirou da análise (lista compartilhada). */
+  desconsideradas?: Desconsiderada[];
 }) {
   const naoVinc = modo === "nao_vinculadas";
   const tela = naoVinc ? "acoes_nao_vinculadas" : "acoes";
@@ -72,7 +77,34 @@ export function AcoesFiltradas({
   const [menuExportar, setMenuExportar] = useState(false);
   const [erroExportar, setErroExportar] = useState<string | null>(null);
 
-  const filtradas = useMemo(() => filtrar(acoes, estado), [acoes, estado]);
+  // Lista compartilhada de IDs desconsiderados: vale para todos e entra no filtro, no PDF e no Excel.
+  const [desc, setDesc] = useState<Desconsiderada[]>(desconsideradas);
+  const [descOcupado, setDescOcupado] = useState(false);
+  const [descErro, setDescErro] = useState<string | null>(null);
+  const idsDesc = useMemo(() => desc.map((d) => d.id).join(" "), [desc]);
+
+  async function mudarDesconsideradas(acao: "adicionar" | "devolver" | "devolver_todos", ids: string[] = []): Promise<boolean> {
+    setDescOcupado(true);
+    setDescErro(null);
+    try {
+      const resp = await fetch("/api/acoes-desconsideradas", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ acao, ids }) });
+      const json = (await resp.json().catch(() => ({}))) as { error?: string; lista?: Desconsiderada[] };
+      if (!resp.ok) {
+        setDescErro(json.error ?? "Não foi possível salvar.");
+        return false;
+      }
+      setDesc(json.lista ?? []);
+      setPagina(1);
+      return true;
+    } catch {
+      setDescErro("Sem conexão com o servidor.");
+      return false;
+    } finally {
+      setDescOcupado(false);
+    }
+  }
+
+  const filtradas = useMemo(() => filtrar(acoes, { ...estado, excluir: idsDesc }), [acoes, estado, idsDesc]);
   const contagem = useMemo(() => contagemVinculacao(filtradas), [filtradas]);
   const totalPaginas = Math.max(1, Math.ceil(filtradas.length / TAMANHO));
   const paginaAtual = Math.min(pagina, totalPaginas);
@@ -81,7 +113,7 @@ export function AcoesFiltradas({
   const jsonAtual = JSON.stringify(estadoParaGravar(estado));
   const alterado = gravadoJson !== null && gravadoJson !== jsonAtual;
   const filtrosAtivos =
-    FILTROS.filter((f) => !(naoVinc && f.chave === "vinculacao") && estado.selecao[f.chave] !== null).length + (estado.excluir.trim() ? 1 : 0) + (estado.pctMinimo != null ? 1 : 0) + (estado.busca ? 1 : 0) + (estado.de ? 1 : 0) + (estado.ate ? 1 : 0);
+    FILTROS.filter((f) => !(naoVinc && f.chave === "vinculacao") && estado.selecao[f.chave] !== null).length + (estado.pctMinimo != null ? 1 : 0) + (estado.busca ? 1 : 0) + (estado.de ? 1 : 0) + (estado.ate ? 1 : 0);
 
   function mudar(e: EstadoFiltros) {
     setEstado(e);
@@ -190,7 +222,7 @@ export function AcoesFiltradas({
         <p className="text-xs text-ink-muted">
           <strong className="text-ink-primary">{inteiro(filtradas.length)}</strong> de {inteiro(acoes.length)} ação(ões){naoVinc ? " não vinculada(s)" : <> · {inteiro(contagem.vinculadas)} vinculada(s) ·{" "}
           <strong className="text-status-critical">{inteiro(contagem.naoVinculadas)} não vinculada(s)</strong></>}
-          {lerIds(estado.excluir).length > 0 && <> · {inteiro(lerIds(estado.excluir).length)} ID(s) desconsiderado(s)</>}
+          {desc.length > 0 && <> · {inteiro(desc.length)} ID(s) desconsiderado(s) pela equipe</>}
         </p>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {!naoVinc && <button onClick={soNaoVinculadas} className="rounded-full border border-black/10 bg-surface px-3.5 py-1.5 text-xs font-semibold text-ink-secondary hover:bg-plane" title="Marca só as ações pendentes e sem número no filtro de Vinculação">
@@ -307,6 +339,10 @@ export function AcoesFiltradas({
             valores={valores}
             ocultar={naoVinc ? ["vinculacao"] : []}
             permitirExcluir={naoVinc}
+            desconsideradas={desc}
+            descOcupado={descOcupado}
+            descErro={descErro}
+            aoMudarDesconsideradas={mudarDesconsideradas}
             aoFechar={() => setPainelAberto(false)}
             gravacao={{ gravando, gravadoEm, alterado, aviso, aoGravar: gravarFiltro, aoApagar: apagarFiltroGravado }}
           />
@@ -324,6 +360,10 @@ function PainelFiltros({
   valores,
   ocultar,
   permitirExcluir,
+  desconsideradas,
+  descOcupado,
+  descErro,
+  aoMudarDesconsideradas,
   aoFechar,
   gravacao,
 }: {
@@ -332,6 +372,10 @@ function PainelFiltros({
   valores: Record<string, { valor: string; qtd: number }[]>;
   ocultar: string[];
   permitirExcluir: boolean;
+  desconsideradas: Desconsiderada[];
+  descOcupado: boolean;
+  descErro: string | null;
+  aoMudarDesconsideradas: (acao: "adicionar" | "devolver" | "devolver_todos", ids?: string[]) => Promise<boolean>;
   aoFechar: () => void;
   gravacao: {
     gravando: boolean;
@@ -370,7 +414,7 @@ function PainelFiltros({
       <div className="flex items-center justify-between border-b border-black/5 px-4 py-3">
         <h2 className="text-sm font-semibold text-ink-primary">Filtros</h2>
         <div className="flex items-center gap-1">
-          <button onClick={() => setEstado({ ...estadoPadrao(), excluir: estado.excluir })} className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-ink-muted hover:bg-plane" title="Limpa todos os filtros">
+          <button onClick={() => setEstado(estadoPadrao())} className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-ink-muted hover:bg-plane" title="Limpa todos os filtros">
             <RotateCcw size={12} /> Limpar tudo
           </button>
           <button onClick={aoFechar} className="rounded-lg p-1 text-ink-muted hover:bg-plane" aria-label="Fechar filtros">
@@ -420,27 +464,14 @@ function PainelFiltros({
       </div>
 
       {permitirExcluir && (
-        <div className="space-y-1.5 border-b border-black/5 px-4 py-3">
-          <label className="block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
-            IDs para desconsiderar
-            <textarea
-              value={estado.excluir}
-              onChange={(e) => setEstado({ ...estado, excluir: e.target.value })}
-              rows={3}
-              placeholder="Cole os IDs que devem sair da análise (vírgula, espaço ou linha)"
-              className="mt-1 w-full rounded-lg border border-black/10 bg-plane px-2 py-1.5 font-mono text-xs font-normal normal-case text-ink-primary focus:outline-none"
-            />
-          </label>
-          <div className="flex items-center justify-between text-[11px]">
-            <span className="text-ink-muted">{lerIds(estado.excluir).length > 0 ? `${inteiro(lerIds(estado.excluir).length)} ID(s) fora da lista, do PDF e do Excel` : "Nenhum ID desconsiderado"}</span>
-            {estado.excluir.trim() && (
-              <button onClick={() => setEstado({ ...estado, excluir: "" })} className="font-medium text-series-1 hover:underline">
-                Limpar IDs
-              </button>
-            )}
-          </div>
-          <p className="text-[11px] leading-snug text-ink-muted">Os IDs ficam guardados junto com o filtro quando você clica em Gravar filtro.</p>
-        </div>
+        <DesconsiderarIds
+          lista={desconsideradas}
+          ocupado={descOcupado}
+          erro={descErro}
+          aoAdicionar={(ids) => aoMudarDesconsideradas("adicionar", ids)}
+          aoDevolver={(ids) => aoMudarDesconsideradas("devolver", ids)}
+          aoDevolverTodos={() => aoMudarDesconsideradas("devolver_todos")}
+        />
       )}
 
       {FILTROS.filter((f) => !ocultar.includes(f.chave)).map((f) => {
@@ -561,5 +592,86 @@ function PainelFiltros({
         {gravacao.aviso && <p className={"text-[11px] font-medium " + (gravacao.aviso.tipo === "ok" ? "text-status-good" : "text-status-critical")}>{gravacao.aviso.texto}</p>}
       </div>
     </aside>
+  );
+}
+
+// ---------- IDs desconsiderados (lista da equipe toda) ----------
+
+function DesconsiderarIds({
+  lista,
+  ocupado,
+  erro,
+  aoAdicionar,
+  aoDevolver,
+  aoDevolverTodos,
+}: {
+  lista: Desconsiderada[];
+  ocupado: boolean;
+  erro: string | null;
+  aoAdicionar: (ids: string[]) => Promise<boolean>;
+  aoDevolver: (ids: string[]) => Promise<boolean>;
+  aoDevolverTodos: () => Promise<boolean>;
+}) {
+  const [texto, setTexto] = useState("");
+  const [verLista, setVerLista] = useState(false);
+  const novos = lerIds(texto);
+  const jaNaLista = new Set(lista.map((d) => d.id));
+  const aAdicionar = novos.filter((i) => !jaNaLista.has(i));
+
+  return (
+    <div className="space-y-1.5 border-b border-black/5 px-4 py-3">
+      <label className="block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+        IDs para desconsiderar (equipe toda)
+        <textarea
+          value={texto}
+          onChange={(e) => setTexto(e.target.value)}
+          rows={3}
+          placeholder="Cole os IDs que devem sair da análise (vírgula, espaço ou linha)"
+          className="mt-1 w-full rounded-lg border border-black/10 bg-plane px-2 py-1.5 font-mono text-xs font-normal normal-case text-ink-primary focus:outline-none"
+        />
+      </label>
+      <button
+        onClick={async () => {
+          if (await aoAdicionar(aAdicionar)) setTexto("");
+        }}
+        disabled={ocupado || aAdicionar.length === 0}
+        className="w-full rounded-lg bg-series-1 px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+      >
+        {ocupado ? "Salvando..." : aAdicionar.length > 0 ? `Desconsiderar ${inteiro(aAdicionar.length)} ID(s)` : "Desconsiderar"}
+      </button>
+      {novos.length > 0 && aAdicionar.length < novos.length && (
+        <p className="text-[11px] text-ink-muted">{inteiro(novos.length - aAdicionar.length)} já estava(m) na lista.</p>
+      )}
+      <div className="flex items-center justify-between text-[11px]">
+        <button onClick={() => setVerLista((v) => !v)} className="font-medium text-series-1 hover:underline">
+          {lista.length > 0 ? `${verLista ? "Esconder" : "Ver"} os ${inteiro(lista.length)} desconsiderado(s)` : "Nenhum ID desconsiderado"}
+        </button>
+        {lista.length > 0 && (
+          <button
+            onClick={() => {
+              if (window.confirm(`Devolver todos os ${lista.length} IDs para a análise? Isso vale para a equipe toda.`)) void aoDevolverTodos();
+            }}
+            disabled={ocupado}
+            className="font-medium text-ink-muted hover:text-ink-primary hover:underline disabled:opacity-50"
+          >
+            Devolver todos
+          </button>
+        )}
+      </div>
+      {verLista && lista.length > 0 && (
+        <ul className="flex max-h-40 flex-wrap gap-1 overflow-y-auto">
+          {lista.map((d) => (
+            <li key={d.id} className="flex items-center gap-1 rounded-full bg-plane px-2 py-0.5 text-[11px] text-ink-secondary" title={`${d.por ? "Por " + d.por + ", " : ""}${new Date(d.em).toLocaleDateString("pt-BR")}`}>
+              {d.id}
+              <button onClick={() => void aoDevolver([d.id])} disabled={ocupado} aria-label={`Devolver ${d.id} para a análise`} className="text-ink-muted hover:text-status-critical disabled:opacity-50">
+                <X size={11} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+      {erro && <p className="text-[11px] font-medium text-status-critical">{erro}</p>}
+      <p className="text-[11px] leading-snug text-ink-muted">A lista vale para todas as pessoas: some da lista, do PDF e do Excel de todo mundo, até alguém devolver.</p>
+    </div>
   );
 }

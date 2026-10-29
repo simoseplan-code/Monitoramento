@@ -38,7 +38,18 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (erro) return res.status(500).json({ error: "Não consegui ler as ações." });
     const corpo = req.body as { estado?: unknown; modo?: string } | undefined;
     const soNaoVinculadas = corpo?.modo === "nao_vinculadas";
-    const listagem = montarListagem(soNaoVinculadas ? acoes.filter((a) => !a.numeroAutomatico) : acoes, corpo?.estado);
+    // Na aba "não vinculadas", os IDs desconsiderados pela equipe saem do PDF (lista lida do banco).
+    let estado = corpo?.estado as Record<string, unknown> | undefined;
+    if (soNaoVinculadas) {
+      const ids: string[] = [];
+      for (let de = 0; ; de += 1000) {
+        const { data } = await supabase.from("acoes_desconsideradas").select("id_acao").order("id_acao").range(de, de + 999);
+        ids.push(...(data ?? []).map((r) => r.id_acao as string));
+        if (!data || data.length < 1000) break;
+      }
+      estado = { ...(estado ?? {}), excluir: ids.join(" ") };
+    }
+    const listagem = montarListagem(soNaoVinculadas ? acoes.filter((a) => !a.numeroAutomatico) : acoes, estado);
     const geradoEm = new Date().toLocaleString("pt-BR", { timeZone: "America/Fortaleza", dateStyle: "short", timeStyle: "short" });
     const buffer = await renderToBuffer(
       createElement(AcoesPdf, { r: listagem, geradoEm, geradoPor: perfil.nome ?? "Usuário", soNaoVinculadas }) as Parameters<typeof renderToBuffer>[0]
