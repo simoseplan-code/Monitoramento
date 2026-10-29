@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 // Filtro gravado por pessoa e tela (tabela filtros_salvos). Cada pessoa só mexe no próprio.
-const TELAS = ["analise_concluidas", "acoes"];
+const TELAS = ["analise_concluidas", "acoes", "acoes_nao_vinculadas"];
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();

@@ -36,14 +36,16 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   try {
     const { acoes, erro } = await carregarAcoes(supabase);
     if (erro) return res.status(500).json({ error: "Não consegui ler as ações." });
-    const listagem = montarListagem(acoes, (req.body as { estado?: unknown } | undefined)?.estado);
+    const corpo = req.body as { estado?: unknown; modo?: string } | undefined;
+    const soNaoVinculadas = corpo?.modo === "nao_vinculadas";
+    const listagem = montarListagem(soNaoVinculadas ? acoes.filter((a) => !a.numeroAutomatico) : acoes, corpo?.estado);
     const geradoEm = new Date().toLocaleString("pt-BR", { timeZone: "America/Fortaleza", dateStyle: "short", timeStyle: "short" });
     const buffer = await renderToBuffer(
-      createElement(AcoesPdf, { r: listagem, geradoEm, geradoPor: perfil.nome ?? "Usuário" }) as Parameters<typeof renderToBuffer>[0]
+      createElement(AcoesPdf, { r: listagem, geradoEm, geradoPor: perfil.nome ?? "Usuário", soNaoVinculadas }) as Parameters<typeof renderToBuffer>[0]
     );
     const hoje = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="acoes-${hoje}.pdf"`);
+    res.setHeader("Content-Disposition", `attachment; filename="${soNaoVinculadas ? "acoes-nao-vinculadas" : "acoes"}-${hoje}.pdf"`);
     res.setHeader("Cache-Control", "no-store");
     return res.status(200).send(buffer);
   } catch (e) {

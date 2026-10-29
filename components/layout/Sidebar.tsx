@@ -20,6 +20,7 @@ import {
   ListTree,
   PlayCircle,
   MapPinned,
+  Unlink,
   MapPin,
   Banknote,
   FileCheck2,
@@ -62,6 +63,7 @@ export function Sidebar({
   const itens: NavItem[] = [
     { href: "/", label: "Dashboard Gestão", icon: LayoutGrid },
     { href: "/acoes", label: "Ações", icon: ClipboardList, count: counts.acoes },
+    { href: "/acoes-nao-vinculadas", label: "Não vinculadas SIAFE", icon: Unlink },
     { href: "/novas-acoes", label: "Novas Ações", icon: ClipboardCheck, count: counts.novasAcoesPendentes || undefined },
     { href: "/novas-em-execucao", label: "Novas em Execução", icon: PlayCircle, count: counts.novasExecucaoPendentes || undefined },
     { href: "/arquivos-kml", label: "Arquivos KML", icon: MapPinned },

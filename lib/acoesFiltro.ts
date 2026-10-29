@@ -69,12 +69,14 @@ export type EstadoFiltros = {
   /** Datas de criação (AAAA-MM-DD), vazias = sem corte. */
   de: string;
   ate: string;
+  /** IDs para tirar da análise (separados por espaço, vírgula ou quebra de linha). */
+  excluir: string;
 };
 
 export function estadoPadrao(): EstadoFiltros {
   const selecao: Selecao = {};
   for (const f of FILTROS) selecao[f.chave] = null;
-  return { selecao, pctMinimo: null, busca: "", de: "", ate: "" };
+  return { selecao, pctMinimo: null, busca: "", de: "", ate: "", excluir: "" };
 }
 
 /** Valores distintos de cada filtro, com a quantidade de ações. */
@@ -95,8 +97,10 @@ export function valoresDosFiltros(acoes: AcaoLinha[]): Record<string, { valor: s
 
 export function filtrar(acoes: AcaoLinha[], estado: EstadoFiltros): AcaoLinha[] {
   const busca = estado.busca.trim().toLowerCase();
+  const excluidos = new Set(lerIds(estado.excluir ?? ""));
   const minimo = estado.pctMinimo == null ? null : estado.pctMinimo / 100;
   return acoes.filter((a) => {
+    if (excluidos.size > 0 && excluidos.has(a.id)) return false;
     if (minimo != null && (a.pct == null || a.pct < minimo - 1e-9)) return false;
     if (estado.de && (!a.criadaEm || a.criadaEm.slice(0, 10) < estado.de)) return false;
     if (estado.ate && (!a.criadaEm || a.criadaEm.slice(0, 10) > estado.ate)) return false;
@@ -122,6 +126,7 @@ export type EstadoGravado = {
   busca: string;
   de: string;
   ate: string;
+  excluir?: string;
 };
 
 export function estadoParaGravar(e: EstadoFiltros): EstadoGravado {
@@ -130,7 +135,7 @@ export function estadoParaGravar(e: EstadoFiltros): EstadoGravado {
     const s = e.selecao[f.chave];
     selecao[f.chave] = s ? Array.from(s) : null;
   }
-  return { selecao, pctMinimo: e.pctMinimo, busca: e.busca, de: e.de, ate: e.ate };
+  return { selecao, pctMinimo: e.pctMinimo, busca: e.busca, de: e.de, ate: e.ate, excluir: e.excluir };
 }
 
 /** Volta o estado gravado para o da tela. Valores que não existem mais são ignorados. */
@@ -154,6 +159,7 @@ export function estadoDeGravado(g: unknown, valores: Record<string, { valor: str
     busca: typeof x.busca === "string" ? x.busca : "",
     de: typeof x.de === "string" ? x.de : "",
     ate: typeof x.ate === "string" ? x.ate : "",
+    excluir: typeof x.excluir === "string" ? x.excluir : "",
   };
 }
 
@@ -172,6 +178,8 @@ export function descreverFiltros(estado: EstadoFiltros, valores: Record<string, 
   if (estado.pctMinimo != null) frases.push(`% de execução da ação: maior ou igual a ${estado.pctMinimo}%`);
   if (estado.de) frases.push(`Criada a partir de ${estado.de.split("-").reverse().join("/")}`);
   if (estado.ate) frases.push(`Criada até ${estado.ate.split("-").reverse().join("/")}`);
+  const nExcluidos = lerIds(estado.excluir ?? "").length;
+  if (nExcluidos > 0) frases.push(`${nExcluidos} ID(s) desconsiderado(s) da análise`);
   if (estado.busca.trim()) frases.push(`Busca por ID, nome ou órgão: "${estado.busca.trim()}"`);
   if (frases.length === 0) frases.push("Nenhum filtro: todas as ações");
   return frases;

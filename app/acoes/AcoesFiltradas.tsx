@@ -38,11 +38,16 @@ export function AcoesFiltradas({
   acoes,
   filtroGravado,
   inicial,
+  modo = "todas",
 }: {
   acoes: AcaoLinha[];
   filtroGravado: { estado: unknown; atualizadoEm: string } | null;
   inicial: Inicial;
+  /** "nao_vinculadas": só ações sem número automático; sem a coluna Situação e com campo de IDs para desconsiderar. */
+  modo?: "todas" | "nao_vinculadas";
 }) {
+  const naoVinc = modo === "nao_vinculadas";
+  const tela = naoVinc ? "acoes_nao_vinculadas" : "acoes";
   const valores = useMemo(() => valoresDosFiltros(acoes), [acoes]);
   // Quem chega por um link (ex.: "Pendentes" do painel) abre já nesse filtro; senão, abre no filtro gravado.
   const [estado, setEstado] = useState<EstadoFiltros>(() => {
@@ -76,7 +81,7 @@ export function AcoesFiltradas({
   const jsonAtual = JSON.stringify(estadoParaGravar(estado));
   const alterado = gravadoJson !== null && gravadoJson !== jsonAtual;
   const filtrosAtivos =
-    FILTROS.filter((f) => estado.selecao[f.chave] !== null).length + (estado.pctMinimo != null ? 1 : 0) + (estado.busca ? 1 : 0) + (estado.de ? 1 : 0) + (estado.ate ? 1 : 0);
+    FILTROS.filter((f) => !(naoVinc && f.chave === "vinculacao") && estado.selecao[f.chave] !== null).length + (estado.excluir.trim() ? 1 : 0) + (estado.pctMinimo != null ? 1 : 0) + (estado.busca ? 1 : 0) + (estado.de ? 1 : 0) + (estado.ate ? 1 : 0);
 
   function mudar(e: EstadoFiltros) {
     setEstado(e);
@@ -96,9 +101,9 @@ export function AcoesFiltradas({
 
   function exportarExcel() {
     setMenuExportar(false);
-    const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Número Automático", "Número do Contrato no SIAFE", "Situação", "Status", "Estágio Atual", "Tipologia", "Classificação", "Percentual de Execução", "Ação Conveniada", "Data de Criação"];
+    const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Número Automático", "Número do Contrato no SIAFE", ...(naoVinc ? [] : ["Situação"]), "Status", "Estágio Atual", "Tipologia", "Classificação", "Percentual de Execução", "Ação Conveniada", "Data de Criação"];
     const linhas = filtradas.map((a) =>
-      [a.id, a.nome, a.orgao, a.numeroAutomatico, a.numeroSiafe, vinculacao(a), a.status, a.estagio, a.tipologia, a.classificacao, a.pct != null ? a.pct : "", a.conveniada, a.criadaEm]
+      [a.id, a.nome, a.orgao, a.numeroAutomatico, a.numeroSiafe, ...(naoVinc ? [] : [vinculacao(a)]), a.status, a.estagio, a.tipologia, a.classificacao, a.pct != null ? a.pct : "", a.conveniada, a.criadaEm]
         .map(csvEscape)
         .join(";")
     );
@@ -114,7 +119,7 @@ export function AcoesFiltradas({
       const resp = await fetch("/api/acoes/pdf", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ estado: estadoParaGravar(estado) }),
+        body: JSON.stringify({ estado: estadoParaGravar(estado), modo }),
         credentials: "same-origin",
       });
       if (!resp.ok) {
@@ -139,7 +144,7 @@ export function AcoesFiltradas({
       const resp = await fetch("/api/filtros", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ tela: "acoes", estado: estadoParaGravar(estado) }),
+        body: JSON.stringify({ tela, estado: estadoParaGravar(estado) }),
       });
       const json = (await resp.json().catch(() => ({}))) as { error?: string; atualizadoEm?: string };
       if (!resp.ok) setAviso({ tipo: "erro", texto: json.error ?? "Não foi possível gravar o filtro." });
@@ -159,7 +164,7 @@ export function AcoesFiltradas({
     setGravando(true);
     setAviso(null);
     try {
-      const resp = await fetch("/api/filtros?tela=acoes", { method: "DELETE" });
+      const resp = await fetch(`/api/filtros?tela=${tela}`, { method: "DELETE" });
       if (!resp.ok) setAviso({ tipo: "erro", texto: "Não foi possível apagar o filtro gravado." });
       else {
         setGravadoEm(null);
@@ -183,13 +188,14 @@ export function AcoesFiltradas({
     <div className="space-y-4">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <p className="text-xs text-ink-muted">
-          <strong className="text-ink-primary">{inteiro(filtradas.length)}</strong> de {inteiro(acoes.length)} ação(ões) · {inteiro(contagem.vinculadas)} vinculada(s) ·{" "}
-          <strong className="text-status-critical">{inteiro(contagem.naoVinculadas)} não vinculada(s)</strong>
+          <strong className="text-ink-primary">{inteiro(filtradas.length)}</strong> de {inteiro(acoes.length)} ação(ões){naoVinc ? " não vinculada(s)" : <> · {inteiro(contagem.vinculadas)} vinculada(s) ·{" "}
+          <strong className="text-status-critical">{inteiro(contagem.naoVinculadas)} não vinculada(s)</strong></>}
+          {lerIds(estado.excluir).length > 0 && <> · {inteiro(lerIds(estado.excluir).length)} ID(s) desconsiderado(s)</>}
         </p>
         <div className="ml-auto flex flex-wrap items-center gap-2">
-          <button onClick={soNaoVinculadas} className="rounded-full border border-black/10 bg-surface px-3.5 py-1.5 text-xs font-semibold text-ink-secondary hover:bg-plane" title="Marca só as ações pendentes e sem número no filtro de Vinculação">
+          {!naoVinc && <button onClick={soNaoVinculadas} className="rounded-full border border-black/10 bg-surface px-3.5 py-1.5 text-xs font-semibold text-ink-secondary hover:bg-plane" title="Marca só as ações pendentes e sem número no filtro de Vinculação">
             Só não vinculadas
-          </button>
+          </button>}
           <div className="relative">
             <button
               onClick={() => setMenuExportar((m) => !m)}
@@ -243,7 +249,7 @@ export function AcoesFiltradas({
                   <th className="px-4 py-3">Nº SIAFE</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Estágio</th>
-                  <th className="px-4 py-3">Situação</th>
+                  {!naoVinc && <th className="px-4 py-3">Situação</th>}
                 </tr>
               </thead>
               <tbody>
@@ -259,15 +265,17 @@ export function AcoesFiltradas({
                       <td className={`px-4 py-3 ${r.numeroSiafe && !siafeValido(r.numeroSiafe) ? "font-medium text-status-critical" : "text-ink-secondary"}`}>{r.numeroSiafe ?? "-"}</td>
                       <td className="px-4 py-3 text-ink-secondary">{r.status ?? "-"}</td>
                       <td className="px-4 py-3 text-ink-secondary">{r.estagio ?? "-"}</td>
-                      <td className="px-4 py-3">
-                        <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${BADGES[st]}`}>{st}</span>
-                      </td>
+                      {!naoVinc && (
+                        <td className="px-4 py-3">
+                          <span className={`whitespace-nowrap rounded-full px-2 py-0.5 text-xs font-medium ${BADGES[st]}`}>{st}</span>
+                        </td>
+                      )}
                     </tr>
                   );
                 })}
                 {visiveis.length === 0 && (
                   <tr>
-                    <td colSpan={7} className="px-4 py-10 text-center text-sm text-ink-muted">
+                    <td colSpan={naoVinc ? 6 : 7} className="px-4 py-10 text-center text-sm text-ink-muted">
                       Nenhuma ação encontrada com esses filtros.
                     </td>
                   </tr>
@@ -297,6 +305,8 @@ export function AcoesFiltradas({
             estado={estado}
             setEstado={mudar}
             valores={valores}
+            ocultar={naoVinc ? ["vinculacao"] : []}
+            permitirExcluir={naoVinc}
             aoFechar={() => setPainelAberto(false)}
             gravacao={{ gravando, gravadoEm, alterado, aviso, aoGravar: gravarFiltro, aoApagar: apagarFiltroGravado }}
           />
@@ -312,12 +322,16 @@ function PainelFiltros({
   estado,
   setEstado,
   valores,
+  ocultar,
+  permitirExcluir,
   aoFechar,
   gravacao,
 }: {
   estado: EstadoFiltros;
   setEstado: (e: EstadoFiltros) => void;
   valores: Record<string, { valor: string; qtd: number }[]>;
+  ocultar: string[];
+  permitirExcluir: boolean;
   aoFechar: () => void;
   gravacao: {
     gravando: boolean;
@@ -356,7 +370,7 @@ function PainelFiltros({
       <div className="flex items-center justify-between border-b border-black/5 px-4 py-3">
         <h2 className="text-sm font-semibold text-ink-primary">Filtros</h2>
         <div className="flex items-center gap-1">
-          <button onClick={() => setEstado(estadoPadrao())} className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-ink-muted hover:bg-plane" title="Limpa todos os filtros">
+          <button onClick={() => setEstado({ ...estadoPadrao(), excluir: estado.excluir })} className="flex items-center gap-1 rounded-lg px-2 py-1 text-[11px] font-medium text-ink-muted hover:bg-plane" title="Limpa todos os filtros">
             <RotateCcw size={12} /> Limpar tudo
           </button>
           <button onClick={aoFechar} className="rounded-lg p-1 text-ink-muted hover:bg-plane" aria-label="Fechar filtros">
@@ -405,7 +419,31 @@ function PainelFiltros({
         </div>
       </div>
 
-      {FILTROS.map((f) => {
+      {permitirExcluir && (
+        <div className="space-y-1.5 border-b border-black/5 px-4 py-3">
+          <label className="block text-[11px] font-semibold uppercase tracking-wide text-ink-muted">
+            IDs para desconsiderar
+            <textarea
+              value={estado.excluir}
+              onChange={(e) => setEstado({ ...estado, excluir: e.target.value })}
+              rows={3}
+              placeholder="Cole os IDs que devem sair da análise (vírgula, espaço ou linha)"
+              className="mt-1 w-full rounded-lg border border-black/10 bg-plane px-2 py-1.5 font-mono text-xs font-normal normal-case text-ink-primary focus:outline-none"
+            />
+          </label>
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-ink-muted">{lerIds(estado.excluir).length > 0 ? `${inteiro(lerIds(estado.excluir).length)} ID(s) fora da lista, do PDF e do Excel` : "Nenhum ID desconsiderado"}</span>
+            {estado.excluir.trim() && (
+              <button onClick={() => setEstado({ ...estado, excluir: "" })} className="font-medium text-series-1 hover:underline">
+                Limpar IDs
+              </button>
+            )}
+          </div>
+          <p className="text-[11px] leading-snug text-ink-muted">Os IDs ficam guardados junto com o filtro quando você clica em Gravar filtro.</p>
+        </div>
+      )}
+
+      {FILTROS.filter((f) => !ocultar.includes(f.chave)).map((f) => {
         const lista = valores[f.chave] ?? [];
         const sel = estado.selecao[f.chave];
         const aberto = abertos.has(f.chave);
