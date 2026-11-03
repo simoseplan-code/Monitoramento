@@ -660,6 +660,8 @@ function MapaBairros({ dados, bairroFoco }: { dados: DadosMapa; bairroFoco?: str
       const L = await import("leaflet");
       if (cancelado || !divRef.current) return;
       mapa = L.map(divRef.current);
+      // Define uma visão inicial antes de adicionar as camadas: o Leaflet só desenha polígonos num mapa já posicionado.
+      mapa.setView([-7.5, -43], 6);
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(mapa);
       const todos = L.featureGroup().addTo(mapa);
       dados.bairros.forEach((b, i) => {
@@ -674,7 +676,7 @@ function MapaBairros({ dados, bairroFoco }: { dados: DadosMapa; bairroFoco?: str
       });
       // Setores censitários por onde o traçado passa (urbano e rural), por baixo de tudo.
       for (const s of dados.setores ?? []) {
-        if (!s.zona) continue;
+        if (!s.zona || !Array.isArray(s.anel) || s.anel.length < 3) continue;
         L.polygon(s.anel, { color: COR_ZONA[s.zona], weight: 1, dashArray: "3 4", fillColor: COR_ZONA[s.zona], fillOpacity: 0.07, interactive: true })
           .bindTooltip(`Setor ${s.zona === "U" ? "urbano" : "rural"} (${s.municipio})`, { sticky: true })
           .addTo(mapa);
@@ -698,9 +700,12 @@ function MapaBairros({ dados, bairroFoco }: { dados: DadosMapa; bairroFoco?: str
       const enquadrar = () => {
         if (cancelado || !mapa) return;
         mapa.invalidateSize();
-        if (b.isValid()) mapa.fitBounds(b, { padding: [40, 40], maxZoom: 17 });
-        else if (bt.isValid()) mapa.fitBounds(bt, { padding: [30, 30] });
-        else mapa.setView([-7.5, -43], 6);
+        try {
+          if (b.isValid()) mapa.fitBounds(b, { padding: [40, 40], maxZoom: 17 });
+          else if (bt.isValid()) mapa.fitBounds(bt, { padding: [30, 30] });
+        } catch (e) {
+          console.error("mapa de bairros (enquadrar):", e);
+        }
       };
       enquadrar();
       setTimeout(enquadrar, 200);
