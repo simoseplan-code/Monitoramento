@@ -1,4 +1,5 @@
 import { createAdminClient } from "@/lib/supabase/admin";
+import { idsDeListas } from "@/lib/desconsideradas";
 import { loginSimo } from "@/lib/simo/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { registrarAnalise } from "@/lib/analisesLog";
@@ -126,8 +127,12 @@ export async function executarVinculacaoLote(executadoPor: string): Promise<Resu
     .not("numero_siafe", "is", null);
   if (error) throw new Error(`Falha ao buscar pendentes: ${error.message}`);
 
+  // Ações desconsideradas (lista "Todas" e lista "Não vinculadas SIAFE") não são vinculadas no SIMO.
+  // Aqui a leitura é com o acesso do servidor, que não passa pelos filtros do banco: tira os IDs na mão.
+  const fora = new Set(await idsDeListas(admin, ["todas", "nao_vinculadas"]));
   const candidatos = (obras ?? []).filter(
     (o) =>
+      !fora.has(o.id_acao) &&
       (o.status ?? "").trim().toLowerCase() !== "cancelado" &&
       (o.orgao ?? "").trim().toUpperCase() !== "AGESPISA" &&
       /^\d{8}$/.test((o.numero_siafe ?? "").trim()) &&

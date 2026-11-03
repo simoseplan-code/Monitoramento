@@ -64,3 +64,15 @@ export async function idsDaLista(supabase: SupabaseClient, tela: string): Promis
   }
   return ids;
 }
+
+/** Os IDs de várias listas juntas (ex.: "todas" e a da análise). */
+export async function idsDeListas(supabase: SupabaseClient, telas: string[]): Promise<string[]> {
+  const ids: string[] = [];
+  for (let de = 0; ; de += 1000) {
+    const { data, error } = await supabase.from("acoes_desconsideradas").select("id_acao").in("tela", telas).order("id_acao").range(de, de + 999);
+    if (error) break;
+    ids.push(...(data ?? []).map((r) => r.id_acao as string));
+    if (!data || data.length < 1000) break;
+  }
+  return Array.from(new Set(ids));
+}
