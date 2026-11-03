@@ -2,6 +2,7 @@ import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
+import { createAdminClient } from "@/lib/supabase/admin";
 import type { ObraConcluida } from "@/lib/analiseConcluidas";
 import { AnaliseConcluidas } from "./AnaliseConcluidas";
 import { idsDaLista } from "@/lib/desconsideradas";
@@ -63,7 +64,14 @@ export default async function AnaliseConcluidasPage() {
   }
 
   // Filtro que a pessoa gravou (se o SQL 0079 ainda não foi rodado, simplesmente não há).
-  const { data: gravado } = await supabase.from("filtros_salvos").select("estado, atualizado_em").eq("usuario_id", user!.id).eq("tela", "analise_concluidas").maybeSingle();
+  // O filtro gravado é UM SÓ e vale para todos (quem gravou por último). Lido com o acesso do servidor.
+  const admin = createAdminClient();
+  const { data: gravado } = await admin.from("filtros_salvos").select("usuario_id, estado, atualizado_em").eq("tela", "analise_concluidas").order("atualizado_em", { ascending: false }).limit(1).maybeSingle();
+  let gravadoPor: string | null = null;
+  if (gravado?.usuario_id) {
+    const { data: quem } = await admin.from("profiles").select("nome").eq("id", gravado.usuario_id).maybeSingle();
+    gravadoPor = (quem?.nome as string | null) ?? null;
+  }
   // IDs que a equipe desconsiderou desta análise (lista compartilhada; vazia se o SQL 0086 ainda não rodou).
   const desconsideradas: { id: string; em: string; por: string | null }[] = [];
   for (let de = 0; ; de += 1000) {
@@ -73,7 +81,7 @@ export default async function AnaliseConcluidasPage() {
     if (!data || data.length < 1000) break;
   }
   const globais = await idsDaLista(supabase, "todas");
-  const filtroGravado = gravado ? { estado: gravado.estado as unknown, atualizadoEm: gravado.atualizado_em as string } : null;
+  const filtroGravado = gravado ? { estado: gravado.estado as unknown, atualizadoEm: gravado.atualizado_em as string, por: gravadoPor } : null;
 
   const obras: ObraConcluida[] = linhas.map((l) => ({
     id: l.id_acao,
