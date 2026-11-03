@@ -1,7 +1,7 @@
 "use client";
 
 import "leaflet/dist/leaflet.css";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { useRouter } from "next/navigation";
 import { Download, Loader2, MapPinned, RefreshCw, Search, X } from "lucide-react";
 import type { Map as MapaLeaflet } from "leaflet";
@@ -557,19 +557,28 @@ function JanelaMapa({ id, nome, bairroFoco, aoFechar }: { id: string; nome: stri
 
   useEffect(() => {
     let cancelado = false;
+    // Se o servidor demorar demais, avisa em vez de ficar carregando para sempre.
+    const controle = new AbortController();
+    const limite = setTimeout(() => controle.abort(), 45_000);
     (async () => {
       try {
-        const resp = await fetch(`/api/bairros/mapa?id=${encodeURIComponent(id)}`);
-        const json = (await resp.json().catch(() => ({}))) as DadosMapa & { error?: string };
+        const resp = await fetch(`/api/bairros/mapa?id=${encodeURIComponent(id)}`, { signal: controle.signal });
+        const json = (await resp.json().catch(() => null)) as (DadosMapa & { error?: string }) | null;
         if (cancelado) return;
-        if (!resp.ok) setErro(json.error ?? "Não foi possível carregar o mapa.");
+        if (!resp.ok) setErro(json?.error ?? `Não foi possível carregar o mapa (o servidor respondeu ${resp.status}).`);
+        // Resposta sem o formato esperado (ex.: sessão expirada devolvendo a tela de login): não desenha.
+        else if (!json || !Array.isArray(json.bairros) || !json.zona) setErro("O servidor devolveu uma resposta inesperada. Recarregue a página (Ctrl+F5) e tente de novo.");
         else setDados(json);
-      } catch {
-        if (!cancelado) setErro("Sem conexão com o servidor.");
+      } catch (e) {
+        if (!cancelado) setErro(e instanceof DOMException && e.name === "AbortError" ? "O mapa demorou demais para carregar. Tente de novo." : "Sem conexão com o servidor.");
+      } finally {
+        clearTimeout(limite);
       }
     })();
     return () => {
       cancelado = true;
+      clearTimeout(limite);
+      controle.abort();
     };
   }, [id]);
 
@@ -597,7 +606,9 @@ function JanelaMapa({ id, nome, bairroFoco, aoFechar }: { id: string; nome: stri
         )}
         {dados && (
           <>
-            <MapaBairros dados={dados} bairroFoco={bairroFoco} />
+            <ContemErro>
+              <MapaBairros dados={dados} bairroFoco={bairroFoco} />
+            </ContemErro>
             <p className="mt-3 text-xs text-ink-muted">
               Traçado: {dados.fonte === "kml" ? "KML guardado" : dados.fonte === "mapa" ? "pontos e polígonos do mapa de obras" : "mapa de obras"} · {(dados.extensaoM / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} km · {dados.totalPontos} ponto(s) do KML.{" "}
               {dados.bairros.length === 0 ? "Não cai em nenhum bairro mapeado." : ""}
@@ -764,4 +775,19 @@ function FiltroCheckbox({
       )}
     </div>
   );
+}
+
+// Se o desenho do mapa der erro, mostra o aviso aqui dentro e não derruba a página inteira.
+class ContemErro extends Component<{ children: ReactNode }, { erro: boolean }> {
+  state = { erro: false };
+  static getDerivedStateFromError() {
+    return { erro: true };
+  }
+  componentDidCatch(e: unknown) {
+    console.error("mapa de bairros:", e);
+  }
+  render() {
+    if (this.state.erro) return <p className="rounded-lg bg-status-critical/10 px-3 py-2 text-xs text-status-critical">Não foi possível desenhar o mapa desta ação. Feche e tente de novo.</p>;
+    return this.props.children;
+  }
 }

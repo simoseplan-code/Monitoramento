@@ -8,6 +8,8 @@ import { geomExtraDe } from "@/lib/bairros/geometriaMapa";
 import { carregarSetores } from "@/lib/bairros/setores";
 
 export const runtime = "nodejs";
+// Carrega os contornos (bairros, municípios e setores do IBGE): na primeira chamada pode demorar alguns segundos.
+export const maxDuration = 30;
 
 type LatLon = [number, number];
 
@@ -24,6 +26,16 @@ function reduzir(pts: [number, number][], max: number): LatLon[] {
 
 // Dados do mapa "Verificar KML" de uma ação: o traçado guardado e o contorno dos bairros em que ele cai.
 export async function GET(request: NextRequest) {
+  try {
+    return await montarMapa(request);
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.error("bairros mapa:", msg);
+    return NextResponse.json({ error: `Não foi possível montar o mapa: ${msg}` }, { status: 500 });
+  }
+}
+
+async function montarMapa(request: NextRequest) {
   const supabase = await createClient();
   const {
     data: { user },
