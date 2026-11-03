@@ -11,12 +11,17 @@ export type AcaoDoGrupo = {
   orgao: string | null;
   status: string | null;
   estagio: string | null;
-  vinculada: boolean;
+  /** Número digitado à mão no SIMO (campo de escrita). */
+  siafeEscrito: string | null;
+  /** Número automático do SIAFE (o que vincula a ação). */
+  siafeAutomatico: string | null;
   criadaEm: string | null;
   /** Já está na lista "Todas as análises" (Ações desconsideradas). */
   desconsiderada: boolean;
 };
 export type GrupoSiafe = { siafe: string; acoes: AcaoDoGrupo[] };
+
+type Aba = "geral" | "automatico" | "escrito";
 
 const TAMANHO = 50;
 const inteiro = (v: number) => v.toLocaleString("pt-BR");
@@ -27,11 +32,158 @@ function csvEscape(v: unknown): string {
   return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export function SiafeDuplicado({ grupos }: { grupos: GrupoSiafe[] }) {
-  const [busca, setBusca] = useState("");
+export function SiafeDuplicado({ automatico, escrito }: { automatico: GrupoSiafe[]; escrito: GrupoSiafe[] }) {
+  const [aba, setAba] = useState<Aba>("geral");
+  // Ao clicar num número da visão geral, a aba do campo abre já nele.
+  const [foco, setFoco] = useState<string>("");
+
+  const abas: { chave: Aba; rotulo: string; qtd?: number }[] = [
+    { chave: "geral", rotulo: "Visão geral" },
+    { chave: "automatico", rotulo: "SIAFE automático", qtd: automatico.length },
+    { chave: "escrito", rotulo: "SIAFE escrito", qtd: escrito.length },
+  ];
+
+  return (
+    <div className="space-y-4">
+      <div className="flex flex-wrap gap-1.5">
+        {abas.map((a) => (
+          <button
+            key={a.chave}
+            onClick={() => {
+              setFoco("");
+              setAba(a.chave);
+            }}
+            className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-medium transition-colors ${aba === a.chave ? "bg-series-1 text-white" : "bg-surface text-ink-secondary shadow-card hover:bg-plane"}`}
+          >
+            {a.rotulo}
+            {a.qtd !== undefined && <span className={`tabular rounded-full px-1.5 text-[10px] font-semibold ${aba === a.chave ? "bg-white/25" : "bg-plane text-ink-muted"}`}>{inteiro(a.qtd)}</span>}
+          </button>
+        ))}
+      </div>
+
+      {aba === "geral" && (
+        <VisaoGeral
+          automatico={automatico}
+          escrito={escrito}
+          aoAbrir={(qual, numero) => {
+            setFoco(numero);
+            setAba(qual);
+          }}
+        />
+      )}
+      {aba === "automatico" && (
+        <ListaDeGrupos
+          key={"a" + foco}
+          grupos={automatico}
+          rotulo="SIAFE automático"
+          explica="O número automático é o que vincula a ação ao SIAFE. Cada linha é um número que aparece em mais de uma ação."
+          buscaInicial={foco}
+          arquivo="siafe-automatico-duplicado"
+        />
+      )}
+      {aba === "escrito" && (
+        <ListaDeGrupos
+          key={"e" + foco}
+          grupos={escrito}
+          rotulo="SIAFE escrito"
+          explica="O SIAFE escrito é o campo digitado à mão no SIMO (pode ter erro de digitação). Cada linha é um número que aparece em mais de uma ação."
+          buscaInicial={foco}
+          arquivo="siafe-escrito-duplicado"
+        />
+      )}
+    </div>
+  );
+}
+
+// ---------- visão geral ----------
+
+function resumoDe(grupos: GrupoSiafe[]) {
+  const ids = new Set(grupos.flatMap((g) => g.acoes.map((a) => a.id)));
+  const maior = grupos[0] ?? null; // já vem ordenado: o maior primeiro
+  const desconsideradas = new Set(grupos.flatMap((g) => g.acoes.filter((a) => a.desconsiderada).map((a) => a.id))).size;
+  return { numeros: grupos.length, acoes: ids.size, ids, maior, desconsideradas };
+}
+
+function VisaoGeral({ automatico, escrito, aoAbrir }: { automatico: GrupoSiafe[]; escrito: GrupoSiafe[]; aoAbrir: (qual: Aba, numero: string) => void }) {
+  const a = useMemo(() => resumoDe(automatico), [automatico]);
+  const e = useMemo(() => resumoDe(escrito), [escrito]);
+  const nosDois = useMemo(() => Array.from(a.ids).filter((id) => e.ids.has(id)).length, [a, e]);
+
+  const cartao = (titulo: string, r: ReturnType<typeof resumoDe>, qual: Aba, grupos: GrupoSiafe[]) => (
+    <section className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
+      <h2 className="text-sm font-semibold text-ink-primary">{titulo}</h2>
+      <div className="mt-3 grid grid-cols-3 gap-3">
+        <div>
+          <p className="tabular text-2xl font-semibold text-ink-primary">{inteiro(r.numeros)}</p>
+          <p className="text-[11px] text-ink-muted">números repetidos</p>
+        </div>
+        <div>
+          <p className="tabular text-2xl font-semibold text-ink-primary">{inteiro(r.acoes)}</p>
+          <p className="text-[11px] text-ink-muted">ações envolvidas</p>
+        </div>
+        <div>
+          <p className="tabular text-2xl font-semibold text-ink-primary">{r.maior ? inteiro(r.maior.acoes.length) : 0}</p>
+          <p className="text-[11px] text-ink-muted">ações no maior grupo</p>
+        </div>
+      </div>
+      {r.desconsideradas > 0 && <p className="mt-2 text-[11px] text-ink-muted">{inteiro(r.desconsideradas)} já está(ão) desconsiderada(s).</p>}
+
+      <h3 className="mb-1.5 mt-4 text-[11px] font-semibold uppercase tracking-wide text-ink-muted">Os que mais se repetem</h3>
+      {grupos.length === 0 ? (
+        <p className="text-xs text-ink-muted">Nenhum número repetido.</p>
+      ) : (
+        <ul className="divide-y divide-black/5">
+          {grupos.slice(0, 8).map((g) => {
+            const orgaos = Array.from(new Set(g.acoes.map((x) => x.orgao).filter(Boolean) as string[]));
+            return (
+              <li key={g.siafe}>
+                <button onClick={() => aoAbrir(qual, g.siafe)} className="flex w-full items-center gap-3 py-2 text-left hover:bg-plane/60">
+                  <span className="tabular text-sm font-semibold text-ink-primary">{g.siafe}</span>
+                  <span className="rounded-full bg-status-warning-bg px-2 py-0.5 text-[11px] font-semibold text-status-warning">{g.acoes.length} ações</span>
+                  <span className="min-w-0 flex-1 truncate text-xs text-ink-muted">{orgaos.slice(0, 3).join(", ")}</span>
+                  <ChevronRight size={14} className="shrink-0 text-ink-muted" />
+                </button>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+      {grupos.length > 8 && (
+        <button onClick={() => aoAbrir(qual, "")} className="mt-2 text-xs font-medium text-series-1 hover:underline">
+          Ver todos os {inteiro(grupos.length)}
+        </button>
+      )}
+    </section>
+  );
+
+  return (
+    <div className="space-y-4">
+      <p className="text-xs text-ink-muted">
+        Apanhado do que está igual: ações que usam o <strong className="text-ink-secondary">mesmo número de SIAFE</strong>, olhando separado o <strong className="text-ink-secondary">SIAFE automático</strong> (o que vincula a ação) e o{" "}
+        <strong className="text-ink-secondary">SIAFE escrito</strong> (digitado à mão no SIMO). Esta tela mostra todas as ações, inclusive as já desconsideradas (marcadas), para você escolher quais desconsiderar.
+      </p>
+      <div className="grid gap-4 lg:grid-cols-2">
+        {cartao("SIAFE automático", a, "automatico", automatico)}
+        {cartao("SIAFE escrito", e, "escrito", escrito)}
+      </div>
+      <section className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
+        <h2 className="text-sm font-semibold text-ink-primary">Nos dois campos</h2>
+        <p className="mt-1 text-xs text-ink-muted">
+          <strong className="text-ink-primary">{inteiro(nosDois)}</strong> ação(ões) aparecem em um número repetido do SIAFE automático <em>e</em> em um número repetido do SIAFE escrito. Total de ações com algum número repetido:{" "}
+          <strong className="text-ink-primary">{inteiro(new Set([...a.ids, ...e.ids]).size)}</strong>.
+        </p>
+      </section>
+    </div>
+  );
+}
+
+// ---------- lista de um campo ----------
+
+function ListaDeGrupos({ grupos, rotulo, explica, buscaInicial, arquivo }: { grupos: GrupoSiafe[]; rotulo: string; explica: string; buscaInicial: string; arquivo: string }) {
+  const [busca, setBusca] = useState(buscaInicial);
   const [orgao, setOrgao] = useState("");
   const [status, setStatus] = useState("");
-  const [abertos, setAbertos] = useState<Set<string>>(new Set());
+  const [abertos, setAbertos] = useState<Set<string>>(new Set(buscaInicial ? [buscaInicial] : []));
   const [pagina, setPagina] = useState(1);
 
   const orgaos = useMemo(() => Array.from(new Set(grupos.flatMap((g) => g.acoes.map((a) => a.orgao).filter(Boolean) as string[]))).sort(), [grupos]);
@@ -60,13 +212,13 @@ export function SiafeDuplicado({ grupos }: { grupos: GrupoSiafe[] }) {
   const todosAbertos = visiveis.length > 0 && visiveis.every((g) => abertos.has(g.siafe));
 
   function exportar() {
-    const colunas = ["Nº SIAFE", "Ações com este número", "ID da Ação", "Nome da Ação", "Órgão", "Status", "Estágio Atual", "Vinculada", "Data de Criação"];
-    const linhas = filtrados.flatMap((g) => g.acoes.map((a) => [g.siafe, g.acoes.length, a.id, a.nome, a.orgao, a.status, a.estagio, a.vinculada ? "Sim" : "Não", a.criadaEm].map(csvEscape).join(";")));
+    const colunas = [rotulo, "Ações com este número", "ID da Ação", "Nome da Ação", "Órgão", "Status", "Estágio Atual", "SIAFE automático", "SIAFE escrito", "Data de Criação"];
+    const linhas = filtrados.flatMap((g) => g.acoes.map((a) => [g.siafe, g.acoes.length, a.id, a.nome, a.orgao, a.status, a.estagio, a.siafeAutomatico, a.siafeEscrito, a.criadaEm].map(csvEscape).join(";")));
     const csv = "﻿" + [colunas.join(";"), ...linhas].join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
     a.href = url;
-    a.download = `siafe-duplicado-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.download = `${arquivo}-${new Date().toISOString().slice(0, 10)}.csv`;
     document.body.appendChild(a);
     a.click();
     a.remove();
@@ -77,8 +229,7 @@ export function SiafeDuplicado({ grupos }: { grupos: GrupoSiafe[] }) {
     <div className="space-y-4">
       <section className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
         <p className="text-xs text-ink-muted">
-          Cada linha é um <strong className="text-ink-secondary">número de SIAFE</strong> que aparece em mais de uma ação. Clique no número para ver as ações que usam o mesmo contrato.
-          {" "}Esta tela mostra <strong className="text-ink-secondary">todas</strong> as ações, inclusive as já desconsideradas (marcadas), para você escolher quais desconsiderar.
+          {explica} Clique no número para ver as ações. Esta tela mostra todas as ações, inclusive as já desconsideradas (marcadas).
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <label className="relative">
@@ -149,7 +300,7 @@ export function SiafeDuplicado({ grupos }: { grupos: GrupoSiafe[] }) {
           </div>
         </div>
         <p className="mt-3 text-xs text-ink-muted">
-          <strong className="text-ink-primary">{inteiro(filtrados.length)}</strong> de {inteiro(grupos.length)} número(s) de SIAFE · {inteiro(filtrados.reduce((s, g) => s + g.acoes.length, 0))} ação(ões)
+          <strong className="text-ink-primary">{inteiro(filtrados.length)}</strong> de {inteiro(grupos.length)} número(s) · {inteiro(filtrados.reduce((s, g) => s + g.acoes.length, 0))} ação(ões)
         </p>
       </section>
 
@@ -163,7 +314,10 @@ export function SiafeDuplicado({ grupos }: { grupos: GrupoSiafe[] }) {
                 {aberto ? <ChevronDown size={16} className="shrink-0 text-ink-muted" /> : <ChevronRight size={16} className="shrink-0 text-ink-muted" />}
                 <span className="tabular text-sm font-semibold text-ink-primary">{g.siafe}</span>
                 <span className="rounded-full bg-status-warning-bg px-2.5 py-0.5 text-xs font-semibold text-status-warning">{g.acoes.length} ações</span>
-                <span className="text-xs text-ink-muted">{orgaosDoGrupo.slice(0, 4).join(", ")}{orgaosDoGrupo.length > 4 ? ` +${orgaosDoGrupo.length - 4}` : ""}</span>
+                <span className="text-xs text-ink-muted">
+                  {orgaosDoGrupo.slice(0, 4).join(", ")}
+                  {orgaosDoGrupo.length > 4 ? ` +${orgaosDoGrupo.length - 4}` : ""}
+                </span>
               </button>
               {aberto && (
                 <div className="overflow-x-auto border-t border-black/5">
@@ -176,7 +330,8 @@ export function SiafeDuplicado({ grupos }: { grupos: GrupoSiafe[] }) {
                         <th className="px-4 py-2">Status</th>
                         <th className="px-4 py-2">Estágio</th>
                         <th className="px-4 py-2">Criada em</th>
-                        <th className="px-4 py-2">Vinculada</th>
+                        <th className="px-4 py-2">SIAFE automático</th>
+                        <th className="px-4 py-2">SIAFE escrito</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -191,9 +346,8 @@ export function SiafeDuplicado({ grupos }: { grupos: GrupoSiafe[] }) {
                           <td className="px-4 py-2 text-ink-secondary">{a.status ?? "-"}</td>
                           <td className="px-4 py-2 text-ink-secondary">{a.estagio ?? "-"}</td>
                           <td className="whitespace-nowrap px-4 py-2 text-ink-secondary">{dataBR(a.criadaEm)}</td>
-                          <td className="px-4 py-2">
-                            <span className={`rounded-full px-2 py-0.5 text-xs font-medium ${a.vinculada ? "bg-status-good-bg text-status-good" : "bg-status-neutral-bg text-status-neutral"}`}>{a.vinculada ? "Sim" : "Não"}</span>
-                          </td>
+                          <td className="tabular px-4 py-2 text-ink-secondary">{a.siafeAutomatico ?? "-"}</td>
+                          <td className="tabular px-4 py-2 text-ink-secondary">{a.siafeEscrito ?? "-"}</td>
                         </tr>
                       ))}
                     </tbody>
@@ -205,7 +359,7 @@ export function SiafeDuplicado({ grupos }: { grupos: GrupoSiafe[] }) {
         })}
         {visiveis.length === 0 && (
           <div className="rounded-xl border border-black/5 bg-surface p-10 text-center text-sm text-ink-muted shadow-card">
-            {grupos.length === 0 ? "Nenhum número de SIAFE repetido." : "Nenhum número com esses filtros."}
+            {grupos.length === 0 ? `Nenhum número repetido no ${rotulo}.` : "Nenhum número com esses filtros."}
           </div>
         )}
         {totalPaginas > 1 && (
