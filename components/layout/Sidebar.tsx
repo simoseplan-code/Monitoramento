@@ -28,6 +28,7 @@ import {
   FileCheck2,
   BarChart3,
   Map as MapaIcon,
+  Route,
   type LucideIcon,
 } from "lucide-react";
 import { SobrePainel } from "./SobrePainel";
@@ -103,6 +104,7 @@ export function Sidebar({
     { href: "/sobreposicoes", label: "Sobreposições", icon: Layers, count: counts.sobreposicoesPendentes || undefined, adminOnly: true, grupo: "georef" },
     { href: "/verificacao-bairros", label: "Verificação de bairros", icon: MapPin, grupo: "georef" },
     { href: "/analise-territorio", label: "Análise por território", icon: MapaIcon, grupo: "georef" },
+    { href: "/mapa-geral", label: "Mapa geral", icon: Route, grupo: "georef" },
   ];
 
   const iniciais = nome

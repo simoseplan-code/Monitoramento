@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
 export const runtime = "nodejs";
@@ -18,7 +18,7 @@ function reduzir(pts: Ponto[], max: number): LatLon[] {
 }
 
 // Mapa dos 12 territórios: o contorno externo de cada um e os municípios (para colorir por território).
-export async function GET() {
+export async function GET(request: NextRequest) {
   try {
     const supabase = await createClient();
     const {
@@ -33,9 +33,13 @@ export async function GET() {
       import("@/data/geo/municipios_pi.json").then((m) => m.default as unknown as { n: string; t: string | null; g: Ponto[][][] }[]),
     ]);
 
+    // ?contornos=1: só o contorno dos territórios (o mapa de traçados não precisa dos municípios).
+    const soContornos = request.nextUrl.searchParams.get("contornos") === "1";
     return NextResponse.json({
       territorios: contornos.map((t) => ({ nome: t.n, linhas: t.l.filter((l) => l.length > 1).map((l) => reduzir(l, 900)) })),
-      municipios: municipios
+      municipios: soContornos
+        ? []
+        : municipios
         .filter((m) => m.t)
         .map((m) => ({ nome: m.n, territorio: m.t as string, aneis: m.g.flatMap((poligono) => poligono.slice(0, 1).map((anel) => reduzir(anel, 120))) })),
     });

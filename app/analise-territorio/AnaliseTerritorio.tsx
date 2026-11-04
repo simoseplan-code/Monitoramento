@@ -35,10 +35,11 @@ const dinheiro = (v: number) => v.toLocaleString("pt-BR", { style: "currency", c
 const campo = "rounded-lg border border-black/10 bg-plane px-3 py-2 text-xs text-ink-secondary focus:border-series-1 focus:outline-none";
 const TAMANHO = 50;
 
-type Aba = "resumo" | "mapa" | "lista" | "cruzam";
+type Aba = "resumo" | "mapa" | "tracados" | "lista" | "cruzam";
 const ABAS: { chave: Aba; rotulo: string }[] = [
   { chave: "resumo", rotulo: "Resumo por território" },
   { chave: "mapa", rotulo: "Mapa dos territórios" },
+  { chave: "tracados", rotulo: "Mapa de KML (traçados)" },
   { chave: "lista", rotulo: "Lista de ações" },
   { chave: "cruzam", rotulo: "Cruzam territórios" },
 ];
@@ -48,7 +49,7 @@ function csvEscape(v: unknown): string {
   return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin }: { acoes: AcaoT[]; territorios: string[]; ehAdmin: boolean; filtroGravado: { estado: unknown; atualizadoEm: string; por?: string | null } | null }) {
+export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, modo = "analise", tela = "analise_territorio" }: { acoes: AcaoT[]; territorios: string[]; ehAdmin: boolean; modo?: "analise" | "mapa"; tela?: string; filtroGravado: { estado: unknown; atualizadoEm: string; por?: string | null } | null }) {
   const valores = useMemo(() => valoresDosFiltros(acoes), [acoes]);
   // Abre no filtro gravado (um só, vale para todos os usuários); sem filtro gravado, abre só com as vinculadas.
   const [estado, setEstado] = useState<EstadoFiltros>(() => (filtroGravado ? estadoDeGravado(filtroGravado.estado, valores) : estadoPadrao()));
@@ -57,7 +58,7 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin }
   const [gravadoJson, setGravadoJson] = useState<string | null>(filtroGravado ? JSON.stringify(estadoParaGravar(estadoDeGravado(filtroGravado.estado, valores))) : null);
   const [gravando, setGravando] = useState(false);
   const [aviso, setAviso] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
-  const [aba, setAba] = useState<Aba>("resumo");
+  const [aba, setAba] = useState<Aba>(modo === "mapa" ? "tracados" : "resumo");
   const [pagina, setPagina] = useState(1);
 
   const filtradas = useMemo(() => filtrar(acoes, estado), [acoes, estado]);
@@ -81,7 +82,7 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin }
     setGravando(true);
     setAviso(null);
     try {
-      const resp = await fetch("/api/filtros", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tela: "analise_territorio", estado: estadoParaGravar(estado) }) });
+      const resp = await fetch("/api/filtros", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tela, estado: estadoParaGravar(estado) }) });
       const json = (await resp.json().catch(() => ({}))) as { error?: string; atualizadoEm?: string };
       if (!resp.ok) setAviso({ tipo: "erro", texto: json.error ?? "Não foi possível gravar o filtro." });
       else {
@@ -101,7 +102,7 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin }
     setGravando(true);
     setAviso(null);
     try {
-      const resp = await fetch("/api/filtros?tela=analise_territorio", { method: "DELETE" });
+      const resp = await fetch(`/api/filtros?tela=${tela}`, { method: "DELETE" });
       if (!resp.ok) setAviso({ tipo: "erro", texto: "Não foi possível apagar o filtro gravado." });
       else {
         setGravadoEm(null);
@@ -220,7 +221,7 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin }
         </p>
       </section>
 
-      <nav className="flex flex-wrap gap-2">
+      <nav className={"flex flex-wrap gap-2" + (modo === "mapa" ? " hidden" : "")}>
         {ABAS.map((a) => (
           <button
             key={a.chave}
@@ -235,6 +236,7 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin }
 
       {aba === "resumo" && <Resumo linhas={resumo.linhas} geral={resumo.geral} aoEscolher={filtrarTerritorio} />}
       {aba === "mapa" && <MapaTerritorios linhas={resumo.linhas} aoEscolher={filtrarTerritorio} />}
+      {aba === "tracados" && <MapaTracados acoes={filtradas} />}
       {aba === "lista" && (
         <div className="space-y-3">
           <ResumoSimples acoes={filtradas} />
@@ -467,6 +469,161 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina }: { acoes: AcaoT[]; pagina: 
       {verMapa && <JanelaMapa id={verMapa.id} nome={verMapa.nome} aoFechar={() => setVerMapa(null)} />}
     </section>
   );
+}
+
+// ---------- mapa de traçados (KML) das ações do filtro ----------
+
+const LIMITE_TRACADOS = 1500;
+
+type DadosTracados = { acoes: { id: string; linhas: [number, number][][]; pontos: [number, number][]; poligonos: [number, number][][] }[]; semTracado: number };
+
+function MapaTracados({ acoes }: { acoes: AcaoT[] }) {
+  const [dados, setDados] = useState<DadosTracados | null>(null);
+  const [contornos, setContornos] = useState<{ nome: string; linhas: [number, number][][] }[]>([]);
+  const [gerado, setGerado] = useState("");
+  const [carregando, setCarregando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+  const [verMapa, setVerMapa] = useState<{ id: string; nome: string } | null>(null);
+
+  const ids = useMemo(() => acoes.map((a) => a.id), [acoes]);
+  const assinatura = useMemo(() => ids.join(","), [ids]);
+  const desatualizado = dados !== null && gerado !== assinatura;
+  const grande = acoes.length > LIMITE_TRACADOS;
+
+  async function gerar() {
+    setCarregando(true);
+    setErro(null);
+    try {
+      const resp = await fetch("/api/territorios/tracados", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }) });
+      const json = (await resp.json().catch(() => null)) as (DadosTracados & { error?: string }) | null;
+      if (!resp.ok) setErro(json?.error ?? `Não foi possível gerar o mapa (o servidor respondeu ${resp.status}).`);
+      else if (!json || !Array.isArray(json.acoes)) setErro("Resposta inesperada do servidor. Recarregue a página (Ctrl+F5).");
+      else {
+        setDados(json);
+        setGerado(assinatura);
+        if (contornos.length === 0) {
+          const c = await fetch("/api/territorios/mapa?contornos=1")
+            .then((r) => r.json())
+            .catch(() => null);
+          if (c && Array.isArray(c.territorios)) setContornos(c.territorios);
+        }
+      }
+    } catch {
+      setErro("Sem conexão com o servidor.");
+    } finally {
+      setCarregando(false);
+    }
+  }
+
+  const infoPorId = useMemo(() => new Map(acoes.map((a) => [a.id, a])), [acoes]);
+  const contagem = useMemo(() => {
+    const m = new Map<string, number>();
+    for (const t of dados?.acoes ?? []) {
+      const a = infoPorId.get(t.id);
+      const p = a ? principal(a) : SEM_TERRITORIO;
+      m.set(p, (m.get(p) ?? 0) + 1);
+    }
+    return Array.from(m).sort((a, b) => b[1] - a[1]);
+  }, [dados, infoPorId]);
+
+  return (
+    <section className="space-y-3 rounded-xl border border-black/5 bg-surface p-4 shadow-card">
+      <div className="flex flex-wrap items-center gap-3">
+        <p className="text-xs text-ink-secondary">
+          Desenha o traçado (KML do SIMO ou linhas, pontos e polígonos do mapa de obras) das <strong className="text-ink-primary">{inteiro(acoes.length)}</strong> ação(ões) do filtro, na cor do território. Mapa leve: as linhas são simplificadas.
+        </p>
+        <button
+          onClick={gerar}
+          disabled={carregando || grande || acoes.length === 0}
+          className="ml-auto flex items-center gap-1.5 rounded-full bg-series-1 px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+        >
+          {carregando ? <Loader2 size={13} className="animate-spin" /> : <MapPinned size={13} />}
+          {carregando ? "Gerando..." : dados ? "Gerar de novo" : "Gerar mapa"}
+        </button>
+      </div>
+      {grande && (
+        <p className="rounded-lg bg-status-warning-bg px-3 py-2 text-xs text-status-warning">
+          São {inteiro(acoes.length)} ações. Para o mapa ficar leve, filtre até {inteiro(LIMITE_TRACADOS)} (por exemplo um território, um ano ou um órgão) e volte aqui.
+        </p>
+      )}
+      {erro && <p className="rounded-lg bg-status-critical/10 px-3 py-2 text-xs text-status-critical">{erro}</p>}
+      {desatualizado && <p className="rounded-lg bg-status-warning-bg px-3 py-2 text-xs text-status-warning">Os filtros mudaram depois que o mapa foi gerado. Clique em &quot;Gerar de novo&quot; para atualizar.</p>}
+      {dados && (
+        <>
+          <ContemErro>
+            <MapaDosTracados dados={dados} contornos={contornos} infoPorId={infoPorId} aoAbrir={(id, nome) => setVerMapa({ id, nome })} />
+          </ContemErro>
+          <ul className="flex flex-wrap gap-2">
+            {contagem.map(([t, n]) => (
+              <li key={t} className="flex items-center gap-1.5 rounded-full border border-black/10 px-2.5 py-1 text-xs text-ink-secondary">
+                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: COR_TERRITORIO[t] ?? "#6b7280" }} />
+                {rotuloTerritorio(t)}: <strong className="font-semibold">{inteiro(n)}</strong>
+              </li>
+            ))}
+          </ul>
+          <p className="text-xs text-ink-muted">
+            {inteiro(dados.acoes.length)} ação(ões) desenhada(s)
+            {dados.semTracado > 0 ? `; ${inteiro(dados.semTracado)} sem traçado guardado (ficaram de fora)` : ""}. A cor é a do território principal da ação; o contorno tracejado é o dos territórios. Passe o mouse para ver a ação e clique para abrir o Verificar KML.
+          </p>
+        </>
+      )}
+      {verMapa && <JanelaMapa id={verMapa.id} nome={verMapa.nome} aoFechar={() => setVerMapa(null)} />}
+    </section>
+  );
+}
+
+function MapaDosTracados({ dados, contornos, infoPorId, aoAbrir }: { dados: DadosTracados; contornos: { nome: string; linhas: [number, number][][] }[]; infoPorId: Map<string, AcaoT>; aoAbrir: (id: string, nome: string) => void }) {
+  const divRef = useRef<HTMLDivElement>(null);
+  const abrir = useRef(aoAbrir);
+  abrir.current = aoAbrir;
+  useEffect(() => {
+    let mapa: MapaDoLeaflet | null = null;
+    let cancelado = false;
+    (async () => {
+      const L = await import("leaflet");
+      if (cancelado || !divRef.current) return;
+      // Canvas: milhares de linhas sem pesar (em vez de um elemento por linha).
+      mapa = L.map(divRef.current, { preferCanvas: true });
+      mapa.setView([-7.5, -43], 6);
+      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(mapa);
+      for (const t of contornos) {
+        for (const l of t.linhas) if (Array.isArray(l) && l.length > 1) L.polyline(l, { color: "#374151", weight: 2, dashArray: "8 6", opacity: 0.6, interactive: false }).addTo(mapa);
+      }
+      const grupo = L.featureGroup().addTo(mapa);
+      for (const t of dados.acoes) {
+        const a = infoPorId.get(t.id);
+        const cor = COR_TERRITORIO[a ? principal(a) : ""] ?? "#6b7280";
+        const dica = `${t.id} - ${a?.nome ?? ""}${a ? " (" + descricaoDosTerritorios(a) + ")" : ""}`;
+        const aoClicar = () => abrir.current(t.id, a?.nome ?? "");
+        for (const l of t.linhas) {
+          if (!Array.isArray(l) || l.length < 2) continue;
+          L.polyline(l, { color: cor, weight: 3, opacity: 0.9 }).bindTooltip(dica, { sticky: true }).on("click", aoClicar).addTo(grupo);
+        }
+        for (const p of t.poligonos) {
+          if (!Array.isArray(p) || p.length < 3) continue;
+          L.polygon(p, { color: cor, weight: 2, fillColor: cor, fillOpacity: 0.2 }).bindTooltip(dica, { sticky: true }).on("click", aoClicar).addTo(grupo);
+        }
+        for (const p of t.pontos) L.circleMarker(p, { radius: 4, color: "#ffffff", weight: 1, fillColor: cor, fillOpacity: 1 }).bindTooltip(dica, { sticky: true }).on("click", aoClicar).addTo(grupo);
+      }
+      const bounds = grupo.getBounds();
+      const enquadrar = () => {
+        if (cancelado || !mapa) return;
+        mapa.invalidateSize();
+        try {
+          if (bounds.isValid()) mapa.fitBounds(bounds, { padding: [20, 20] });
+        } catch (e) {
+          console.error("mapa de traçados (enquadrar):", e);
+        }
+      };
+      enquadrar();
+      setTimeout(enquadrar, 200);
+    })();
+    return () => {
+      cancelado = true;
+      mapa?.remove();
+    };
+  }, [dados, contornos, infoPorId]);
+  return <div ref={divRef} className="h-[38rem] w-full overflow-hidden rounded-lg border border-black/5" />;
 }
 
 // ---------- mapa ----------

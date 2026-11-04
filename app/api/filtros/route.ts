@@ -4,9 +4,9 @@ import { createAdminClient } from "@/lib/supabase/admin";
 
 // Filtro gravado por pessoa e tela (tabela filtros_salvos). Cada pessoa só mexe no próprio,
 // EXCETO nas telas "compartilhadas": ali o filtro gravado é um só e vale para todos (quem grava troca o de todo mundo).
-const TELAS = ["analise_concluidas", "acoes", "acoes_nao_vinculadas", "analise_territorio"];
+const TELAS = ["analise_concluidas", "acoes", "acoes_nao_vinculadas", "analise_territorio", "mapa_geral"];
 // Valor = quem pode gravar/apagar: "admin" (admin e chefe) ou "equipe" (toda a equipe aprovada).
-const COMPARTILHADAS: Record<string, "admin" | "equipe"> = { analise_concluidas: "admin", acoes_nao_vinculadas: "equipe", analise_territorio: "equipe" };
+const COMPARTILHADAS: Record<string, "admin" | "equipe"> = { analise_concluidas: "admin", acoes_nao_vinculadas: "equipe", analise_territorio: "equipe", mapa_geral: "equipe" };
 
 async function podeMexer(supabase: Awaited<ReturnType<typeof createClient>>, userId: string, tela: string): Promise<boolean> {
   const { data: perfil } = await supabase.from("profiles").select("is_admin, status").eq("id", userId).single();
