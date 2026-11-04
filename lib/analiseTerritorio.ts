@@ -56,16 +56,16 @@ export const valorFinal = (a: AcaoT) => a.total ?? a.original ?? 0;
 export const aditivada = (a: AcaoT) => a.original != null && valorFinal(a) - a.original > 0.005;
 export const suprimida = (a: AcaoT) => a.original != null && valorFinal(a) - a.original < -0.005;
 
-/** Municípios da ação em texto: "Jurema" ou, se são vários, "Jurema 70%, Anísio de Abreu 30%". */
-export function descricaoDosMunicipios(a: AcaoT): string {
+/** Municípios da ação em texto, do maior para o menor trecho: "Jurema" ou "Jurema, Anísio de Abreu". */
+export function descricaoDosMunicipios(a: AcaoT, comPct = false): string {
   if (a.municipios.length === 0) return "-";
   if (a.municipios.length === 1) return a.municipios[0].nome;
-  return a.municipios.map((m) => `${m.nome} ${Math.round(m.pct * 100)}%`).join(", ");
+  return a.municipios.map((m) => (comPct ? `${m.nome} ${Math.round(m.pct * 100)}%` : m.nome)).join(", ");
 }
 
-export function descricaoDosTerritorios(a: AcaoT): string {
+export function descricaoDosTerritorios(a: AcaoT, comPct = true): string {
   if (a.partes.length === 0) return "-";
-  return a.partes.map((p) => `${rotuloTerritorio(p.nome)} ${Math.round(p.pct * 100)}%`).join(" · ");
+  return a.partes.map((p) => (comPct ? `${rotuloTerritorio(p.nome)} ${Math.round(p.pct * 100)}%` : rotuloTerritorio(p.nome))).join(" · ");
 }
 
 // ---------- filtros (lista de valores para marcar, como no Excel) ----------

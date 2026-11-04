@@ -60,6 +60,8 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
   const [gravadoPor, setGravadoPor] = useState<string | null>(filtroGravado?.por ?? null);
   const [gravadoJson, setGravadoJson] = useState<string | null>(filtroGravado ? JSON.stringify(estadoParaGravar(estadoDeGravado(filtroGravado.estado, valores))) : null);
   const [gravando, setGravando] = useState(false);
+  // Excel: com ou sem o percentual do traçado em cada município e território.
+  const [pctNoExcel, setPctNoExcel] = useState(false);
   const [aviso, setAviso] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
   const [aba, setAba] = useState<Aba>(modo === "mapa" ? "tracados" : "resumo");
   const [pagina, setPagina] = useState(1);
@@ -123,18 +125,18 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
 
   function exportar() {
     const lista = aba === "cruzam" ? cruzam : filtradas;
-    const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Tipologia", "Município(s)", "Status", "Estágio Atual", "Território principal", "Territórios (% do traçado)", "Localizada por", "Extensão (km)", "Vinculação SIAFE", "SIAFE automático", "% Execução", "Ano de criação", "Ano de recebimento", "Valor contratado", "Valor pago total"];
+    const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Tipologia", "Município(s)", "Status", "Estágio Atual", "Território principal", (pctNoExcel ? "Territórios (% do traçado)" : "Territórios"), "Localizada por", "Extensão (km)", "Vinculação SIAFE", "SIAFE automático", "% Execução", "Ano de criação", "Ano de recebimento", "Valor contratado", "Valor pago total"];
     const linhas = lista.map((a) =>
       [
         a.id,
         a.nome,
         a.orgao,
         a.tipologia,
-        a.municipios.length ? descricaoDosMunicipios(a) : "",
+        a.municipios.length ? descricaoDosMunicipios(a, pctNoExcel) : "",
         a.status,
         a.estagio,
         rotuloTerritorio(principal(a)),
-        descricaoDosTerritorios(a),
+        descricaoDosTerritorios(a, pctNoExcel),
         a.origem === "tracado" ? "Traçado" : a.origem === "municipio" ? "Município do SIMO" : "Sem localização",
         a.extensaoM ? (a.extensaoM / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "",
         vinculada(a) ? "Vinculada" : a.numeroSiafe ? "Pendente" : "Sem número",
@@ -206,6 +208,10 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
           <button onClick={exportar} disabled={filtradas.length === 0} className="flex items-center gap-1.5 rounded-full bg-status-good px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">
             <Download size={13} /> Exportar Excel
           </button>
+          <label className="flex items-center gap-1.5 text-[11px] text-ink-muted" title="Marcado: o Excel mostra a parte do traçado em cada município e território (ex.: Jurema 70%, Anísio de Abreu 30%). Desmarcado: só os nomes.">
+            <input type="checkbox" checked={pctNoExcel} onChange={(e) => setPctNoExcel(e.target.checked)} className="h-3.5 w-3.5" />
+            com % no Excel
+          </label>
         </div>
         <p className="mt-3 text-[11px] leading-snug text-ink-muted">
           {gravadoEm
