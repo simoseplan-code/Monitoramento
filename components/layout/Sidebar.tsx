@@ -29,6 +29,7 @@ import {
   BarChart3,
   Map as MapaIcon,
   Route,
+  Droplets,
   type LucideIcon,
 } from "lucide-react";
 import { SobrePainel } from "./SobrePainel";
@@ -59,10 +60,13 @@ export function Sidebar({
   cargo,
   isAdmin,
   counts,
+  digepi = false,
 }: {
   nome: string;
   cargo?: string | null;
   isAdmin: boolean;
+  /** Função DIGEPI: o menu mostra só o Mapa de Recursos Hídricos. */
+  digepi?: boolean;
   counts: {
     acoes: number;
     pendentesAprovacao: number;
@@ -105,6 +109,7 @@ export function Sidebar({
     { href: "/verificacao-bairros", label: "Verificação de bairros", icon: MapPin, grupo: "georef" },
     { href: "/analise-territorio", label: "Análise por território", icon: MapaIcon, grupo: "georef" },
     { href: "/mapa-geral", label: "Mapa geral", icon: Route, grupo: "georef" },
+    { href: "/recursos-hidricos", label: "Recursos Hídricos", icon: Droplets, grupo: "georef" },
   ];
 
   const iniciais = nome
@@ -114,7 +119,7 @@ export function Sidebar({
     .map((p) => p[0]?.toUpperCase())
     .join("");
 
-  const visiveis = itens.filter((item) => !item.adminOnly || isAdmin);
+  const visiveis = digepi ? itens.filter((item) => item.href === "/recursos-hidricos") : itens.filter((item) => !item.adminOnly || isAdmin);
   // Junta os itens vizinhos do mesmo grupo num bloco só.
   const blocos: { grupo?: GrupoMenu; itens: NavItem[] }[] = [];
   for (const item of visiveis) {

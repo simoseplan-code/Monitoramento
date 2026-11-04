@@ -39,8 +39,9 @@ export async function POST(request: NextRequest) {
   const { error } = await admin
     .from("profiles")
     .update({
-      ...(acao === "aprovar" && ["admin", "chefe", "equipe"].includes(papel) ? { papel } : {}),
-      status: acao === "aprovar" ? "aprovado" : "rejeitado",
+      ...(acao === "aprovar" && ["admin", "chefe", "equipe", "digepi"].includes(papel) ? { papel } : {}),
+      // DIGEPI tem status próprio ("digepi"): fica fora de tudo que exige "aprovado" (ver SQL 0090).
+      status: acao === "aprovar" ? (papel === "digepi" ? "digepi" : "aprovado") : "rejeitado",
       approved_by: user.id,
       approved_at: new Date().toISOString(),
     })

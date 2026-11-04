@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 
-const PAPEIS = ["admin", "chefe", "equipe"] as const;
+const PAPEIS = ["admin", "chefe", "equipe", "digepi"] as const;
 
 // Troca a função (admin, chefe ou equipe) de uma pessoa. Só administrador; chefe vê
 // a lista mas não altera acesso. O próprio admin não muda a própria função (evita
@@ -29,11 +29,12 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
   const { data: alvo } = await admin.from("profiles").select("id, nome, status").eq("id", userId).maybeSingle();
-  if (!alvo || alvo.status !== "aprovado") {
+  if (!alvo || (alvo.status !== "aprovado" && alvo.status !== "digepi")) {
     return NextResponse.json({ error: "Só dá para mudar a função de quem já está aprovado." }, { status: 400 });
   }
 
-  const { error } = await admin.from("profiles").update({ papel }).eq("id", userId);
+  // DIGEPI tem status próprio: fica fora de tudo que exige "aprovado" (SQL 0090). Ao sair de DIGEPI volta a "aprovado".
+  const { error } = await admin.from("profiles").update({ papel, status: papel === "digepi" ? "digepi" : "aprovado" }).eq("id", userId);
   if (error) return NextResponse.json({ error: "Falha ao alterar a função." }, { status: 500 });
   return NextResponse.json({ ok: true, papel });
 }

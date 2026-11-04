@@ -10,6 +10,7 @@ export async function AppShell({
   titulo,
   subtitulo,
   notificacoesCount = 0,
+  digepi = false,
   children,
 }: {
   nome: string;
@@ -28,10 +29,13 @@ export async function AppShell({
   titulo: string;
   subtitulo?: string;
   notificacoesCount?: number;
+  /** Função DIGEPI: menu e busca limitados ao Mapa de Recursos Hídricos. */
+  digepi?: boolean;
   children: React.ReactNode;
 }) {
   // O número de Novas em Execução aparece em todas as telas (não depende de cada página calcular).
   let novasExecucaoPendentes = counts.novasExecucaoPendentes;
+  if (novasExecucaoPendentes === undefined && digepi) novasExecucaoPendentes = 0;
   if (novasExecucaoPendentes === undefined) {
     try {
       const supabase = await createClient();
@@ -51,9 +55,9 @@ export async function AppShell({
 
   return (
     <div className="flex min-h-screen bg-plane">
-      <Sidebar nome={nome} cargo={cargo} isAdmin={isAdmin} counts={{ ...counts, novasExecucaoPendentes }} />
+      <Sidebar nome={nome} cargo={cargo} isAdmin={isAdmin} digepi={digepi} counts={{ ...counts, novasExecucaoPendentes }} />
       <div className="flex min-w-0 flex-1 flex-col">
-        <Topbar titulo={titulo} subtitulo={subtitulo} iniciais={iniciais} notificacoesCount={notificacoesCount} />
+        <Topbar titulo={titulo} subtitulo={subtitulo} iniciais={iniciais} notificacoesCount={notificacoesCount} semBusca={digepi} />
         <main className="flex-1 px-6 py-6">{children}</main>
       </div>
     </div>

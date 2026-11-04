@@ -33,7 +33,7 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
   const { data: alvo } = await admin.from("profiles").select("id, status").eq("id", userId).maybeSingle();
-  if (!alvo || alvo.status !== "aprovado") {
+  if (!alvo || (alvo.status !== "aprovado" && alvo.status !== "digepi")) {
     return NextResponse.json({ error: "Só dá para resetar a senha de quem está aprovado." }, { status: 400 });
   }
 

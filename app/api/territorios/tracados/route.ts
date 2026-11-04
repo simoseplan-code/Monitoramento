@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { acessoDoUsuario, idsHidricos } from "@/lib/acesso";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { wktParaLinhasLonLat } from "@/lib/kml/base";
 import { geomExtraDe } from "@/lib/bairros/geometriaMapa";
@@ -41,12 +42,13 @@ export async function POST(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-    const { data: perfil } = await supabase.from("profiles").select("status").eq("id", user.id).single();
-    if (perfil?.status !== "aprovado") return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+    const acesso = await acessoDoUsuario(supabase, user.id);
+    if (!acesso.liberado) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
 
     const corpo = (await request.json().catch(() => null)) as { ids?: unknown } | null;
-    const ids = Array.isArray(corpo?.ids) ? Array.from(new Set(corpo.ids.map(String).filter((s) => /^\d{1,12}$/.test(s)))) : [];
+    let ids = Array.isArray(corpo?.ids) ? Array.from(new Set(corpo.ids.map(String).filter((s) => /^\d{1,12}$/.test(s)))) : [];
     if (ids.length === 0) return NextResponse.json({ error: "Nenhuma ação pedida." }, { status: 400 });
+    if (acesso.digepi) ids = await idsHidricos(createAdminClient(), ids);
     if (ids.length > LIMITE_ACOES) return NextResponse.json({ error: `São ${ids.length} ações: filtre até ${LIMITE_ACOES} para gerar o mapa.` }, { status: 413 });
 
     const admin = createAdminClient();

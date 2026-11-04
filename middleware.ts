@@ -83,6 +83,22 @@ export async function middleware(request: NextRequest) {
     profile = data ? { ...data, trocar_senha: false } : null;
   }
 
+  // DIGEPI (status "digepi", SQL 0090): só o Mapa de Recursos Hídricos, a troca de senha e a saída.
+  if (profile?.status === "digepi") {
+    if (profile.trocar_senha) {
+      if (pathname.startsWith("/trocar-senha")) return response;
+      const url = request.nextUrl.clone();
+      url.pathname = "/trocar-senha";
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
+    if (pathname.startsWith("/recursos-hidricos") || pathname.startsWith("/trocar-senha") || pathname.startsWith("/redefinir-senha")) return response;
+    const url = request.nextUrl.clone();
+    url.pathname = "/recursos-hidricos";
+    url.search = "";
+    return NextResponse.redirect(url);
+  }
+
   if (!profile || profile.status !== "aprovado") {
     if (pathname.startsWith("/pendente")) return response;
     const url = request.nextUrl.clone();

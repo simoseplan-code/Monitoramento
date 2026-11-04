@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { acessoDoUsuario } from "@/lib/acesso";
 
 export const runtime = "nodejs";
 
@@ -25,8 +26,8 @@ export async function GET(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-    const { data: perfil } = await supabase.from("profiles").select("status").eq("id", user.id).single();
-    if (perfil?.status !== "aprovado") return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+    const acesso = await acessoDoUsuario(supabase, user.id);
+    if (!acesso.liberado) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
 
     const [contornos, municipios] = await Promise.all([
       import("@/data/geo/territorios_pi.json").then((m) => m.default as unknown as { n: string; l: Ponto[][] }[]),

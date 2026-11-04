@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { acessoDoUsuario, idsHidricos } from "@/lib/acesso";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { amostrarLinha, carregarTracadosBrutos, type Coord } from "@/lib/tracadosAcoes";
 import { corDoStatus } from "@/lib/territorios";
@@ -31,8 +32,8 @@ export async function POST(request: NextRequest) {
       data: { user },
     } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-    const { data: perfil } = await supabase.from("profiles").select("status").eq("id", user.id).single();
-    if (perfil?.status !== "aprovado") return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+    const acesso = await acessoDoUsuario(supabase, user.id);
+    if (!acesso.liberado) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
 
     const corpo = (await request.json().catch(() => null)) as { itens?: unknown; subpastas?: unknown } | null;
     const itens: Item[] = [];
@@ -42,6 +43,10 @@ export async function POST(request: NextRequest) {
         if (!/^\d{1,12}$/.test(id)) continue;
         itens.push({ id, nome: texto(x.nome), orgao: texto(x.orgao), status: texto(x.status), tipologia: texto(x.tipologia), territorio: texto(x.territorio), territorios: texto(x.territorios, 400), vinculacao: texto(x.vinculacao), execucao: texto(x.execucao, 20) });
       }
+    }
+    if (acesso.digepi) {
+      const ok = new Set(await idsHidricos(createAdminClient(), itens.map((i) => i.id)));
+      for (let k = itens.length - 1; k >= 0; k--) if (!ok.has(itens[k].id)) itens.splice(k, 1);
     }
     if (itens.length === 0) return NextResponse.json({ error: "Nenhuma ação pedida." }, { status: 400 });
     if (itens.length > LIMITE_ACOES) return NextResponse.json({ error: `São ${itens.length} ações: filtre até ${LIMITE_ACOES} para gerar o KML.` }, { status: 413 });

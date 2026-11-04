@@ -21,6 +21,7 @@ const BADGE: Record<string, { rotulo: string; classe: string; Icone: typeof User
   admin: { rotulo: "Administrador", classe: "bg-series-1/10 text-series-1", Icone: ShieldCheck },
   chefe: { rotulo: "Chefe", classe: "bg-series-7/10 text-series-7", Icone: UserCog },
   equipe: { rotulo: "Equipe", classe: "bg-status-neutral-bg text-status-neutral", Icone: User },
+  digepi: { rotulo: "DIGEPI", classe: "bg-series-4/10 text-status-warning", Icone: User },
 };
 
 export default async function EquipePage() {
@@ -36,7 +37,7 @@ export default async function EquipePage() {
       supabase
         .from("profiles")
         .select("id, nome, email, cargo, papel, approved_at, created_at")
-        .eq("status", "aprovado")
+        .in("status", ["aprovado", "digepi"])
         .order("nome"),
       supabase.from("obras").select("id_acao", { count: "exact", head: true }),
       contarNovasAcoesPendentes(supabase),
@@ -46,7 +47,7 @@ export default async function EquipePage() {
   if (!profile?.is_admin) redirect("/");
   const souAdmin = profile.papel === "admin";
 
-  const ordem: Record<string, number> = { admin: 0, chefe: 1, equipe: 2 };
+  const ordem: Record<string, number> = { admin: 0, chefe: 1, equipe: 2, digepi: 3 };
   const membros = ((ativos ?? []) as Membro[]).sort((a, b) => (ordem[a.papel] ?? 3) - (ordem[b.papel] ?? 3) || a.nome.localeCompare(b.nome));
   const qtd = (p: string) => membros.filter((m) => m.papel === p).length;
 
@@ -57,17 +58,19 @@ export default async function EquipePage() {
       isAdmin
       counts={{ acoes: totalAcoes ?? 0, pendentesAprovacao: pendentes?.length ?? 0, novasAcoesPendentes }}
       titulo="Equipe"
-      subtitulo={`${membros.length} pessoa(s) ativa(s) · ${qtd("admin")} administrador(es) · ${qtd("chefe")} chefe(s) · ${qtd("equipe")} equipe`}
+      subtitulo={`${membros.length} pessoa(s) ativa(s) · ${qtd("admin")} administrador(es) · ${qtd("chefe")} chefe(s) · ${qtd("equipe")} equipe · ${qtd("digepi")} DIGEPI`}
     >
-      <section className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-3">
-        {(["admin", "chefe", "equipe"] as const).map((p) => {
+      <section className="mb-4 grid grid-cols-1 gap-3 md:grid-cols-4">
+        {(["admin", "chefe", "equipe", "digepi"] as const).map((p) => {
           const b = BADGE[p];
           const texto =
             p === "admin"
               ? "Vê e faz tudo. É o único que aprova cadastros e altera a função das pessoas."
               : p === "chefe"
                 ? "Vê e faz tudo igual ao administrador, menos alterar acesso. Acessa Sobreposições, Desempenho, Relatórios e Administração."
-                : "Acesso às análises do dia a dia. Sem Sobreposições, Desempenho, Relatórios e Administração (por enquanto).";
+                : p === "digepi"
+                  ? "Só o Mapa de Recursos Hídricos, e só as tipologias de recursos hídricos (adutora, barragem, abastecimento de água, cisterna, poço e rede de distribuição). Não vê mais nada do painel."
+                  : "Acesso às análises do dia a dia. Sem Sobreposições, Desempenho, Relatórios e Administração (por enquanto).";
           return (
             <div key={p} className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
               <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-semibold ${b.classe}`}>

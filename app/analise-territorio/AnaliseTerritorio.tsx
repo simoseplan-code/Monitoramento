@@ -52,10 +52,10 @@ function csvEscape(v: unknown): string {
   return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, modo = "analise", tela = "analise_territorio" }: { acoes: AcaoT[]; territorios: string[]; ehAdmin: boolean; modo?: "analise" | "mapa"; tela?: string; filtroGravado: { estado: unknown; atualizadoEm: string; por?: string | null } | null }) {
+export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, modo = "analise", tela = "analise_territorio", somenteLeitura = false }: { acoes: AcaoT[]; territorios: string[]; ehAdmin: boolean; modo?: "analise" | "mapa" | "hidricos"; tela?: string; somenteLeitura?: boolean; filtroGravado: { estado: unknown; atualizadoEm: string; por?: string | null } | null }) {
   const valores = useMemo(() => valoresDosFiltros(acoes), [acoes]);
   // Abre no filtro gravado (um só, vale para todos os usuários); sem filtro gravado, abre só com as vinculadas.
-  const [estado, setEstado] = useState<EstadoFiltros>(() => (filtroGravado ? estadoDeGravado(filtroGravado.estado, valores) : estadoPadrao()));
+  const [estado, setEstado] = useState<EstadoFiltros>(() => (filtroGravado ? estadoDeGravado(filtroGravado.estado, valores) : modo === "hidricos" ? estadoTodos() : estadoPadrao()));
   const [gravadoEm, setGravadoEm] = useState<string | null>(filtroGravado?.atualizadoEm ?? null);
   const [gravadoPor, setGravadoPor] = useState<string | null>(filtroGravado?.por ?? null);
   const [gravadoJson, setGravadoJson] = useState<string | null>(filtroGravado ? JSON.stringify(estadoParaGravar(estadoDeGravado(filtroGravado.estado, valores))) : null);
@@ -63,7 +63,7 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
   // Excel: com ou sem o percentual do traçado em cada município e território.
   const [comPct, setComPct] = useState(false);
   const [aviso, setAviso] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
-  const [aba, setAba] = useState<Aba>(modo === "mapa" ? "tracados" : "resumo");
+  const [aba, setAba] = useState<Aba>(modo === "analise" ? "resumo" : "tracados");
   const [pagina, setPagina] = useState(1);
 
   const filtradas = useMemo(() => filtrar(acoes, estado), [acoes, estado]);
@@ -167,12 +167,14 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
         <p className="text-xs text-ink-muted">
           Cada ação entra no território onde cai a maior parte do traçado (o mesmo cálculo da Verificação de bairros). Sem traçado, vale o município informado no SIMO. Se o traçado cai em mais de um território, a ação aparece em todos eles (mesmo que seja só uma parte), com a % de cada um.
         </p>
+        {!somenteLeitura && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-plane px-3 py-2">
           <p className="text-xs text-ink-secondary">
             <strong className="text-status-critical">{inteiro(acoes.filter((a) => vinculada(a) && a.origem !== "tracado").length)}</strong> ação(ões) vinculada(s) estão sem traçado (de {inteiro(acoes.filter(vinculada).length)} vinculadas).
           </p>
           <AtualizarBairros ehAdmin={ehAdmin} />
         </div>
+        )}
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {FILTROS.filter((f) => f.chave !== "id").map((f) => (
             <FiltroCheckbox key={f.chave} rotulo={f.rotulo} opcoes={valores[f.chave] ?? []} selecionados={estado.selecao[f.chave]} aoMudar={(v) => mudar({ ...estado, selecao: { ...estado.selecao, [f.chave]: v } })} />
@@ -197,6 +199,7 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
               limpar {ativos} filtro(s)
             </button>
           )}
+          {!somenteLeitura && (
           <button
             onClick={gravarFiltro}
             disabled={gravando}
@@ -205,7 +208,8 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
           >
             <Save size={13} /> {gravando ? "Gravando..." : "Gravar filtro"}
           </button>
-          <button onClick={exportar} disabled={filtradas.length === 0} className="flex items-center gap-1.5 rounded-full bg-status-good px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">
+          )}
+          <button onClick={exportar} disabled={filtradas.length === 0} className={(somenteLeitura ? "ml-auto " : "") + "flex items-center gap-1.5 rounded-full bg-status-good px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"}>
             <Download size={13} /> Exportar Excel
           </button>
           <label className="flex items-center gap-1.5 text-[11px] text-ink-muted" title="Marcado: mostra a parte do traçado em cada município e território (ex.: Jurema 70%, Anísio de Abreu 30%) nas listas, no Excel e no PDF. Desmarcado: só os nomes.">
@@ -213,6 +217,7 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
             mostrar % do traçado (listas, Excel e PDF)
           </label>
         </div>
+        {!somenteLeitura && (
         <p className="mt-3 text-[11px] leading-snug text-ink-muted">
           {gravadoEm
             ? alterado
@@ -226,13 +231,14 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
           )}
           {aviso && <span className={"ml-2 font-medium " + (aviso.tipo === "ok" ? "text-status-good" : "text-status-critical")}>{aviso.texto}</span>}
         </p>
+        )}
         <p className="mt-2 text-xs text-ink-muted">
           <strong className="text-ink-primary">{inteiro(filtradas.length)}</strong> de {inteiro(acoes.length)} ação(ões) · {inteiro(resumo.geral.vinculadas)} vinculada(s) · {inteiro(resumo.geral.naoVinculadas)} não vinculada(s) ·{" "}
           {inteiro(cruzam.length)} cruzam territórios
         </p>
       </section>
 
-      <nav className={"flex flex-wrap gap-2" + (modo === "mapa" ? " hidden" : "")}>
+      <nav className={"flex flex-wrap gap-2" + (modo !== "analise" ? " hidden" : "")}>
         {ABAS.map((a) => (
           <button
             key={a.chave}

@@ -5,6 +5,8 @@ import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { territoriosDasAcoes, territorioPorMunicipio } from "@/lib/territoriosDados";
 import type { AcaoT } from "@/lib/analiseTerritorio";
 import { dinheiroParaNumero } from "@/lib/simo/parseCsv";
+import { ehRecursoHidrico } from "@/lib/hidricos";
+import { idsDaLista } from "@/lib/desconsideradas";
 import { AnaliseTerritorio } from "./AnaliseTerritorio";
 
 const COLUNAS =
@@ -45,25 +47,38 @@ const limpo = (v: string | null) => {
 };
 
 // Aberta a toda a equipe aprovada. Todas as ações (as desconsideradas em "Todas as análises" já ficam de fora pelo banco).
-// Serve a duas páginas: "Análise por território" e "Mapa geral" (só o mapa de traçados, com os mesmos filtros).
-export async function PaginaTerritorio({ modo }: { modo: "analise" | "mapa" }) {
-  const tela = modo === "mapa" ? "mapa_geral" : "analise_territorio";
+// Serve a três páginas: "Análise por território", "Mapa geral" (só o mapa de traçados, com os mesmos filtros) e
+// "Mapa de Recursos Hídricos" (igual ao Mapa geral, só com as tipologias de recursos hídricos; é a única tela da função DIGEPI).
+export async function PaginaTerritorio({ modo }: { modo: "analise" | "mapa" | "hidricos" }) {
+  const hidricos = modo === "hidricos";
+  const tela = hidricos ? "recursos_hidricos" : modo === "mapa" ? "mapa_geral" : "analise_territorio";
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const [{ data: profile }, { count: totalAcoes }, { count: pendentesAprovacao }, novasAcoesPendentes] = await Promise.all([
-    supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
-    supabase.from("obras").select("id_acao", { count: "exact", head: true }),
-    supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
-    contarNovasAcoesPendentes(supabase),
-  ]);
+  const { data: profile } = await supabase.from("profiles").select("nome, cargo, is_admin, status").eq("id", user!.id).single();
+  const digepi = profile?.status === "digepi";
+  // Recursos Hídricos: os dados vêm do servidor, já só com as tipologias de recursos hídricos (a pessoa DIGEPI não lê nada direto do banco).
+  const dados = hidricos ? createAdminClient() : supabase;
+  let totalAcoes: number | null = 0;
+  let pendentesAprovacao: number | null = 0;
+  let novasAcoesPendentes = 0;
+  if (!hidricos) {
+    const [a, b, c] = await Promise.all([
+      supabase.from("obras").select("id_acao", { count: "exact", head: true }),
+      supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
+      contarNovasAcoesPendentes(supabase),
+    ]);
+    totalAcoes = a.count;
+    pendentesAprovacao = b.count;
+    novasAcoesPendentes = c;
+  }
 
   const linhas: Linha[] = [];
   let erro: string | null = null;
   for (let de = 0; ; de += 1000) {
-    const { data, error } = await supabase.from("obras").select(COLUNAS).order("id_acao").range(de, de + 999);
+    const { data, error } = await dados.from("obras").select(COLUNAS).order("id_acao").range(de, de + 999);
     if (error) {
       erro = error.message;
       break;
@@ -71,9 +86,14 @@ export async function PaginaTerritorio({ modo }: { modo: "analise" | "mapa" }) {
     linhas.push(...((data ?? []) as unknown as Linha[]));
     if (!data || data.length < 1000) break;
   }
+  if (hidricos) {
+    // Só recursos hídricos, e sem as ações que a equipe desconsiderou em "Todas as análises".
+    const fora = new Set(await idsDaLista(createAdminClient(), "todas"));
+    for (let i = linhas.length - 1; i >= 0; i--) if (!ehRecursoHidrico(linhas[i].tipologia) || fora.has(linhas[i].id_acao)) linhas.splice(i, 1);
+  }
 
   const extras = new Map<string, Record<string, string> | null>(linhas.map((l) => [l.id_acao, l.extra]));
-  const { porAcao, erro: erroTerr } = await territoriosDasAcoes(supabase, extras);
+  const { porAcao, erro: erroTerr } = await territoriosDasAcoes(dados, extras);
   erro = erro ?? erroTerr;
   const territorios = Array.from(new Set((await territorioPorMunicipio()).values())).sort((a, b) => a.localeCompare(b, "pt-BR"));
 
@@ -120,14 +140,15 @@ export async function PaginaTerritorio({ modo }: { modo: "analise" | "mapa" }) {
       nome={profile?.nome ?? "Usuário"}
       cargo={profile?.cargo}
       isAdmin={!!profile?.is_admin}
+      digepi={digepi}
       counts={{ acoes: totalAcoes ?? 0, pendentesAprovacao: pendentesAprovacao ?? 0, novasAcoesPendentes }}
-      titulo={modo === "mapa" ? "Mapa geral" : "Análise por território"}
-      subtitulo={modo === "mapa" ? `Traçados (KML) das ações, com os filtros que você escolher · ${acoes.length.toLocaleString("pt-BR")} ação(ões)` : `${acoes.length.toLocaleString("pt-BR")} ação(ões) nos 12 territórios de desenvolvimento`}
+      titulo={hidricos ? "Mapa de Recursos Hídricos" : modo === "mapa" ? "Mapa geral" : "Análise por território"}
+      subtitulo={hidricos ? `Adutora, barragem, abastecimento de água, cisterna, poço e rede de distribuição · ${acoes.length.toLocaleString("pt-BR")} ação(ões)` : modo === "mapa" ? `Traçados (KML) das ações, com os filtros que você escolher · ${acoes.length.toLocaleString("pt-BR")} ação(ões)` : `${acoes.length.toLocaleString("pt-BR")} ação(ões) nos 12 territórios de desenvolvimento`}
     >
       {erro ? (
         <p className="rounded-lg bg-status-critical/10 px-3 py-2 text-xs text-status-critical">Falha ao carregar os dados: {erro}</p>
       ) : (
-        <AnaliseTerritorio acoes={acoes} territorios={territorios} filtroGravado={filtroGravado} ehAdmin={!!profile?.is_admin} modo={modo} tela={tela} />
+        <AnaliseTerritorio acoes={acoes} territorios={territorios} filtroGravado={filtroGravado} ehAdmin={!!profile?.is_admin} modo={modo} tela={tela} somenteLeitura={digepi} />
       )}
     </AppShell>
   );

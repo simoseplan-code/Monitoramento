@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-export const ROTULO_PAPEL: Record<string, string> = { admin: "Administrador", chefe: "Chefe", equipe: "Equipe" };
+export const ROTULO_PAPEL: Record<string, string> = { admin: "Administrador", chefe: "Chefe", equipe: "Equipe", digepi: "DIGEPI" };
 
 // Troca a função de uma pessoa já aprovada. Só aparece para administrador.
 export function PapelSelect({ userId, papelAtual }: { userId: string; papelAtual: string }) {
@@ -47,6 +47,7 @@ export function PapelSelect({ userId, papelAtual }: { userId: string; papelAtual
         <option value="admin">Administrador</option>
         <option value="chefe">Chefe</option>
         <option value="equipe">Equipe</option>
+        <option value="digepi">DIGEPI (só Recursos Hídricos)</option>
       </select>
       {erro && <span className="text-[11px] text-status-critical">{erro}</span>}
     </span>

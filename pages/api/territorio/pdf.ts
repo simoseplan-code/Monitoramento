@@ -33,7 +33,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   } = await supabase.auth.getUser();
   if (!user) return res.status(401).json({ error: "Não autenticado." });
   const { data: perfil } = await supabase.from("profiles").select("nome, status").eq("id", user.id).single();
-  if (perfil?.status !== "aprovado") return res.status(403).json({ error: "Sem permissão." });
+  if (perfil?.status !== "aprovado" && perfil?.status !== "digepi") return res.status(403).json({ error: "Sem permissão." });
 
   try {
     const corpo = req.body as { linhas?: unknown; filtros?: unknown } | undefined;

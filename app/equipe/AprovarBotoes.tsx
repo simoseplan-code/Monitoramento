@@ -41,6 +41,7 @@ export function AprovarBotoes({ userId }: { userId: string }) {
             className="rounded-lg border border-black/10 bg-plane px-2 py-1 text-xs text-ink-secondary focus:border-series-1 focus:outline-none"
           >
             <option value="equipe">Equipe</option>
+            <option value="digepi">DIGEPI (só Recursos Hídricos)</option>
             <option value="chefe">Chefe</option>
             <option value="admin">Administrador</option>
           </select>

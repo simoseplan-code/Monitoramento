@@ -10,11 +10,14 @@ export function Topbar({
   subtitulo,
   iniciais,
   notificacoesCount,
+  semBusca = false,
 }: {
   titulo: string;
   subtitulo?: string;
   iniciais: string;
   notificacoesCount: number;
+  /** Esconde a busca de ações (função DIGEPI). */
+  semBusca?: boolean;
 }) {
   const router = useRouter();
   const supabase = createClient();
@@ -35,7 +38,7 @@ export function Topbar({
       </div>
 
       <div className="flex items-center gap-3">
-        <form onSubmit={buscar} className="relative hidden sm:block">
+        <form onSubmit={buscar} className={"relative hidden sm:block" + (semBusca ? " sm:hidden" : "")}>
           <Search size={16} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-ink-muted" />
           <input
             value={busca}

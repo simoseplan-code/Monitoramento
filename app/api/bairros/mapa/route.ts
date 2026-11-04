@@ -1,5 +1,6 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { acessoDoUsuario, idsHidricos } from "@/lib/acesso";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { carregarBairros, carregarMunicipios } from "@/lib/bairros/calcular";
 import { wktParaLinhasLonLat } from "@/lib/kml/base";
@@ -43,11 +44,13 @@ async function montarMapa(request: NextRequest) {
     data: { user },
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-  const { data: perfil } = await supabase.from("profiles").select("status").eq("id", user.id).single();
-  if (perfil?.status !== "aprovado") return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+  const acesso = await acessoDoUsuario(supabase, user.id);
+  if (!acesso.liberado) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
 
   const id = request.nextUrl.searchParams.get("id") ?? "";
   if (!/^\d{1,12}$/.test(id)) return NextResponse.json({ error: "ID inválido." }, { status: 400 });
+  // DIGEPI só vê o mapa das ações de recursos hídricos.
+  if (acesso.digepi && (await idsHidricos(createAdminClient(), [id])).length === 0) return NextResponse.json({ error: "Sem permissão para esta ação." }, { status: 403 });
 
   const [{ data: calculo }, { data: itens }] = await Promise.all([
     supabase.from("acao_bairros_calculo").select("fonte, extensao_m, metros_fora, pontos, pontos_fora, metros_urbano, metros_rural, pontos_urbano, pontos_rural").eq("id_acao", id).maybeSingle(),
