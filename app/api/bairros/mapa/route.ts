@@ -6,6 +6,8 @@ import { wktParaLinhasLonLat } from "@/lib/kml/base";
 import { pontosEContornosDoKml } from "@/lib/bairros/kmlGuardado";
 import { geomExtraDe } from "@/lib/bairros/geometriaMapa";
 import { carregarSetores } from "@/lib/bairros/setores";
+import { territorioPorMunicipio } from "@/lib/territoriosDados";
+import { normalizarNome } from "@/lib/territorios";
 
 export const runtime = "nodejs";
 // Carrega os contornos (bairros, municípios e setores do IBGE): na primeira chamada pode demorar alguns segundos.
@@ -105,5 +107,21 @@ async function montarMapa(request: NextRequest) {
     return { municipio: b.municipio as string, bairro: b.bairro as string, metros: b.metros as number, pct: b.pct as number, pontos: (b.pontos as number) ?? 0, aneis };
   });
 
-  return NextResponse.json({ fonte: calculo.fonte, extensaoM: calculo.extensao_m, metrosFora: calculo.metros_fora, pontosFora: calculo.pontos_fora ?? 0, totalPontos: calculo.pontos ?? 0, zona: { metrosUrbano: calculo.metros_urbano ?? 0, metrosRural: calculo.metros_rural ?? 0, pontosUrbano: calculo.pontos_urbano ?? 0, pontosRural: calculo.pontos_rural ?? 0 }, linhas, trechos, pontos, pontosZ, setores: setoresMapa, contornos, bairros });
+  // Território(s) do traçado: o contorno tracejado de cada um e a participação (pelos metros, ou pelos pontos quando não há extensão).
+  const mapaTerr = await territorioPorMunicipio();
+  const pesoPorTerr = new Map<string, number>();
+  const temMetros = (itens ?? []).some((b) => ((b.metros as number) ?? 0) > 0);
+  for (const b of itens ?? []) {
+    const t = mapaTerr.get(normalizarNome((b.municipio as string) ?? ""));
+    if (t) pesoPorTerr.set(t, (pesoPorTerr.get(t) ?? 0) + (temMetros ? ((b.metros as number) ?? 0) : ((b.pontos as number) ?? 0)));
+  }
+  const pesoTotal = Array.from(pesoPorTerr.values()).reduce((s, v) => s + v, 0);
+  const contornosTerr = (await import("@/data/geo/territorios_pi.json")).default as unknown as { n: string; l: [number, number][][] }[];
+  const territorios = Array.from(pesoPorTerr, ([nome, peso]) => ({
+    nome,
+    pct: pesoTotal > 0 ? peso / pesoTotal : 0,
+    linhas: (contornosTerr.find((c) => c.n === nome)?.l ?? []).filter((l) => l.length > 1).map((l) => reduzir(l, 900)),
+  })).sort((a, b) => b.pct - a.pct);
+
+  return NextResponse.json({ territorios, fonte: calculo.fonte, extensaoM: calculo.extensao_m, metrosFora: calculo.metros_fora, pontosFora: calculo.pontos_fora ?? 0, totalPontos: calculo.pontos ?? 0, zona: { metrosUrbano: calculo.metros_urbano ?? 0, metrosRural: calculo.metros_rural ?? 0, pontosUrbano: calculo.pontos_urbano ?? 0, pontosRural: calculo.pontos_rural ?? 0 }, linhas, trechos, pontos, pontosZ, setores: setoresMapa, contornos, bairros });
 }

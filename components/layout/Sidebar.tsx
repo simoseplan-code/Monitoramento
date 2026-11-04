@@ -27,6 +27,7 @@ import {
   Banknote,
   FileCheck2,
   BarChart3,
+  Map as MapaIcon,
   type LucideIcon,
 } from "lucide-react";
 import { SobrePainel } from "./SobrePainel";
@@ -101,6 +102,7 @@ export function Sidebar({
     { href: "/arquivos-kml", label: "Arquivos KML", icon: MapPinned, grupo: "georef" },
     { href: "/sobreposicoes", label: "Sobreposições", icon: Layers, count: counts.sobreposicoesPendentes || undefined, adminOnly: true, grupo: "georef" },
     { href: "/verificacao-bairros", label: "Verificação de bairros", icon: MapPin, grupo: "georef" },
+    { href: "/analise-territorio", label: "Análise por território", icon: MapaIcon, grupo: "georef" },
   ];
 
   const iniciais = nome

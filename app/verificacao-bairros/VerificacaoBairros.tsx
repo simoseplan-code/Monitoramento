@@ -6,6 +6,8 @@ import { useRouter } from "next/navigation";
 import { Download, Loader2, MapPinned, RefreshCw, Search, X } from "lucide-react";
 import type { Map as MapaLeaflet } from "leaflet";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
+import { FiltroCheckbox } from "@/components/FiltroCheckbox";
+import { rotuloTerritorio } from "@/lib/territorios";
 
 export type LinhaLista = {
   id_acao: string;
@@ -533,6 +535,8 @@ export function VerificacaoBairros({ itens, ehAdmin, resumo }: { itens: ItemList
 // ---------- mapa: o traçado da ação e o contorno dos bairros ----------
 
 type DadosMapa = {
+  /** Território(s) do traçado, com o contorno (tracejado no mapa) e a participação. */
+  territorios?: { nome: string; pct: number; linhas: [number, number][][] }[];
   fonte: "sobreposicoes" | "kml" | "mapa";
   extensaoM: number;
   metrosFora: number;
@@ -631,6 +635,18 @@ function JanelaMapa({ id, nome, bairroFoco, aoFechar }: { id: string; nome: stri
                 </span>
               )}
             </p>
+            {(dados.territorios ?? []).length > 0 && (
+              <p className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-ink-secondary">
+                <span className="flex items-center gap-1.5">
+                  <span className="inline-block w-5 border-t-[3px] border-dashed border-[#111827]" /> Contorno do território
+                </span>
+                {(dados.territorios ?? []).map((t) => (
+                  <span key={t.nome} className="text-ink-muted">
+                    {rotuloTerritorio(t.nome)}: {porcento(t.pct)}
+                  </span>
+                ))}
+              </p>
+            )}
             <ul className="mt-2 flex flex-wrap gap-2">
               {dados.bairros.map((b, i) => (
                 <li key={b.municipio + b.bairro} className="flex items-center gap-1.5 rounded-full border border-black/10 px-2.5 py-1 text-xs text-ink-secondary">
@@ -694,6 +710,13 @@ function MapaBairros({ dados, bairroFoco }: { dados: DadosMapa; bairroFoco?: str
           .bindTooltip(z.zona === "U" ? "Ponto em zona urbana" : z.zona === "R" ? "Ponto em zona rural" : "Ponto sem classificação de zona")
           .addTo(grupoLinhas);
       }
+      // Contorno tracejado do(s) território(s) do traçado (fora do enquadramento: o mapa continua fechado no traçado).
+      for (const t of dados.territorios ?? []) {
+        for (const l of t.linhas) {
+          if (!Array.isArray(l) || l.length < 2) continue;
+          L.polyline(l, { color: "#111827", weight: 3, dashArray: "10 8", opacity: 0.85, interactive: false }).addTo(mapa);
+        }
+      }
       const b = grupoLinhas.getBounds();
       const bt = todos.getBounds();
       // Enquadra no traçado (o contorno do município e dos bairros fica visível ao redor).
@@ -716,70 +739,6 @@ function MapaBairros({ dados, bairroFoco }: { dados: DadosMapa; bairroFoco?: str
     };
   }, [dados, bairroFoco]);
   return <div ref={divRef} className="h-[28rem] w-full overflow-hidden rounded-lg border border-black/5" />;
-}
-
-// ---------- filtro com caixas de seleção (como no Excel) ----------
-
-function FiltroCheckbox({
-  rotulo,
-  opcoes,
-  selecionados,
-  aoMudar,
-}: {
-  rotulo: string;
-  opcoes: { valor: string; qtd: number }[];
-  selecionados: Set<string> | null; // null = todos marcados
-  aoMudar: (v: Set<string> | null) => void;
-}) {
-  const [aberto, setAberto] = useState(false);
-  const raiz = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!aberto) return;
-    const fora = (e: MouseEvent) => {
-      if (raiz.current && !raiz.current.contains(e.target as Node)) setAberto(false);
-    };
-    document.addEventListener("mousedown", fora);
-    return () => document.removeEventListener("mousedown", fora);
-  }, [aberto]);
-
-  const marcar = (valor: string, marcado: boolean) => {
-    const atual = new Set(selecionados ?? opcoes.map((o) => o.valor));
-    if (marcado) atual.add(valor);
-    else atual.delete(valor);
-    aoMudar(atual.size === opcoes.length ? null : atual);
-  };
-  const resumo = selecionados === null ? "todos" : selecionados.size === 0 ? "nenhum" : selecionados.size <= 3 ? Array.from(selecionados).sort().join(", ") : `${selecionados.size} de ${opcoes.length}`;
-
-  return (
-    <div ref={raiz} className="relative">
-      <button onClick={() => setAberto((a) => !a)} className={campo + " flex items-center gap-2 " + (selecionados ? "border-series-1 text-series-1" : "")}>
-        {rotulo}: <strong className="font-semibold">{resumo}</strong>
-      </button>
-      {aberto && (
-        <div className="absolute left-0 z-30 mt-1.5 w-56 rounded-xl border border-black/10 bg-surface p-2 shadow-card">
-          <div className="mb-1.5 flex items-center justify-between px-1 text-[11px]">
-            <button onClick={() => aoMudar(null)} className="font-medium text-series-1 hover:underline">
-              Marcar todos
-            </button>
-            <button onClick={() => aoMudar(new Set())} className="font-medium text-ink-muted hover:underline">
-              Limpar
-            </button>
-          </div>
-          <ul className="max-h-60 space-y-0.5 overflow-y-auto pr-1">
-            {opcoes.map((o) => (
-              <li key={o.valor}>
-                <label className="flex cursor-pointer items-center gap-2 rounded px-1 py-0.5 text-xs text-ink-secondary hover:bg-plane">
-                  <input type="checkbox" checked={selecionados ? selecionados.has(o.valor) : true} onChange={(e) => marcar(o.valor, e.target.checked)} className="h-3.5 w-3.5 shrink-0" />
-                  <span className="min-w-0 flex-1 truncate">{o.valor}</span>
-                  <span className="tabular shrink-0 text-[10px] text-ink-muted">{inteiro(o.qtd)}</span>
-                </label>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
-    </div>
-  );
 }
 
 // Se o desenho do mapa der erro, mostra o aviso aqui dentro e não derruba a página inteira.
