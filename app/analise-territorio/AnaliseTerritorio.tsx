@@ -758,7 +758,7 @@ function MapaTracados({ acoes, filtros, ehAdmin }: { acoes: AcaoT[]; filtros: st
                 onClick={conferirTodas}
                 disabled={alvos.length === 0 || fontes === null}
                 className="flex items-center gap-1.5 rounded-full border border-black/10 bg-surface px-4 py-2 text-xs font-semibold text-ink-secondary hover:bg-plane disabled:opacity-50"
-                title="Vai ao SIMO ver, uma por uma, só as obras do filtro que ainda não têm traçado (as que já têm "Ver no mapa" não entram). Se achar, já baixa e guarda (vale para Arquivos KML, Sobreposições e Verificação de bairros)."
+                title="Vai ao SIMO ver, uma por uma, só as obras do filtro que ainda não têm traçado (as que já têm Ver no mapa não entram). Se achar, já baixa e guarda (vale para Arquivos KML, Sobreposições e Verificação de bairros)."
               >
                 <RefreshCw size={13} /> Conferir {fontes === null ? "" : inteiro(alvos.length) + " "}no SIMO
               </button>
