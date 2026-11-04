@@ -509,8 +509,10 @@ function MapaTracados({ acoes, filtros, ehAdmin }: { acoes: AcaoT[]; filtros: st
   const [conferidas, setConferidas] = useState<Record<string, string>>({});
   const [resultado, setResultado] = useState<Record<string, string>>({});
   const muitas = ids.length > LIMITE_FONTES;
+  const [erroFontes, setErroFontes] = useState<string | null>(null);
   useEffect(() => {
     setFontes(null);
+    setErroFontes(null);
     if (ids.length === 0 || muitas) return;
     const controle = new AbortController();
     const espera = setTimeout(async () => {
@@ -520,9 +522,9 @@ function MapaTracados({ acoes, filtros, ehAdmin }: { acoes: AcaoT[]; filtros: st
         if (resp.ok && json?.fontes) {
           setFontes(json.fontes);
           setConferidas(json.conferidas ?? {});
-        }
-      } catch {
-        // sem rede ou cancelado: a coluna fica com "-"
+        } else setErroFontes((json as { error?: string } | null)?.error ?? `O servidor respondeu ${resp.status}.`);
+      } catch (e) {
+        if (!(e instanceof DOMException && e.name === "AbortError")) setErroFontes("Sem conexão com o servidor.");
       }
     }, 400);
     return () => {
@@ -837,7 +839,7 @@ function MapaTracados({ acoes, filtros, ehAdmin }: { acoes: AcaoT[]; filtros: st
       )}
       {verMapa && <JanelaMapa id={verMapa.id} nome={verMapa.nome} aoFechar={() => setVerMapa(null)} />}
     </section>
-    <ListaDoMapa acoes={acoes} filtros={filtros} ehAdmin={ehAdmin} tr={{ fontes, conferidas, resultado, muitas, setFontes, setConferidas, setResultado, conferirUma }} aoAbrirKml={(id, nome) => setVerMapa({ id, nome })} />
+    <ListaDoMapa acoes={acoes} filtros={filtros} ehAdmin={ehAdmin} tr={{ fontes, conferidas, resultado, muitas, erroFontes, setFontes, setConferidas, setResultado, conferirUma }} aoAbrirKml={(id, nome) => setVerMapa({ id, nome })} />
     </div>
   );
 }
@@ -853,6 +855,8 @@ type EstadoTracados = {
   conferidas: Record<string, string>;
   resultado: Record<string, string>;
   muitas: boolean;
+  /** Mensagem quando a consulta dos traçados falhou (a coluna Georreferenciada fica com "-"). */
+  erroFontes: string | null;
   setFontes: React.Dispatch<React.SetStateAction<Record<string, string> | null>>;
   setConferidas: React.Dispatch<React.SetStateAction<Record<string, string>>>;
   setResultado: React.Dispatch<React.SetStateAction<Record<string, string>>>;
@@ -861,7 +865,7 @@ type EstadoTracados = {
 };
 
 function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr }: { acoes: AcaoT[]; filtros: string[]; aoAbrirKml: (id: string, nome: string) => void; ehAdmin: boolean; tr: EstadoTracados }) {
-  const { fontes, conferidas, resultado, muitas } = tr;
+  const { fontes, conferidas, resultado, muitas, erroFontes } = tr;
   const [pagina, setPagina] = useState(1);
   const [conferindo, setConferindo] = useState<Record<string, boolean>>({});
   const [exportando, setExportando] = useState(false);
@@ -871,7 +875,7 @@ function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr }: { acoes: AcaoT
 
   // Georreferenciada? Sim (de onde vem o traçado) ou Não (e se já foi conferida no SIMO).
   const georref = (id: string): string => {
-    if (fontes === null) return muitas ? "-" : "...";
+    if (fontes === null) return muitas || erroFontes ? "-" : "...";
     const f = fontes[id];
     if (f) return f === "kml" ? "Sim (KML do SIMO)" : f === "mapa" ? "Sim (mapa de obras)" : "Sim (KML e mapa)";
     const c = conferidas[id];
@@ -975,6 +979,7 @@ function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr }: { acoes: AcaoT
           </button>
         </div>
       </div>
+      {erroFontes && <p className="border-b border-black/5 bg-status-critical/10 px-4 py-2 text-xs text-status-critical">Não foi possível consultar quais obras têm traçado: {erroFontes}</p>}
       {muitas && <p className="border-b border-black/5 bg-status-warning-bg px-4 py-2 text-xs text-status-warning">Com mais de {inteiro(LIMITE_FONTES)} obras, a coluna Georreferenciada não é consultada. Filtre mais para ver quais têm KML.</p>}
       {erro && <p className="border-b border-black/5 bg-status-critical/10 px-4 py-2 text-xs text-status-critical">{erro}</p>}
       <div className="overflow-x-auto">
