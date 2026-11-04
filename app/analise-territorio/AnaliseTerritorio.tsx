@@ -500,6 +500,118 @@ function MapaTracados({ acoes, filtros, ehAdmin }: { acoes: AcaoT[]; filtros: st
   const ids = useMemo(() => acoes.map((a) => a.id), [acoes]);
   const assinatura = useMemo(() => ids.join(","), [ids]);
   const desatualizado = dados !== null && gerado !== assinatura;
+
+  // De onde vem o traçado de cada ação do filtro (georreferenciada?) e quais já foram conferidas no SIMO.
+  const [fontes, setFontes] = useState<Record<string, string> | null>(null);
+  const [conferidas, setConferidas] = useState<Record<string, string>>({});
+  const [resultado, setResultado] = useState<Record<string, string>>({});
+  const muitas = ids.length > LIMITE_FONTES;
+  useEffect(() => {
+    setFontes(null);
+    if (ids.length === 0 || muitas) return;
+    const controle = new AbortController();
+    const espera = setTimeout(async () => {
+      try {
+        const resp = await fetch("/api/territorios/fontes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }), signal: controle.signal });
+        const json = (await resp.json().catch(() => null)) as { fontes?: Record<string, string>; conferidas?: Record<string, string> } | null;
+        if (resp.ok && json?.fontes) {
+          setFontes(json.fontes);
+          setConferidas(json.conferidas ?? {});
+        }
+      } catch {
+        // sem rede ou cancelado: a coluna fica com "-"
+      }
+    }, 400);
+    return () => {
+      clearTimeout(espera);
+      controle.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assinatura]);
+
+  // Aplica o resultado de uma conferência no SIMO: se achou o KML, ele já fica guardado (Arquivos KML, Sobreposições e Verificação de bairros usam o mesmo).
+  function aplicarResultado(r: ResultadoLote) {
+    if (r.situacao === "baixado" || r.situacao === "ja_tinha") {
+      setFontes((f) => ({ ...(f ?? {}), [r.id]: f?.[r.id] === "mapa" ? "ambos" : (f?.[r.id] ?? "kml") }));
+      setConferidas((c) => {
+        const n = { ...c };
+        delete n[r.id];
+        return n;
+      });
+      setResultado((x) => ({ ...x, [r.id]: r.situacao === "baixado" ? `KML baixado${r.extensaoKm != null ? ` (${Number(r.extensaoKm).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} km)` : ""}` : "KML já guardado" }));
+    } else if (r.situacao === "sem_kml") {
+      setConferidas((c) => ({ ...c, [r.id]: "sem_kml" }));
+      setResultado((x) => ({ ...x, [r.id]: "Sem KML no SIMO" }));
+    } else if (r.situacao === "erro") {
+      setConferidas((c) => ({ ...c, [r.id]: "erro" }));
+      setResultado((x) => ({ ...x, [r.id]: r.mensagem ?? "Erro ao baixar" }));
+    } else {
+      setResultado((x) => ({ ...x, [r.id]: "Adiado: tente de novo" }));
+    }
+  }
+
+  async function conferirUma(id: string): Promise<ResultadoLote | null> {
+    try {
+      const resp = await fetch("/api/kml/lote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: [id] }) });
+      const json = (await resp.json().catch(() => null)) as { error?: string; resultados?: ResultadoLote[] } | null;
+      const r = json?.resultados?.[0];
+      if (!resp.ok || !r) return null;
+      aplicarResultado(r);
+      return r;
+    } catch {
+      return null;
+    }
+  }
+
+  // Conferência em lote: vai ao SIMO, ação por ação (10 por envio), e guarda o KML de quem tiver.
+  const [lote, setLote] = useState<{ rodando: boolean; feitos: number; total: number; baixados: number; semKml: number; erros: number; fim?: string } | null>(null);
+  const [refazerSemKml, setRefazerSemKml] = useState(false);
+  const parar = useRef(false);
+  const alvos = useMemo(
+    () => (fontes === null ? [] : acoes.filter((a) => fontes[a.id] !== "kml" && fontes[a.id] !== "ambos" && (refazerSemKml || conferidas[a.id] !== "sem_kml")).map((a) => a.id)),
+    [acoes, fontes, conferidas, refazerSemKml]
+  );
+
+  async function conferirTodas() {
+    if (alvos.length === 0) return;
+    parar.current = false;
+    let fila = [...alvos];
+    const total = fila.length;
+    let feitos = 0;
+    let baixados = 0;
+    let semKml = 0;
+    let erros = 0;
+    setLote({ rodando: true, feitos, total, baixados, semKml, erros });
+    let fim = "";
+    try {
+      while (fila.length > 0 && !parar.current) {
+        const parte = fila.slice(0, 10);
+        fila = fila.slice(10);
+        const resp = await fetch("/api/kml/lote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: parte, forcar: false }) });
+        const json = (await resp.json().catch(() => null)) as { error?: string; resultados?: ResultadoLote[] } | null;
+        if (!resp.ok || !json?.resultados) {
+          fim = json?.error ?? `O servidor respondeu ${resp.status}. Os que já foram conferidos ficaram guardados.`;
+          break;
+        }
+        // "adiado": o servidor chegou perto do limite de tempo, a ação volta para a fila.
+        const adiados = json.resultados.filter((r) => r.situacao === "adiado").map((r) => r.id);
+        for (const r of json.resultados) {
+          if (r.situacao === "adiado") continue;
+          aplicarResultado(r);
+          feitos++;
+          if (r.situacao === "baixado") baixados++;
+          else if (r.situacao === "sem_kml") semKml++;
+          else if (r.situacao === "erro") erros++;
+        }
+        if (adiados.length > 0) fila = [...adiados, ...fila];
+        setLote({ rodando: true, feitos, total, baixados, semKml, erros });
+      }
+    } catch {
+      fim = "Sem conexão com o servidor. Os que já foram conferidos ficaram guardados.";
+    }
+    if (!fim) fim = parar.current ? "Parado. Os que já foram conferidos ficaram guardados." : "Conferência terminada.";
+    setLote({ rodando: false, feitos, total, baixados, semKml, erros, fim });
+  }
   const grande = acoes.length > LIMITE_TRACADOS;
 
   async function gerar() {
@@ -635,6 +747,28 @@ function MapaTracados({ acoes, filtros, ehAdmin }: { acoes: AcaoT[]; filtros: st
             <option value="status">Território › Status</option>
           </select>
         </label>
+        {ehAdmin && (
+          <div className="flex items-center gap-2">
+            {lote?.rodando ? (
+              <button onClick={() => (parar.current = true)} className="flex items-center gap-1.5 rounded-full border border-status-critical/40 px-4 py-2 text-xs font-semibold text-status-critical hover:bg-status-critical/5">
+                <Loader2 size={13} className="animate-spin" /> Conferindo {inteiro(lote.feitos)}/{inteiro(lote.total)} · Parar
+              </button>
+            ) : (
+              <button
+                onClick={conferirTodas}
+                disabled={alvos.length === 0 || fontes === null}
+                className="flex items-center gap-1.5 rounded-full border border-black/10 bg-surface px-4 py-2 text-xs font-semibold text-ink-secondary hover:bg-plane disabled:opacity-50"
+                title="Vai ao SIMO ver, uma por uma, as obras do filtro que ainda não têm KML guardado. Se achar, já baixa e guarda (vale para Arquivos KML, Sobreposições e Verificação de bairros)."
+              >
+                <RefreshCw size={13} /> Conferir {fontes === null ? "" : inteiro(alvos.length) + " "}no SIMO
+              </button>
+            )}
+            <label className="flex items-center gap-1.5 text-[11px] text-ink-muted" title="Inclui também as obras que já foram conferidas e deram 'sem KML'">
+              <input type="checkbox" checked={refazerSemKml} onChange={(e) => setRefazerSemKml(e.target.checked)} disabled={lote?.rodando} className="h-3.5 w-3.5" />
+              incluir as que deram &quot;sem KML&quot;
+            </label>
+          </div>
+        )}
         <button
           onClick={baixarKml}
           disabled={baixando || grande || acoes.length === 0}
@@ -645,6 +779,13 @@ function MapaTracados({ acoes, filtros, ehAdmin }: { acoes: AcaoT[]; filtros: st
           {baixando ? "Gerando KML..." : "Baixar KML"}
         </button>
       </div>
+      {lote && (
+        <p className={"rounded-lg px-3 py-2 text-xs " + (lote.rodando ? "bg-plane text-ink-secondary" : lote.erros > 0 ? "bg-status-warning-bg text-status-warning" : "bg-status-good-bg text-status-good")}>
+          {lote.rodando ? "Conferindo no SIMO... " : `${lote.fim} `}
+          {inteiro(lote.feitos)} de {inteiro(lote.total)} conferida(s): <strong>{inteiro(lote.baixados)}</strong> com KML (baixado e guardado), <strong>{inteiro(lote.semKml)}</strong> sem KML no SIMO, {inteiro(lote.erros)} com erro.
+          {!lote.rodando && lote.baixados > 0 && " Para as novas aparecerem nos territórios, rode Atualizar localização (na Análise por território)."}
+        </p>
+      )}
       {avisoKml && <p className={"rounded-lg px-3 py-2 text-xs " + (avisoKml.tipo === "ok" ? "bg-status-good-bg text-status-good" : "bg-status-critical/10 text-status-critical")}>{avisoKml.texto}</p>}
       {grande && (
         <p className="rounded-lg bg-status-warning-bg px-3 py-2 text-xs text-status-warning">
@@ -693,7 +834,7 @@ function MapaTracados({ acoes, filtros, ehAdmin }: { acoes: AcaoT[]; filtros: st
       )}
       {verMapa && <JanelaMapa id={verMapa.id} nome={verMapa.nome} aoFechar={() => setVerMapa(null)} />}
     </section>
-    <ListaDoMapa acoes={acoes} filtros={filtros} ehAdmin={ehAdmin} aoAbrirKml={(id, nome) => setVerMapa({ id, nome })} />
+    <ListaDoMapa acoes={acoes} filtros={filtros} ehAdmin={ehAdmin} tr={{ fontes, conferidas, resultado, muitas, setFontes, setConferidas, setResultado, conferirUma }} aoAbrirKml={(id, nome) => setVerMapa({ id, nome })} />
     </div>
   );
 }
@@ -704,43 +845,26 @@ type ResultadoLote = { id: string; situacao: "baixado" | "ja_tinha" | "sem_kml" 
 
 const reais = (v: number | null) => (v == null ? "-" : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }));
 
-function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin }: { acoes: AcaoT[]; filtros: string[]; aoAbrirKml: (id: string, nome: string) => void; ehAdmin: boolean }) {
+type EstadoTracados = {
+  fontes: Record<string, string> | null;
+  conferidas: Record<string, string>;
+  resultado: Record<string, string>;
+  muitas: boolean;
+  setFontes: React.Dispatch<React.SetStateAction<Record<string, string> | null>>;
+  setConferidas: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  setResultado: React.Dispatch<React.SetStateAction<Record<string, string>>>;
+  /** Confere uma ação no SIMO (baixa o KML se tiver) e atualiza o estado; devolve a situação. */
+  conferirUma: (id: string) => Promise<ResultadoLote | null>;
+};
+
+function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr }: { acoes: AcaoT[]; filtros: string[]; aoAbrirKml: (id: string, nome: string) => void; ehAdmin: boolean; tr: EstadoTracados }) {
+  const { fontes, conferidas, resultado, muitas } = tr;
   const [pagina, setPagina] = useState(1);
-  const [fontes, setFontes] = useState<Record<string, string> | null>(null);
-  const [conferidas, setConferidas] = useState<Record<string, string>>({});
   const [conferindo, setConferindo] = useState<Record<string, boolean>>({});
-  const [resultado, setResultado] = useState<Record<string, string>>({});
   const [exportando, setExportando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
 
-  const ids = useMemo(() => acoes.map((a) => a.id), [acoes]);
-  const assinatura = useMemo(() => ids.join(","), [ids]);
-  const muitas = ids.length > LIMITE_FONTES;
-
-  // Quais ações do filtro têm traçado (georreferenciadas) e de onde vem. Espera um instante para não consultar a cada clique no filtro.
-  useEffect(() => {
-    setPagina(1);
-    setFontes(null);
-    if (ids.length === 0 || muitas) return;
-    const controle = new AbortController();
-    const espera = setTimeout(async () => {
-      try {
-        const resp = await fetch("/api/territorios/fontes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }), signal: controle.signal });
-        const json = (await resp.json().catch(() => null)) as { fontes?: Record<string, string>; conferidas?: Record<string, string> } | null;
-        if (resp.ok && json?.fontes) {
-          setFontes(json.fontes);
-          setConferidas(json.conferidas ?? {});
-        }
-      } catch {
-        // sem rede ou cancelado: a coluna fica com "-"
-      }
-    }, 400);
-    return () => {
-      clearTimeout(espera);
-      controle.abort();
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [assinatura]);
+  useEffect(() => setPagina(1), [acoes]);
 
   // Georreferenciada? Sim (de onde vem o traçado) ou Não (e se já foi conferida no SIMO).
   const georref = (id: string): string => {
@@ -751,37 +875,13 @@ function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin }: { acoes: AcaoT[]; 
     return c === "sem_kml" ? "Não (sem KML no SIMO)" : c === "erro" ? "Não (erro ao baixar)" : "Não (não conferida)";
   };
 
-  // Vai ao SIMO ver se a ação tem KML e, se tiver, baixa e guarda (só admin e chefe: usa o login do painel no SIMO).
+  // Confere uma só ação no SIMO (botão da linha).
   async function conferirNoSimo(id: string) {
     setConferindo((c) => ({ ...c, [id]: true }));
     setErro(null);
     try {
-      const resp = await fetch("/api/kml/lote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: [id] }) });
-      const json = (await resp.json().catch(() => null)) as { error?: string; resultados?: ResultadoLote[] } | null;
-      const r = json?.resultados?.[0];
-      if (!resp.ok || !r) {
-        setErro(json?.error ?? `Não foi possível conferir no SIMO (o servidor respondeu ${resp.status}).`);
-        return;
-      }
-      if (r.situacao === "baixado" || r.situacao === "ja_tinha") {
-        setFontes((f) => ({ ...(f ?? {}), [id]: f?.[id] === "mapa" ? "ambos" : (f?.[id] ?? "kml") }));
-        setConferidas((c) => {
-          const n = { ...c };
-          delete n[id];
-          return n;
-        });
-        setResultado((x) => ({ ...x, [id]: r.situacao === "baixado" ? `KML baixado${r.extensaoKm != null ? ` (${Number(r.extensaoKm).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} km)` : ""}` : "KML já guardado" }));
-      } else if (r.situacao === "sem_kml") {
-        setConferidas((c) => ({ ...c, [id]: "sem_kml" }));
-        setResultado((x) => ({ ...x, [id]: "Sem KML no SIMO" }));
-      } else if (r.situacao === "erro") {
-        setConferidas((c) => ({ ...c, [id]: "erro" }));
-        setResultado((x) => ({ ...x, [id]: r.mensagem ?? "Erro ao baixar" }));
-      } else {
-        setResultado((x) => ({ ...x, [id]: "Adiado: tente de novo" }));
-      }
-    } catch {
-      setErro("Sem conexão com o servidor.");
+      const r = await tr.conferirUma(id);
+      if (!r) setErro("Não foi possível conferir no SIMO.");
     } finally {
       setConferindo((c) => ({ ...c, [id]: false }));
     }
