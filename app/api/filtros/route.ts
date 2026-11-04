@@ -5,7 +5,14 @@ import { createAdminClient } from "@/lib/supabase/admin";
 // Filtro gravado por pessoa e tela (tabela filtros_salvos). Cada pessoa só mexe no próprio,
 // EXCETO nas telas "compartilhadas": ali o filtro gravado é um só e vale para todos (quem grava troca o de todo mundo).
 const TELAS = ["analise_concluidas", "acoes", "acoes_nao_vinculadas"];
-const COMPARTILHADAS = ["analise_concluidas"];
+// Valor = quem pode gravar/apagar: "admin" (admin e chefe) ou "equipe" (toda a equipe aprovada).
+const COMPARTILHADAS: Record<string, "admin" | "equipe"> = { analise_concluidas: "admin", acoes_nao_vinculadas: "equipe" };
+
+async function podeMexer(supabase: Awaited<ReturnType<typeof createClient>>, userId: string, tela: string): Promise<boolean> {
+  const { data: perfil } = await supabase.from("profiles").select("is_admin, status").eq("id", userId).single();
+  if (perfil?.status !== "aprovado") return false;
+  return COMPARTILHADAS[tela] === "equipe" || !!perfil?.is_admin;
+}
 
 export async function POST(request: NextRequest) {
   const supabase = await createClient();
@@ -23,10 +30,9 @@ export async function POST(request: NextRequest) {
 
   const agora = new Date().toISOString();
 
-  if (COMPARTILHADAS.includes(tela)) {
-    // Filtro único e para todos. A tela é de admin e chefe; o servidor confere antes de gravar.
-    const { data: perfil } = await supabase.from("profiles").select("is_admin, status").eq("id", user.id).single();
-    if (!perfil?.is_admin || perfil.status !== "aprovado") return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+  if (tela in COMPARTILHADAS) {
+    // Filtro único e para todos; o servidor confere quem pode gravar.
+    if (!(await podeMexer(supabase, user.id, tela))) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
     const admin = createAdminClient();
     const { error: e1 } = await admin.from("filtros_salvos").delete().eq("tela", tela);
     if (e1) return NextResponse.json({ error: "Não foi possível gravar o filtro: " + e1.message }, { status: 500 });
@@ -53,9 +59,8 @@ export async function DELETE(request: NextRequest) {
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
   const tela = request.nextUrl.searchParams.get("tela") ?? "";
   if (!TELAS.includes(tela)) return NextResponse.json({ error: "Parâmetros inválidos." }, { status: 400 });
-  if (COMPARTILHADAS.includes(tela)) {
-    const { data: perfil } = await supabase.from("profiles").select("is_admin, status").eq("id", user.id).single();
-    if (!perfil?.is_admin || perfil.status !== "aprovado") return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+  if (tela in COMPARTILHADAS) {
+    if (!(await podeMexer(supabase, user.id, tela))) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
     const { error: e } = await createAdminClient().from("filtros_salvos").delete().eq("tela", tela);
     if (e) return NextResponse.json({ error: "Não foi possível apagar o filtro gravado." }, { status: 500 });
     return NextResponse.json({ ok: true });

@@ -46,7 +46,7 @@ export function AcoesFiltradas({
   globais = [],
 }: {
   acoes: AcaoLinha[];
-  filtroGravado: { estado: unknown; atualizadoEm: string } | null;
+  filtroGravado: { estado: unknown; atualizadoEm: string; por?: string | null } | null;
   inicial: Inicial;
   /** "nao_vinculadas": só ações sem número automático; sem a coluna Situação e com campo de IDs para desconsiderar. */
   modo?: "todas" | "nao_vinculadas";
@@ -74,6 +74,7 @@ export function AcoesFiltradas({
   const [painelAberto, setPainelAberto] = useState(true);
   const [pagina, setPagina] = useState(1);
   const [gravadoEm, setGravadoEm] = useState<string | null>(filtroGravado?.atualizadoEm ?? null);
+  const [gravadoPor, setGravadoPor] = useState<string | null>(filtroGravado?.por ?? null);
   const [gravadoJson, setGravadoJson] = useState<string | null>(filtroGravado ? JSON.stringify(estadoParaGravar(estadoDeGravado(filtroGravado.estado, valores))) : null);
   const [aviso, setAviso] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
   const [gravando, setGravando] = useState(false);
@@ -164,7 +165,8 @@ export function AcoesFiltradas({
       else {
         setGravadoEm(json.atualizadoEm ?? new Date().toISOString());
         setGravadoJson(jsonAtual);
-        setAviso({ tipo: "ok", texto: "Filtro gravado. Quando você voltar a esta tela, ele já estará aplicado." });
+        setGravadoPor("você");
+        setAviso({ tipo: "ok", texto: naoVinc ? "Filtro gravado para todos os usuários. Quem abrir esta tela já vê esse filtro." : "Filtro gravado. Quando você voltar a esta tela, ele já estará aplicado." });
       }
     } catch {
       setAviso({ tipo: "erro", texto: "Sem conexão com o servidor." });
@@ -183,7 +185,8 @@ export function AcoesFiltradas({
         setGravadoEm(null);
         setGravadoJson(null);
         mudar(estadoPadrao());
-        setAviso({ tipo: "ok", texto: "Filtro gravado apagado." });
+        setGravadoPor(null);
+        setAviso({ tipo: "ok", texto: naoVinc ? "Filtro gravado apagado para todos." : "Filtro gravado apagado." });
       }
     } catch {
       setAviso({ tipo: "erro", texto: "Sem conexão com o servidor." });
@@ -330,7 +333,7 @@ export function AcoesFiltradas({
             descErro={descErro}
             aoMudarDesconsideradas={mudarDesconsideradas}
             aoFechar={() => setPainelAberto(false)}
-            gravacao={{ gravando, gravadoEm, alterado, aviso, aoGravar: gravarFiltro, aoApagar: apagarFiltroGravado }}
+            gravacao={{ gravando, gravadoEm, gravadoPor, paraTodos: naoVinc, alterado, aviso, aoGravar: gravarFiltro, aoApagar: apagarFiltroGravado }}
           />
         )}
       </div>
@@ -368,6 +371,8 @@ function PainelFiltros({
   gravacao: {
     gravando: boolean;
     gravadoEm: string | null;
+    gravadoPor?: string | null;
+    paraTodos?: boolean;
     alterado: boolean;
     aviso: { tipo: "ok" | "erro"; texto: string } | null;
     aoGravar: () => void;
@@ -562,7 +567,7 @@ function PainelFiltros({
           onClick={gravacao.aoGravar}
           disabled={gravacao.gravando}
           className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-series-1 px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
-          title="Grava os filtros atuais: ao voltar a esta tela, eles já vêm aplicados"
+          title={gravacao.paraTodos ? "Grava os filtros atuais para TODOS os usuários: ao abrir esta tela, qualquer pessoa já os vê aplicados" : "Grava os filtros atuais: ao voltar a esta tela, eles já vêm aplicados"}
         >
           <Save size={13} /> {gravacao.gravando ? "Gravando..." : "Gravar filtro"}
         </button>
@@ -570,12 +575,14 @@ function PainelFiltros({
           {gravacao.gravadoEm
             ? gravacao.alterado
               ? "Você mudou os filtros depois da última gravação. Clique em Gravar filtro para guardar."
-              : "Filtro gravado em " + new Date(gravacao.gravadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) + "."
-            : "Nenhum filtro gravado: a tela abre mostrando todas as ações."}
+              : "Filtro gravado em " + new Date(gravacao.gravadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) + (gravacao.gravadoPor ? " por " + gravacao.gravadoPor : "") + (gravacao.paraTodos ? ". Vale para todos os usuários." : ".")
+            : gravacao.paraTodos
+              ? "Nenhum filtro gravado: a tela abre mostrando todas as ações. Ao gravar, o filtro vale para todos os usuários."
+              : "Nenhum filtro gravado: a tela abre mostrando todas as ações."}
         </p>
         {gravacao.gravadoEm && (
           <button onClick={gravacao.aoApagar} disabled={gravacao.gravando} className="text-[11px] font-medium text-ink-muted hover:text-ink-primary hover:underline disabled:opacity-50">
-            Apagar filtro gravado
+            Apagar filtro gravado{gravacao.paraTodos ? " (para todos)" : ""}
           </button>
         )}
         {gravacao.aviso && <p className={"text-[11px] font-medium " + (gravacao.aviso.tipo === "ok" ? "text-status-good" : "text-status-critical")}>{gravacao.aviso.texto}</p>}

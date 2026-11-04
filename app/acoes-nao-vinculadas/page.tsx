@@ -3,6 +3,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { carregarAcoes } from "@/lib/acoesDados";
 import { idsDaLista } from "@/lib/desconsideradas";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { AcoesFiltradas } from "@/app/acoes/AcoesFiltradas";
 
 // Ações sem número automático (não vinculadas ao SIAFE): pendentes (têm nº SIAFE, mas sem vínculo) e
@@ -18,8 +19,8 @@ export default async function AcoesNaoVinculadasPage() {
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
     contarNovasAcoesPendentes(supabase),
     carregarAcoes(supabase),
-    // Filtro (e IDs desconsiderados) que a pessoa gravou.
-    supabase.from("filtros_salvos").select("estado, atualizado_em").eq("usuario_id", user!.id).eq("tela", "acoes_nao_vinculadas").maybeSingle(),
+    // Filtro gravado: UM SÓ, vale para todos (quem gravou por último). Lido com o acesso do servidor.
+    createAdminClient().from("filtros_salvos").select("usuario_id, estado, atualizado_em").eq("tela", "acoes_nao_vinculadas").order("atualizado_em", { ascending: false }).limit(1).maybeSingle(),
     // IDs que a equipe desconsiderou (lista compartilhada; se o SQL 0085 ainda não rodou, vem vazia).
     (async () => {
       const lista: { id: string; em: string; por: string | null }[] = [];
@@ -35,7 +36,12 @@ export default async function AcoesNaoVinculadasPage() {
     idsDaLista(supabase, "todas"),
   ]);
   const naoVinculadas = acoes.filter((a) => !a.numeroAutomatico);
-  const filtroGravado = gravado ? { estado: gravado.estado as unknown, atualizadoEm: gravado.atualizado_em as string } : null;
+  let gravadoPor: string | null = null;
+  if (gravado?.usuario_id) {
+    const { data: quem } = await createAdminClient().from("profiles").select("nome").eq("id", gravado.usuario_id).maybeSingle();
+    gravadoPor = (quem?.nome as string | null) ?? null;
+  }
+  const filtroGravado = gravado ? { estado: gravado.estado as unknown, atualizadoEm: gravado.atualizado_em as string, por: gravadoPor } : null;
 
   return (
     <AppShell
