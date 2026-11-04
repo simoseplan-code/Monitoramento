@@ -19,6 +19,7 @@ import {
   estadoDeGravado,
   estadoParaGravar,
   estadoPadrao,
+  estadoTodos,
   filtrar,
   principal,
   resumoPorTerritorio,
@@ -50,7 +51,7 @@ function csvEscape(v: unknown): string {
 
 export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin }: { acoes: AcaoT[]; territorios: string[]; ehAdmin: boolean; filtroGravado: { estado: unknown; atualizadoEm: string; por?: string | null } | null }) {
   const valores = useMemo(() => valoresDosFiltros(acoes), [acoes]);
-  // Abre no filtro gravado (um só, vale para todos os usuários); sem filtro gravado, abre tudo aberto.
+  // Abre no filtro gravado (um só, vale para todos os usuários); sem filtro gravado, abre só com as vinculadas.
   const [estado, setEstado] = useState<EstadoFiltros>(() => (filtroGravado ? estadoDeGravado(filtroGravado.estado, valores) : estadoPadrao()));
   const [gravadoEm, setGravadoEm] = useState<string | null>(filtroGravado?.atualizadoEm ?? null);
   const [gravadoPor, setGravadoPor] = useState<string | null>(filtroGravado?.por ?? null);
@@ -108,7 +109,7 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin }
         setGravadoPor(null);
         setGravadoJson(null);
         mudar(estadoPadrao());
-        setAviso({ tipo: "ok", texto: "Filtro gravado apagado para todos. A tela volta ao padrão." });
+        setAviso({ tipo: "ok", texto: "Filtro gravado apagado para todos. A tela volta a abrir só com as vinculadas." });
       }
     } catch {
       setAviso({ tipo: "erro", texto: "Sem conexão com o servidor." });
@@ -161,7 +162,7 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin }
         </p>
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-plane px-3 py-2">
           <p className="text-xs text-ink-secondary">
-            <strong className="text-ink-primary">{inteiro(acoes.filter((a) => a.origem === "nenhuma").length)}</strong> ação(ões) ainda sem localização (sem traçado calculado).
+            <strong className="text-status-critical">{inteiro(acoes.filter((a) => vinculada(a) && a.origem !== "tracado").length)}</strong> ação(ões) vinculada(s) estão sem traçado (de {inteiro(acoes.filter(vinculada).length)} vinculadas).
           </p>
           <AtualizarBairros ehAdmin={ehAdmin} />
         </div>
@@ -185,7 +186,7 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin }
           </label>
           <input value={estado.ids} onChange={(e) => mudar({ ...estado, ids: e.target.value })} placeholder="Só estes IDs (cole vários)..." className={campo + " w-64"} />
           {ativos > 0 && (
-            <button onClick={() => mudar(estadoPadrao())} className="text-xs font-medium text-series-1 hover:underline">
+            <button onClick={() => mudar(estadoTodos())} className="text-xs font-medium text-series-1 hover:underline" title="Tira todos os filtros (inclusive o de vinculadas)">
               limpar {ativos} filtro(s)
             </button>
           )}
@@ -206,7 +207,7 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin }
             ? alterado
               ? "Você mudou os filtros depois da última gravação. Clique em Gravar filtro para guardar (vale para todos)."
               : "Filtro gravado em " + new Date(gravadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) + (gravadoPor ? " por " + gravadoPor : "") + ". Vale para todos os usuários: é ele que abre para todo mundo."
-            : "Nenhum filtro gravado: a tela abre com tudo aberto. Ao gravar, o filtro vale para todos os usuários."}
+            : "Nenhum filtro gravado: a tela abre só com as ações vinculadas. Ao gravar, o filtro vale para todos os usuários."}
           {gravadoEm && (
             <button onClick={apagarFiltroGravado} disabled={gravando} className="ml-2 font-medium hover:text-ink-primary hover:underline disabled:opacity-50">
               Apagar filtro gravado (para todos)

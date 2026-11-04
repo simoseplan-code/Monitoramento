@@ -92,10 +92,18 @@ export type EstadoFiltros = {
   ids: string;
 };
 
-export function estadoPadrao(): EstadoFiltros {
+/** Tudo aberto, sem nenhum filtro. */
+export function estadoTodos(): EstadoFiltros {
   const selecao: Selecao = {};
   for (const f of FILTROS) selecao[f.chave] = null;
   return { selecao, pctMinimo: null, busca: "", ids: "" };
+}
+
+/** Filtro com que a tela abre: só as ações vinculadas ao SIAFE. */
+export function estadoPadrao(): EstadoFiltros {
+  const e = estadoTodos();
+  e.selecao.vinculacao = new Set(["Vinculada"]);
+  return e;
 }
 
 export function lerIds(texto: string): string[] {
