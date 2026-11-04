@@ -122,12 +122,13 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
 
   function exportar() {
     const lista = aba === "cruzam" ? cruzam : filtradas;
-    const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Status", "Estágio Atual", "Território principal", "Territórios (% do traçado)", "Localizada por", "Extensão (km)", "Vinculação SIAFE", "SIAFE automático", "% Execução", "Ano de criação", "Ano de recebimento", "Valor contratado", "Valor pago total"];
+    const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Tipologia", "Status", "Estágio Atual", "Território principal", "Territórios (% do traçado)", "Localizada por", "Extensão (km)", "Vinculação SIAFE", "SIAFE automático", "% Execução", "Ano de criação", "Ano de recebimento", "Valor contratado", "Valor pago total"];
     const linhas = lista.map((a) =>
       [
         a.id,
         a.nome,
         a.orgao,
+        a.tipologia,
         a.status,
         a.estagio,
         rotuloTerritorio(principal(a)),
