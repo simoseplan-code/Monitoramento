@@ -43,9 +43,9 @@ export const s = StyleSheet.create({
 const num = (n: number) => n.toLocaleString("pt-BR");
 const pct = (a: number, b: number) => (b > 0 ? `${((a / b) * 100).toFixed(1).replace(".", ",")}%` : "0%");
 
-export function Pagina({ titulo, subtitulo, geradoEm, children }: { titulo: string; subtitulo: string; geradoEm: string; children: React.ReactNode }) {
+export function Pagina({ titulo, subtitulo, geradoEm, children, paisagem = false }: { titulo: string; subtitulo: string; geradoEm: string; children: React.ReactNode; paisagem?: boolean }) {
   return (
-    <Page size="A4" style={s.pagina}>
+    <Page size="A4" orientation={paisagem ? "landscape" : "portrait"} style={s.pagina}>
       <View style={s.topo}>
         <View style={s.marca}>
           <View style={s.logo} />

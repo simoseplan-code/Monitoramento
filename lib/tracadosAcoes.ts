@@ -55,3 +55,33 @@ export function amostrarLinha(pts: Coord[], max: number): Coord[] {
   if (pts.length > 1 && (fim[0] !== ult[0] || fim[1] !== ult[1])) saida.push(ult);
   return saida;
 }
+
+export type FonteTracado = "kml" | "mapa" | "ambos";
+
+/** De onde vem o traçado de cada ação (sem baixar o desenho): KML do SIMO, mapa de obras ou os dois. Sem traçado = fora do resultado. */
+export async function fontesDoTracado(admin: SupabaseClient, ids: string[]): Promise<Map<string, FonteTracado>> {
+  const kml = new Set<string>();
+  const mapa = new Set<string>();
+  await Promise.all(
+    emLotes(ids, 200).map(async (lote) => {
+      const [a, b, c] = await Promise.all([
+        admin.from("kml_arquivos").select("id_acao").in("id_acao", lote).not("wkt", "is", null),
+        admin.from("obras_tracado").select("id_acao").in("id_acao", lote),
+        admin.from("obras_geom_extra").select("id_acao").in("id_acao", lote).or("pontos.not.is.null,poligonos.not.is.null"),
+      ]);
+      if (a.error) throw new Error(a.error.message);
+      if (b.error) throw new Error(b.error.message);
+      for (const r of a.data ?? []) kml.add(r.id_acao as string);
+      for (const r of b.data ?? []) mapa.add(r.id_acao as string);
+      // Se a tabela de pontos e polígonos ainda não existe, só o traçado em linhas conta.
+      for (const r of c.error ? [] : (c.data ?? [])) mapa.add(r.id_acao as string);
+    })
+  );
+  const saida = new Map<string, FonteTracado>();
+  for (const id of ids) {
+    const k = kml.has(id);
+    const m = mapa.has(id);
+    if (k || m) saida.set(id, k && m ? "ambos" : k ? "kml" : "mapa");
+  }
+  return saida;
+}

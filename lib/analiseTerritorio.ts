@@ -224,3 +224,20 @@ export function estadoDeGravado(g: unknown, valores: Record<string, { valor: str
   }
   return { selecao, pctMinimo: typeof x.pctMinimo === "number" ? x.pctMinimo : null, busca: typeof x.busca === "string" ? x.busca : "", ids: typeof x.ids === "string" ? x.ids : "" };
 }
+
+/** Os filtros ligados, em linhas de texto (vão no cabeçalho do PDF). */
+export function descreverFiltros(estado: EstadoFiltros, valores: Record<string, { valor: string; qtd: number }[]>): string[] {
+  const linhas: string[] = [];
+  for (const f of FILTROS) {
+    if (f.chave === "id") continue;
+    const sel = estado.selecao[f.chave];
+    if (!sel) continue;
+    const todos = valores[f.chave]?.length ?? 0;
+    const lista = Array.from(sel);
+    linhas.push(`${f.rotulo}: ${lista.length === 0 ? "nenhum marcado" : lista.length <= 6 ? lista.join(", ") : `${lista.length} de ${todos} valores marcados`}`);
+  }
+  if (estado.pctMinimo != null) linhas.push(`Execução mínima: ${estado.pctMinimo}%`);
+  if (estado.busca.trim()) linhas.push(`Busca: "${estado.busca.trim()}"`);
+  if (lerIds(estado.ids).length > 0) linhas.push(`Só os IDs informados (${lerIds(estado.ids).length})`);
+  return linhas.length ? linhas : ["Nenhum filtro: todas as ações."];
+}

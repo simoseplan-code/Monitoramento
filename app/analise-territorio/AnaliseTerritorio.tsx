@@ -2,7 +2,7 @@
 
 import "leaflet/dist/leaflet.css";
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Download, Loader2, MapPinned, Save } from "lucide-react";
+import { Download, Loader2, MapPinned, RefreshCw, Save } from "lucide-react";
 import type { Map as MapaDoLeaflet } from "leaflet";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
 import { FiltroCheckbox } from "@/components/FiltroCheckbox";
@@ -16,6 +16,7 @@ import {
   anoDeCriacao,
   anoDeRecebimento,
   cruza,
+  descreverFiltros,
   descricaoDosTerritorios,
   estadoDeGravado,
   estadoParaGravar,
@@ -237,7 +238,7 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
 
       {aba === "resumo" && <Resumo linhas={resumo.linhas} geral={resumo.geral} aoEscolher={filtrarTerritorio} />}
       {aba === "mapa" && <MapaTerritorios linhas={resumo.linhas} aoEscolher={filtrarTerritorio} />}
-      {aba === "tracados" && <MapaTracados acoes={filtradas} />}
+      {aba === "tracados" && <MapaTracados acoes={filtradas} filtros={descreverFiltros(estado, valores)} ehAdmin={ehAdmin} />}
       {aba === "lista" && (
         <div className="space-y-3">
           <ResumoSimples acoes={filtradas} />
@@ -477,10 +478,14 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina }: { acoes: AcaoT[]; pagina: 
 const LIMITE_TRACADOS = 1500;
 // Quantos símbolos o mapa desenha de uma vez (cada um é um elemento da página; acima disso vira bolinha).
 const LIMITE_SIMBOLOS = 2500;
+// Caixa do Piauí (com folga): coordenada fora dela é erro de digitação provável e não entra no enquadramento do mapa.
+const naRegiao = (p: [number, number]) => p[0] > -13 && p[0] < -0.5 && p[1] > -48.5 && p[1] < -38;
+const LIMITE_FONTES = 3000;
+const LIMITE_LISTA_PDF = 5000;
 
 type DadosTracados = { acoes: { id: string; linhas: [number, number][][]; pontos: [number, number][]; poligonos: [number, number][][] }[]; semTracado: number };
 
-function MapaTracados({ acoes }: { acoes: AcaoT[] }) {
+function MapaTracados({ acoes, filtros, ehAdmin }: { acoes: AcaoT[]; filtros: string[]; ehAdmin: boolean }) {
   const [dados, setDados] = useState<DadosTracados | null>(null);
   const [contornos, setContornos] = useState<{ nome: string; linhas: [number, number][][] }[]>([]);
   const [gerado, setGerado] = useState("");
@@ -562,6 +567,16 @@ function MapaTracados({ acoes }: { acoes: AcaoT[] }) {
     }
   }
 
+  // Ações com alguma coordenada longe do Piauí (erro de digitação no KML, ex.: latitude e longitude trocadas).
+  const foraDaRegiao = useMemo(() => {
+    const lista: string[] = [];
+    for (const t of dados?.acoes ?? []) {
+      const fora = t.linhas.some((l) => l.some((p) => !naRegiao(p))) || t.pontos.some((p) => !naRegiao(p)) || t.poligonos.some((l) => l.some((p) => !naRegiao(p)));
+      if (fora) lista.push(t.id);
+    }
+    return lista;
+  }, [dados]);
+
   const infoPorId = useMemo(() => new Map(acoes.map((a) => [a.id, a])), [acoes]);
   // Cor de cada ação: pelo status (padrão) ou pelo território principal.
   const rotuloDe = (a: AcaoT | undefined) => (corPor === "status" ? (a?.status ?? "(sem status)") : rotuloTerritorio(a ? principal(a) : SEM_TERRITORIO));
@@ -592,6 +607,7 @@ function MapaTracados({ acoes }: { acoes: AcaoT[] }) {
   }, [dados, infoPorId, corPor]);
 
   return (
+    <div className="space-y-4">
     <section className="space-y-3 rounded-xl border border-black/5 bg-surface p-4 shadow-card">
       <div className="flex flex-wrap items-center gap-3">
         <p className="text-xs text-ink-secondary">
@@ -636,6 +652,12 @@ function MapaTracados({ acoes }: { acoes: AcaoT[] }) {
         </p>
       )}
       {erro && <p className="rounded-lg bg-status-critical/10 px-3 py-2 text-xs text-status-critical">{erro}</p>}
+      {foraDaRegiao.length > 0 && (
+        <p className="rounded-lg bg-status-warning-bg px-3 py-2 text-xs text-status-warning">
+          {inteiro(foraDaRegiao.length)} ação(ões) têm coordenada fora do Piauí (provável erro no KML ou no mapa de obras): {foraDaRegiao.slice(0, 12).join(", ")}
+          {foraDaRegiao.length > 12 ? "…" : ""}. O mapa se enquadra no Piauí e ignora essas coordenadas.
+        </p>
+      )}
       {desatualizado && <p className="rounded-lg bg-status-warning-bg px-3 py-2 text-xs text-status-warning">Os filtros mudaram depois que o mapa foi gerado. Clique em &quot;Gerar de novo&quot; para atualizar.</p>}
       {dados && (
         <>
@@ -670,6 +692,276 @@ function MapaTracados({ acoes }: { acoes: AcaoT[] }) {
         </>
       )}
       {verMapa && <JanelaMapa id={verMapa.id} nome={verMapa.nome} aoFechar={() => setVerMapa(null)} />}
+    </section>
+    <ListaDoMapa acoes={acoes} filtros={filtros} ehAdmin={ehAdmin} aoAbrirKml={(id, nome) => setVerMapa({ id, nome })} />
+    </div>
+  );
+}
+
+// ---------- lista de obras abaixo do mapa (com PDF e conferência do KML no SIMO) ----------
+
+type ResultadoLote = { id: string; situacao: "baixado" | "ja_tinha" | "sem_kml" | "erro" | "adiado"; mensagem?: string; extensaoKm?: number | null };
+
+const reais = (v: number | null) => (v == null ? "-" : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }));
+
+function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin }: { acoes: AcaoT[]; filtros: string[]; aoAbrirKml: (id: string, nome: string) => void; ehAdmin: boolean }) {
+  const [pagina, setPagina] = useState(1);
+  const [fontes, setFontes] = useState<Record<string, string> | null>(null);
+  const [conferidas, setConferidas] = useState<Record<string, string>>({});
+  const [conferindo, setConferindo] = useState<Record<string, boolean>>({});
+  const [resultado, setResultado] = useState<Record<string, string>>({});
+  const [exportando, setExportando] = useState(false);
+  const [erro, setErro] = useState<string | null>(null);
+
+  const ids = useMemo(() => acoes.map((a) => a.id), [acoes]);
+  const assinatura = useMemo(() => ids.join(","), [ids]);
+  const muitas = ids.length > LIMITE_FONTES;
+
+  // Quais ações do filtro têm traçado (georreferenciadas) e de onde vem. Espera um instante para não consultar a cada clique no filtro.
+  useEffect(() => {
+    setPagina(1);
+    setFontes(null);
+    if (ids.length === 0 || muitas) return;
+    const controle = new AbortController();
+    const espera = setTimeout(async () => {
+      try {
+        const resp = await fetch("/api/territorios/fontes", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }), signal: controle.signal });
+        const json = (await resp.json().catch(() => null)) as { fontes?: Record<string, string>; conferidas?: Record<string, string> } | null;
+        if (resp.ok && json?.fontes) {
+          setFontes(json.fontes);
+          setConferidas(json.conferidas ?? {});
+        }
+      } catch {
+        // sem rede ou cancelado: a coluna fica com "-"
+      }
+    }, 400);
+    return () => {
+      clearTimeout(espera);
+      controle.abort();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [assinatura]);
+
+  // Georreferenciada? Sim (de onde vem o traçado) ou Não (e se já foi conferida no SIMO).
+  const georref = (id: string): string => {
+    if (fontes === null) return muitas ? "-" : "...";
+    const f = fontes[id];
+    if (f) return f === "kml" ? "Sim (KML do SIMO)" : f === "mapa" ? "Sim (mapa de obras)" : "Sim (KML e mapa)";
+    const c = conferidas[id];
+    return c === "sem_kml" ? "Não (sem KML no SIMO)" : c === "erro" ? "Não (erro ao baixar)" : "Não (não conferida)";
+  };
+
+  // Vai ao SIMO ver se a ação tem KML e, se tiver, baixa e guarda (só admin e chefe: usa o login do painel no SIMO).
+  async function conferirNoSimo(id: string) {
+    setConferindo((c) => ({ ...c, [id]: true }));
+    setErro(null);
+    try {
+      const resp = await fetch("/api/kml/lote", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: [id] }) });
+      const json = (await resp.json().catch(() => null)) as { error?: string; resultados?: ResultadoLote[] } | null;
+      const r = json?.resultados?.[0];
+      if (!resp.ok || !r) {
+        setErro(json?.error ?? `Não foi possível conferir no SIMO (o servidor respondeu ${resp.status}).`);
+        return;
+      }
+      if (r.situacao === "baixado" || r.situacao === "ja_tinha") {
+        setFontes((f) => ({ ...(f ?? {}), [id]: f?.[id] === "mapa" ? "ambos" : (f?.[id] ?? "kml") }));
+        setConferidas((c) => {
+          const n = { ...c };
+          delete n[id];
+          return n;
+        });
+        setResultado((x) => ({ ...x, [id]: r.situacao === "baixado" ? `KML baixado${r.extensaoKm != null ? ` (${Number(r.extensaoKm).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} km)` : ""}` : "KML já guardado" }));
+      } else if (r.situacao === "sem_kml") {
+        setConferidas((c) => ({ ...c, [id]: "sem_kml" }));
+        setResultado((x) => ({ ...x, [id]: "Sem KML no SIMO" }));
+      } else if (r.situacao === "erro") {
+        setConferidas((c) => ({ ...c, [id]: "erro" }));
+        setResultado((x) => ({ ...x, [id]: r.mensagem ?? "Erro ao baixar" }));
+      } else {
+        setResultado((x) => ({ ...x, [id]: "Adiado: tente de novo" }));
+      }
+    } catch {
+      setErro("Sem conexão com o servidor.");
+    } finally {
+      setConferindo((c) => ({ ...c, [id]: false }));
+    }
+  }
+
+  const linhasPdf = () =>
+    acoes.map((a) => ({
+      id: a.id,
+      nome: a.nome,
+      orgao: a.orgao ?? "",
+      territorios: descricaoDosTerritorios(a),
+      status: a.status ?? "",
+      tipologia: a.tipologia ?? "",
+      georref: georref(a.id) === "..." ? "-" : georref(a.id),
+      contratado: a.original,
+      total: a.total ?? a.original,
+      pago: a.pago,
+      execucao: a.pct != null ? `${Math.round(a.pct * 100)}%` : "",
+    }));
+
+  async function exportarPdf() {
+    setErro(null);
+    if (acoes.length > LIMITE_LISTA_PDF) {
+      setErro(`São ${inteiro(acoes.length)} obras: filtre até ${inteiro(LIMITE_LISTA_PDF)} para gerar o PDF.`);
+      return;
+    }
+    setExportando(true);
+    try {
+      const resp = await fetch("/api/territorio/pdf", { method: "POST", headers: { "Content-Type": "application/json" }, credentials: "same-origin", body: JSON.stringify({ linhas: linhasPdf(), filtros }) });
+      if (!resp.ok) {
+        const json = (await resp.json().catch(() => ({}))) as { error?: string };
+        setErro(json.error ?? "Não foi possível gerar o PDF.");
+        return;
+      }
+      const url = URL.createObjectURL(await resp.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = resp.headers.get("content-disposition")?.match(/filename="([^"]+)"/)?.[1] ?? "mapa-geral-obras.pdf";
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      setErro("Sem conexão com o servidor.");
+    } finally {
+      setExportando(false);
+    }
+  }
+
+  const semGeo = acoes.filter((a) => fontes !== null && !fontes[a.id]);
+  const [copiou, setCopiou] = useState(false);
+  async function copiarSemGeo() {
+    try {
+      await navigator.clipboard.writeText(semGeo.map((a) => a.id).join("\n"));
+      setCopiou(true);
+      setTimeout(() => setCopiou(false), 2500);
+    } catch {
+      setErro("Não consegui copiar. Selecione e copie pela lista.");
+    }
+  }
+
+  const totalPaginas = Math.max(1, Math.ceil(acoes.length / TAMANHO));
+  const atual = Math.min(pagina, totalPaginas);
+  const visiveis = acoes.slice((atual - 1) * TAMANHO, atual * TAMANHO);
+  const somaContratado = acoes.reduce((s, a) => s + (a.original ?? 0), 0);
+  const somaTotal = acoes.reduce((s, a) => s + (a.total ?? a.original ?? 0), 0);
+  const somaPago = acoes.reduce((s, a) => s + (a.pago ?? 0), 0);
+
+  return (
+    <section className="overflow-hidden rounded-xl border border-black/5 bg-surface shadow-card">
+      <div className="flex flex-wrap items-center gap-3 border-b border-black/5 px-4 py-3">
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-ink-primary">Lista de obras do filtro</p>
+          <p className="text-xs text-ink-muted">
+            {inteiro(acoes.length)} obra(s) · contratado {reais(somaContratado)} · total do contrato {reais(somaTotal)} · pago {reais(somaPago)}
+            {fontes !== null ? ` · ${inteiro(acoes.length - semGeo.length)} georreferenciada(s), ${inteiro(semGeo.length)} sem` : ""}
+          </p>
+        </div>
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {semGeo.length > 0 && (
+            <button onClick={copiarSemGeo} className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-medium text-ink-secondary hover:bg-plane" title="Copia os IDs das obras sem georreferenciamento, para colar em Arquivos KML e baixar em lote">
+              {copiou ? "IDs copiados" : `Copiar ${inteiro(semGeo.length)} ID(s) sem KML`}
+            </button>
+          )}
+          <button onClick={exportarPdf} disabled={exportando || acoes.length === 0} className="flex items-center gap-1.5 rounded-full bg-series-1 px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50">
+            {exportando ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+            {exportando ? "Gerando PDF..." : "Exportar PDF"}
+          </button>
+        </div>
+      </div>
+      {muitas && <p className="border-b border-black/5 bg-status-warning-bg px-4 py-2 text-xs text-status-warning">Com mais de {inteiro(LIMITE_FONTES)} obras, a coluna Georreferenciada não é consultada. Filtre mais para ver quais têm KML.</p>}
+      {erro && <p className="border-b border-black/5 bg-status-critical/10 px-4 py-2 text-xs text-status-critical">{erro}</p>}
+      <div className="overflow-x-auto">
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-black/5 bg-plane text-left text-[11px] uppercase tracking-wide text-ink-muted">
+              <th className="px-4 py-2.5">ID</th>
+              <th className="px-3 py-2.5">Descrição</th>
+              <th className="px-3 py-2.5">Órgão</th>
+              <th className="px-3 py-2.5">Território(s)</th>
+              <th className="px-3 py-2.5">Status</th>
+              <th className="px-3 py-2.5">Tipologia</th>
+              <th className="px-3 py-2.5">Georreferenciada</th>
+              <th className="px-3 py-2.5 text-right">Contratado</th>
+              <th className="px-3 py-2.5 text-right">Total do contrato</th>
+              <th className="px-3 py-2.5 text-right">Pago</th>
+              <th className="px-3 py-2.5 text-right">Exec.</th>
+              <th className="px-3 py-2.5">KML</th>
+            </tr>
+          </thead>
+          <tbody>
+            {visiveis.length === 0 && (
+              <tr>
+                <td colSpan={12} className="px-4 py-8 text-center text-ink-muted">
+                  Nenhuma obra com os filtros atuais.
+                </td>
+              </tr>
+            )}
+            {visiveis.map((a) => {
+              const g = georref(a.id);
+              const sim = g.startsWith("Sim");
+              return (
+                <tr key={a.id} className="border-b border-black/5 last:border-0 align-top hover:bg-plane/60">
+                  <td className="whitespace-nowrap px-4 py-2">
+                    <IdAcaoLink id={a.id} />
+                  </td>
+                  <td className="max-w-xs px-3 py-2 text-ink-primary">{a.nome}</td>
+                  <td className="px-3 py-2 text-ink-secondary">{a.orgao ?? "-"}</td>
+                  <td className="px-3 py-2 text-ink-secondary">{a.partes.length ? descricaoDosTerritorios(a) : "Sem localização"}</td>
+                  <td className="px-3 py-2 text-ink-secondary">{a.status ?? "-"}</td>
+                  <td className="px-3 py-2 text-ink-secondary">{a.tipologia ?? "-"}</td>
+                  <td className="whitespace-nowrap px-3 py-2">
+                    <span className={"rounded-full px-2 py-0.5 text-[10px] font-semibold " + (sim ? "bg-status-good-bg text-status-good" : g.startsWith("Não") ? "bg-status-critical/10 text-status-critical" : "bg-plane text-ink-muted")}>{g}</span>
+                    {resultado[a.id] && <span className="mt-0.5 block text-[10px] text-ink-muted">{resultado[a.id]}</span>}
+                  </td>
+                  <td className="tabular whitespace-nowrap px-3 py-2 text-right text-ink-secondary">{reais(a.original)}</td>
+                  <td className="tabular whitespace-nowrap px-3 py-2 text-right text-ink-secondary">{reais(a.total ?? a.original)}</td>
+                  <td className="tabular whitespace-nowrap px-3 py-2 text-right text-ink-secondary">{reais(a.pago)}</td>
+                  <td className="tabular whitespace-nowrap px-3 py-2 text-right text-ink-secondary">{a.pct != null ? `${Math.round(a.pct * 100)}%` : "-"}</td>
+                  <td className="px-3 py-2">
+                    <div className="flex flex-col items-start gap-1">
+                      {sim && (
+                        <button onClick={() => aoAbrirKml(a.id, a.nome)} className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-black/10 px-2.5 py-1 text-xs font-medium text-ink-secondary hover:bg-plane" title="Ver o traçado guardado no mapa">
+                          <MapPinned size={13} /> Ver no mapa
+                        </button>
+                      )}
+                      {ehAdmin ? (
+                        <button
+                          onClick={() => conferirNoSimo(a.id)}
+                          disabled={conferindo[a.id]}
+                          className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-black/10 px-2.5 py-1 text-xs font-medium text-ink-secondary hover:bg-plane disabled:opacity-60"
+                          title="Vai ao SIMO ver se a obra tem KML e, se tiver, já baixa e guarda"
+                        >
+                          {conferindo[a.id] ? <Loader2 size={13} className="animate-spin" /> : <RefreshCw size={13} />}
+                          {conferindo[a.id] ? "Conferindo..." : "Conferir no SIMO"}
+                        </button>
+                      ) : (
+                        !sim && <span className="text-[10px] text-ink-muted">Conferir no SIMO: só admin e chefe</span>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
+          </tbody>
+        </table>
+      </div>
+      <div className="flex items-center justify-between border-t border-black/5 px-4 py-2.5 text-xs text-ink-muted">
+        <span>
+          {inteiro(acoes.length)} obra(s) · página {atual} de {totalPaginas}
+        </span>
+        <span className="flex gap-2">
+          <button disabled={atual <= 1} onClick={() => setPagina(atual - 1)} className="rounded-full border border-black/10 px-3 py-1 font-medium hover:bg-plane disabled:opacity-40">
+            Anterior
+          </button>
+          <button disabled={atual >= totalPaginas} onClick={() => setPagina(atual + 1)} className="rounded-full border border-black/10 px-3 py-1 font-medium hover:bg-plane disabled:opacity-40">
+            Próxima
+          </button>
+        </span>
+      </div>
     </section>
   );
 }
@@ -720,7 +1012,14 @@ function MapaDosTracados({ dados, contornos, infoPorId, corPor, aoAbrir }: { dad
           }
         }
       }
-      const bounds = grupo.getBounds();
+      // Enquadra só no que está dentro do Piauí: uma coordenada errada não pode afastar o mapa até o mundo todo.
+      const emRegiao: [number, number][] = [];
+      for (const t of dados.acoes) {
+        for (const l of t.linhas) for (const p of l) if (naRegiao(p)) emRegiao.push(p);
+        for (const p of t.pontos) if (naRegiao(p)) emRegiao.push(p);
+        for (const l of t.poligonos) for (const p of l) if (naRegiao(p)) emRegiao.push(p);
+      }
+      const bounds = emRegiao.length > 0 ? L.latLngBounds(emRegiao) : grupo.getBounds();
       const enquadrar = () => {
         if (cancelado || !mapa) return;
         mapa.invalidateSize();
