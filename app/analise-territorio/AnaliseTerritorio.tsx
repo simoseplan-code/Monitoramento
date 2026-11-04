@@ -2,10 +2,11 @@
 
 import "leaflet/dist/leaflet.css";
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Download, Loader2, Save } from "lucide-react";
+import { Download, Loader2, MapPinned, Save } from "lucide-react";
 import type { Map as MapaDoLeaflet } from "leaflet";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
 import { FiltroCheckbox } from "@/components/FiltroCheckbox";
+import { JanelaMapa } from "@/app/verificacao-bairros/VerificacaoBairros";
 import { COR_TERRITORIO, SEM_TERRITORIO, rotuloTerritorio } from "@/lib/territorios";
 import {
   FILTROS,
@@ -312,6 +313,7 @@ function Numeros({ l, total }: { l: LinhaTerritorio; total?: boolean }) {
 // ---------- lista ----------
 
 function ListaAcoes({ acoes, pagina, aoMudarPagina }: { acoes: AcaoT[]; pagina: number; aoMudarPagina: (p: number) => void }) {
+  const [verMapa, setVerMapa] = useState<{ id: string; nome: string } | null>(null);
   const totalPaginas = Math.max(1, Math.ceil(acoes.length / TAMANHO));
   const atual = Math.min(pagina, totalPaginas);
   const visiveis = acoes.slice((atual - 1) * TAMANHO, atual * TAMANHO);
@@ -330,12 +332,13 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina }: { acoes: AcaoT[]; pagina: 
             <th className="px-3 py-2.5">Criada</th>
             <th className="px-3 py-2.5">Recebida</th>
             <th className="px-3 py-2.5 text-right">Valor final</th>
+            <th className="px-3 py-2.5">KML</th>
           </tr>
         </thead>
         <tbody>
           {visiveis.length === 0 && (
             <tr>
-              <td colSpan={10} className="px-4 py-8 text-center text-ink-muted">
+              <td colSpan={11} className="px-4 py-8 text-center text-ink-muted">
                 Nenhuma ação com os filtros atuais.
               </td>
             </tr>
@@ -375,6 +378,15 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina }: { acoes: AcaoT[]; pagina: 
               <td className="tabular whitespace-nowrap px-3 py-2 text-ink-secondary">{anoDeCriacao(a) === "(vazio)" ? "-" : anoDeCriacao(a)}</td>
               <td className="tabular whitespace-nowrap px-3 py-2 text-ink-secondary">{anoDeRecebimento(a) === "(vazio)" ? "-" : anoDeRecebimento(a)}</td>
               <td className="tabular whitespace-nowrap px-3 py-2 text-right text-ink-secondary">{a.original != null || a.total != null ? dinheiro(valorFinal(a)) : "-"}</td>
+              <td className="px-3 py-2">
+                <button
+                  onClick={() => setVerMapa({ id: a.id, nome: a.nome })}
+                  className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-black/10 px-2.5 py-1 text-xs font-medium text-ink-secondary hover:bg-plane"
+                  title={a.origem === "tracado" ? "Ver o traçado no mapa, com bairros, zona e território" : "Esta ação ainda não tem traçado verificado"}
+                >
+                  <MapPinned size={13} /> Verificar KML
+                </button>
+              </td>
             </tr>
           ))}
         </tbody>
@@ -392,6 +404,7 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina }: { acoes: AcaoT[]; pagina: 
           </button>
         </span>
       </div>
+      {verMapa && <JanelaMapa id={verMapa.id} nome={verMapa.nome} aoFechar={() => setVerMapa(null)} />}
     </section>
   );
 }

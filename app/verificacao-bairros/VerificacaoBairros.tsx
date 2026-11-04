@@ -555,7 +555,7 @@ type DadosMapa = {
 const COR_ZONA = { U: "#dc2626", R: "#d97706" } as const;
 const CORES = ["#2563eb", "#16a34a", "#9333ea", "#ea580c", "#0891b2", "#db2777", "#65a30d", "#4f46e5"];
 
-function JanelaMapa({ id, nome, bairroFoco, aoFechar }: { id: string; nome: string; bairroFoco?: string; aoFechar: () => void }) {
+export function JanelaMapa({ id, nome, bairroFoco, aoFechar }: { id: string; nome: string; bairroFoco?: string; aoFechar: () => void }) {
   const [dados, setDados] = useState<DadosMapa | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
