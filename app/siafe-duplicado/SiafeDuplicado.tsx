@@ -183,11 +183,14 @@ function ListaDeGrupos({ grupos, rotulo, explica, buscaInicial, arquivo }: { gru
   const [busca, setBusca] = useState(buscaInicial);
   const [orgao, setOrgao] = useState("");
   const [status, setStatus] = useState("");
+  const [ano, setAno] = useState("");
   const [abertos, setAbertos] = useState<Set<string>>(new Set(buscaInicial ? [buscaInicial] : []));
   const [pagina, setPagina] = useState(1);
 
   const orgaos = useMemo(() => Array.from(new Set(grupos.flatMap((g) => g.acoes.map((a) => a.orgao).filter(Boolean) as string[]))).sort(), [grupos]);
   const statusLista = useMemo(() => Array.from(new Set(grupos.flatMap((g) => g.acoes.map((a) => a.status).filter(Boolean) as string[]))).sort(), [grupos]);
+
+  const anos = useMemo(() => Array.from(new Set(grupos.flatMap((g) => g.acoes.map((a) => (a.criadaEm ?? "").slice(0, 4)).filter((y) => /^d{4}$/.test(y))))).sort().reverse(), [grupos]);
 
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
@@ -195,9 +198,11 @@ function ListaDeGrupos({ grupos, rotulo, explica, buscaInicial, arquivo }: { gru
       if (termo && !(g.siafe.toLowerCase().includes(termo) || g.acoes.some((a) => a.id.includes(termo) || a.nome.toLowerCase().includes(termo)))) return false;
       if (orgao && !g.acoes.some((a) => a.orgao === orgao)) return false;
       if (status && !g.acoes.some((a) => a.status === status)) return false;
+      // Ano de criação: basta pelo menos uma ação do número ter sido criada nesse ano.
+      if (ano && !g.acoes.some((a) => (a.criadaEm ?? "").slice(0, 4) === ano)) return false;
       return true;
     });
-  }, [grupos, busca, orgao, status]);
+  }, [grupos, busca, orgao, status, ano]);
 
   const totalPaginas = Math.max(1, Math.ceil(filtrados.length / TAMANHO));
   const paginaAtual = Math.min(pagina, totalPaginas);
@@ -274,12 +279,29 @@ function ListaDeGrupos({ grupos, rotulo, explica, buscaInicial, arquivo }: { gru
               </option>
             ))}
           </select>
-          {(busca || orgao || status) && (
+          <select
+            value={ano}
+            onChange={(e) => {
+              setAno(e.target.value);
+              setPagina(1);
+            }}
+            className={campo}
+            title="Mostra os números em que pelo menos uma ação foi criada no ano escolhido"
+          >
+            <option value="">Todos os anos de criação</option>
+            {anos.map((y) => (
+              <option key={y} value={y}>
+                Criada em {y}
+              </option>
+            ))}
+          </select>
+          {(busca || orgao || status || ano) && (
             <button
               onClick={() => {
                 setBusca("");
                 setOrgao("");
                 setStatus("");
+                setAno("");
                 setPagina(1);
               }}
               className="text-xs font-medium text-series-1 hover:underline"
