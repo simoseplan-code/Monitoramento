@@ -2,7 +2,7 @@
 
 import "leaflet/dist/leaflet.css";
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Download, Loader2 } from "lucide-react";
+import { Download, Loader2, Save } from "lucide-react";
 import type { Map as MapaDoLeaflet } from "leaflet";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
 import { FiltroCheckbox } from "@/components/FiltroCheckbox";
@@ -14,6 +14,8 @@ import {
   anoDeRecebimento,
   cruza,
   descricaoDosTerritorios,
+  estadoDeGravado,
+  estadoParaGravar,
   estadoPadrao,
   filtrar,
   principal,
@@ -44,12 +46,18 @@ function csvEscape(v: unknown): string {
   return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export function AnaliseTerritorio({ acoes, territorios }: { acoes: AcaoT[]; territorios: string[] }) {
-  const [estado, setEstado] = useState<EstadoFiltros>(() => estadoPadrao());
+export function AnaliseTerritorio({ acoes, territorios, filtroGravado }: { acoes: AcaoT[]; territorios: string[]; filtroGravado: { estado: unknown; atualizadoEm: string; por?: string | null } | null }) {
+  const valores = useMemo(() => valoresDosFiltros(acoes), [acoes]);
+  // Abre no filtro gravado (um só, vale para todos os usuários); sem filtro gravado, abre tudo aberto.
+  const [estado, setEstado] = useState<EstadoFiltros>(() => (filtroGravado ? estadoDeGravado(filtroGravado.estado, valores) : estadoPadrao()));
+  const [gravadoEm, setGravadoEm] = useState<string | null>(filtroGravado?.atualizadoEm ?? null);
+  const [gravadoPor, setGravadoPor] = useState<string | null>(filtroGravado?.por ?? null);
+  const [gravadoJson, setGravadoJson] = useState<string | null>(filtroGravado ? JSON.stringify(estadoParaGravar(estadoDeGravado(filtroGravado.estado, valores))) : null);
+  const [gravando, setGravando] = useState(false);
+  const [aviso, setAviso] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
   const [aba, setAba] = useState<Aba>("resumo");
   const [pagina, setPagina] = useState(1);
 
-  const valores = useMemo(() => valoresDosFiltros(acoes), [acoes]);
   const filtradas = useMemo(() => filtrar(acoes, estado), [acoes, estado]);
   const resumo = useMemo(() => resumoPorTerritorio(filtradas, territorios), [filtradas, territorios]);
   const cruzam = useMemo(() => filtradas.filter(cruza), [filtradas]);
@@ -63,6 +71,49 @@ export function AnaliseTerritorio({ acoes, territorios }: { acoes: AcaoT[]; terr
     mudar({ ...estado, selecao: { ...estado.selecao, passa: new Set([rotulo]) } });
     setAba("lista");
   };
+
+  const jsonAtual = JSON.stringify(estadoParaGravar(estado));
+  const alterado = gravadoJson !== null && gravadoJson !== jsonAtual;
+
+  async function gravarFiltro() {
+    setGravando(true);
+    setAviso(null);
+    try {
+      const resp = await fetch("/api/filtros", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tela: "analise_territorio", estado: estadoParaGravar(estado) }) });
+      const json = (await resp.json().catch(() => ({}))) as { error?: string; atualizadoEm?: string };
+      if (!resp.ok) setAviso({ tipo: "erro", texto: json.error ?? "Não foi possível gravar o filtro." });
+      else {
+        setGravadoEm(json.atualizadoEm ?? new Date().toISOString());
+        setGravadoPor("você");
+        setGravadoJson(jsonAtual);
+        setAviso({ tipo: "ok", texto: "Filtro gravado para todos os usuários. Quem abrir esta tela já vê esse filtro." });
+      }
+    } catch {
+      setAviso({ tipo: "erro", texto: "Sem conexão com o servidor." });
+    } finally {
+      setGravando(false);
+    }
+  }
+
+  async function apagarFiltroGravado() {
+    setGravando(true);
+    setAviso(null);
+    try {
+      const resp = await fetch("/api/filtros?tela=analise_territorio", { method: "DELETE" });
+      if (!resp.ok) setAviso({ tipo: "erro", texto: "Não foi possível apagar o filtro gravado." });
+      else {
+        setGravadoEm(null);
+        setGravadoPor(null);
+        setGravadoJson(null);
+        mudar(estadoPadrao());
+        setAviso({ tipo: "ok", texto: "Filtro gravado apagado para todos. A tela volta ao padrão." });
+      }
+    } catch {
+      setAviso({ tipo: "erro", texto: "Sem conexão com o servidor." });
+    } finally {
+      setGravando(false);
+    }
+  }
 
   function exportar() {
     const lista = aba === "cruzam" ? cruzam : filtradas;
@@ -130,11 +181,32 @@ export function AnaliseTerritorio({ acoes, territorios }: { acoes: AcaoT[]; terr
               limpar {ativos} filtro(s)
             </button>
           )}
-          <button onClick={exportar} disabled={filtradas.length === 0} className="ml-auto flex items-center gap-1.5 rounded-full bg-status-good px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">
+          <button
+            onClick={gravarFiltro}
+            disabled={gravando}
+            title="Grava os filtros atuais para TODOS os usuários: ao abrir esta tela, qualquer pessoa já os vê aplicados"
+            className="ml-auto flex items-center gap-1.5 rounded-full bg-series-1 px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+          >
+            <Save size={13} /> {gravando ? "Gravando..." : "Gravar filtro"}
+          </button>
+          <button onClick={exportar} disabled={filtradas.length === 0} className="flex items-center gap-1.5 rounded-full bg-status-good px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">
             <Download size={13} /> Exportar Excel
           </button>
         </div>
-        <p className="mt-3 text-xs text-ink-muted">
+        <p className="mt-3 text-[11px] leading-snug text-ink-muted">
+          {gravadoEm
+            ? alterado
+              ? "Você mudou os filtros depois da última gravação. Clique em Gravar filtro para guardar (vale para todos)."
+              : "Filtro gravado em " + new Date(gravadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) + (gravadoPor ? " por " + gravadoPor : "") + ". Vale para todos os usuários: é ele que abre para todo mundo."
+            : "Nenhum filtro gravado: a tela abre com tudo aberto. Ao gravar, o filtro vale para todos os usuários."}
+          {gravadoEm && (
+            <button onClick={apagarFiltroGravado} disabled={gravando} className="ml-2 font-medium hover:text-ink-primary hover:underline disabled:opacity-50">
+              Apagar filtro gravado (para todos)
+            </button>
+          )}
+          {aviso && <span className={"ml-2 font-medium " + (aviso.tipo === "ok" ? "text-status-good" : "text-status-critical")}>{aviso.texto}</span>}
+        </p>
+        <p className="mt-2 text-xs text-ink-muted">
           <strong className="text-ink-primary">{inteiro(filtradas.length)}</strong> de {inteiro(acoes.length)} ação(ões) · {inteiro(resumo.geral.vinculadas)} vinculada(s) · {inteiro(resumo.geral.naoVinculadas)} não vinculada(s) ·{" "}
           {inteiro(cruzam.length)} cruzam territórios
         </p>

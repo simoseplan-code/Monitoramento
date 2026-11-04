@@ -180,3 +180,33 @@ export function resumoPorTerritorio(acoes: AcaoT[], todos: string[]): { linhas: 
   const linhas = Array.from(mapa.values()).sort((a, b) => (a.territorio === SEM_TERRITORIO ? 1 : b.territorio === SEM_TERRITORIO ? -1 : b.acoes - a.acoes || a.territorio.localeCompare(b.territorio, "pt-BR")));
   return { linhas, geral };
 }
+
+// ---------- filtro gravado (vai e volta do banco como JSON) ----------
+
+export type EstadoGravado = { selecao: Record<string, string[] | null>; pctMinimo: number | null; busca: string; ids: string };
+
+export function estadoParaGravar(e: EstadoFiltros): EstadoGravado {
+  const selecao: EstadoGravado["selecao"] = {};
+  for (const f of FILTROS) {
+    const s = e.selecao[f.chave];
+    selecao[f.chave] = s ? Array.from(s) : null;
+  }
+  return { selecao, pctMinimo: e.pctMinimo, busca: e.busca, ids: e.ids };
+}
+
+/** Volta o filtro gravado para o estado da tela. Valores que não existem mais são ignorados. */
+export function estadoDeGravado(g: unknown, valores: Record<string, { valor: string; qtd: number }[]>): EstadoFiltros {
+  const padrao = estadoPadrao();
+  if (!g || typeof g !== "object") return padrao;
+  const x = g as Partial<EstadoGravado>;
+  const selecao: Selecao = {};
+  for (const f of FILTROS) {
+    const gravada = x.selecao?.[f.chave];
+    if (gravada === undefined || gravada === null || !Array.isArray(gravada)) selecao[f.chave] = null;
+    else {
+      const existentes = new Set((valores[f.chave] ?? []).map((v) => v.valor));
+      selecao[f.chave] = new Set(gravada.filter((v) => typeof v === "string" && existentes.has(v)));
+    }
+  }
+  return { selecao, pctMinimo: typeof x.pctMinimo === "number" ? x.pctMinimo : null, busca: typeof x.busca === "string" ? x.busca : "", ids: typeof x.ids === "string" ? x.ids : "" };
+}

@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { AppShell } from "@/components/layout/AppShell";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { territoriosDasAcoes, territorioPorMunicipio } from "@/lib/territoriosDados";
@@ -66,6 +67,16 @@ export default async function AnaliseTerritorioPage() {
   erro = erro ?? erroTerr;
   const territorios = Array.from(new Set((await territorioPorMunicipio()).values())).sort((a, b) => a.localeCompare(b, "pt-BR"));
 
+  // Filtro gravado: UM SÓ, vale para todos (quem gravou por último). Lido com o acesso do servidor.
+  const admin = createAdminClient();
+  const { data: gravado } = await admin.from("filtros_salvos").select("usuario_id, estado, atualizado_em").eq("tela", "analise_territorio").order("atualizado_em", { ascending: false }).limit(1).maybeSingle();
+  let gravadoPor: string | null = null;
+  if (gravado?.usuario_id) {
+    const { data: quem } = await admin.from("profiles").select("nome").eq("id", gravado.usuario_id).maybeSingle();
+    gravadoPor = (quem?.nome as string | null) ?? null;
+  }
+  const filtroGravado = gravado ? { estado: gravado.estado as unknown, atualizadoEm: gravado.atualizado_em as string, por: gravadoPor } : null;
+
   const acoes: AcaoT[] = linhas.map((l) => {
     const t = porAcao.get(l.id_acao);
     return {
@@ -104,7 +115,7 @@ export default async function AnaliseTerritorioPage() {
       {erro ? (
         <p className="rounded-lg bg-status-critical/10 px-3 py-2 text-xs text-status-critical">Falha ao carregar os dados: {erro}</p>
       ) : (
-        <AnaliseTerritorio acoes={acoes} territorios={territorios} />
+        <AnaliseTerritorio acoes={acoes} territorios={territorios} filtroGravado={filtroGravado} />
       )}
     </AppShell>
   );
