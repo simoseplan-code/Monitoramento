@@ -61,7 +61,7 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
   const [gravadoJson, setGravadoJson] = useState<string | null>(filtroGravado ? JSON.stringify(estadoParaGravar(estadoDeGravado(filtroGravado.estado, valores))) : null);
   const [gravando, setGravando] = useState(false);
   // Excel: com ou sem o percentual do traçado em cada município e território.
-  const [pctNoExcel, setPctNoExcel] = useState(false);
+  const [comPct, setComPct] = useState(false);
   const [aviso, setAviso] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
   const [aba, setAba] = useState<Aba>(modo === "mapa" ? "tracados" : "resumo");
   const [pagina, setPagina] = useState(1);
@@ -125,18 +125,18 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
 
   function exportar() {
     const lista = aba === "cruzam" ? cruzam : filtradas;
-    const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Tipologia", "Município(s)", "Status", "Estágio Atual", "Território principal", (pctNoExcel ? "Territórios (% do traçado)" : "Territórios"), "Localizada por", "Extensão (km)", "Vinculação SIAFE", "SIAFE automático", "% Execução", "Ano de criação", "Ano de recebimento", "Valor contratado", "Valor pago total"];
+    const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Tipologia", "Município(s)", "Status", "Estágio Atual", "Território principal", (comPct ? "Territórios (% do traçado)" : "Territórios"), "Localizada por", "Extensão (km)", "Vinculação SIAFE", "SIAFE automático", "% Execução", "Ano de criação", "Ano de recebimento", "Valor contratado", "Valor pago total"];
     const linhas = lista.map((a) =>
       [
         a.id,
         a.nome,
         a.orgao,
         a.tipologia,
-        a.municipios.length ? descricaoDosMunicipios(a, pctNoExcel) : "",
+        a.municipios.length ? descricaoDosMunicipios(a, comPct) : "",
         a.status,
         a.estagio,
         rotuloTerritorio(principal(a)),
-        descricaoDosTerritorios(a, pctNoExcel),
+        descricaoDosTerritorios(a, comPct),
         a.origem === "tracado" ? "Traçado" : a.origem === "municipio" ? "Município do SIMO" : "Sem localização",
         a.extensaoM ? (a.extensaoM / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "",
         vinculada(a) ? "Vinculada" : a.numeroSiafe ? "Pendente" : "Sem número",
@@ -208,9 +208,9 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
           <button onClick={exportar} disabled={filtradas.length === 0} className="flex items-center gap-1.5 rounded-full bg-status-good px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">
             <Download size={13} /> Exportar Excel
           </button>
-          <label className="flex items-center gap-1.5 text-[11px] text-ink-muted" title="Marcado: o Excel mostra a parte do traçado em cada município e território (ex.: Jurema 70%, Anísio de Abreu 30%). Desmarcado: só os nomes.">
-            <input type="checkbox" checked={pctNoExcel} onChange={(e) => setPctNoExcel(e.target.checked)} className="h-3.5 w-3.5" />
-            com % no Excel
+          <label className="flex items-center gap-1.5 text-[11px] text-ink-muted" title="Marcado: mostra a parte do traçado em cada município e território (ex.: Jurema 70%, Anísio de Abreu 30%) nas listas, no Excel e no PDF. Desmarcado: só os nomes.">
+            <input type="checkbox" checked={comPct} onChange={(e) => setComPct(e.target.checked)} className="h-3.5 w-3.5" />
+            mostrar % do traçado (listas, Excel e PDF)
           </label>
         </div>
         <p className="mt-3 text-[11px] leading-snug text-ink-muted">
@@ -247,18 +247,18 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
 
       {aba === "resumo" && <Resumo linhas={resumo.linhas} geral={resumo.geral} aoEscolher={filtrarTerritorio} />}
       {aba === "mapa" && <MapaTerritorios linhas={resumo.linhas} aoEscolher={filtrarTerritorio} />}
-      {aba === "tracados" && <MapaTracados acoes={filtradas} filtros={descreverFiltros(estado, valores)} ehAdmin={ehAdmin} />}
+      {aba === "tracados" && <MapaTracados acoes={filtradas} filtros={descreverFiltros(estado, valores)} ehAdmin={ehAdmin} comPct={comPct} />}
       {aba === "lista" && (
         <div className="space-y-3">
           <ResumoSimples acoes={filtradas} />
-          <ListaAcoes acoes={filtradas} pagina={pagina} aoMudarPagina={setPagina} />
+          <ListaAcoes acoes={filtradas} pagina={pagina} aoMudarPagina={setPagina} comPct={comPct} />
         </div>
       )}
       {aba === "cruzam" && (
         <div className="space-y-3">
           <p className="text-xs text-ink-muted">Ações cujo traçado passa por mais de um território (qualquer parte conta, mesmo pequena). Servem para conferir o enquadramento e dividir a análise.</p>
           <ResumoSimples acoes={cruzam} />
-          <ListaAcoes acoes={cruzam} pagina={pagina} aoMudarPagina={setPagina} />
+          <ListaAcoes acoes={cruzam} pagina={pagina} aoMudarPagina={setPagina} comPct={comPct} />
         </div>
       )}
     </div>
@@ -385,7 +385,7 @@ function ResumoSimples({ acoes }: { acoes: AcaoT[] }) {
 
 // ---------- lista ----------
 
-function ListaAcoes({ acoes, pagina, aoMudarPagina }: { acoes: AcaoT[]; pagina: number; aoMudarPagina: (p: number) => void }) {
+function ListaAcoes({ acoes, pagina, aoMudarPagina, comPct }: { acoes: AcaoT[]; pagina: number; aoMudarPagina: (p: number) => void; comPct: boolean }) {
   const [verMapa, setVerMapa] = useState<{ id: string; nome: string } | null>(null);
   const totalPaginas = Math.max(1, Math.ceil(acoes.length / TAMANHO));
   const atual = Math.min(pagina, totalPaginas);
@@ -429,7 +429,7 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina }: { acoes: AcaoT[]; pagina: 
               </td>
               <td className="px-3 py-2 text-ink-secondary">{a.orgao ?? "-"}</td>
               <td className="px-3 py-2 text-ink-secondary">{a.tipologia ?? "-"}</td>
-              <td className="px-3 py-2 text-ink-secondary">{descricaoDosMunicipios(a)}</td>
+              <td className="px-3 py-2 text-ink-secondary">{descricaoDosMunicipios(a, comPct)}</td>
               <td className="px-3 py-2 text-ink-secondary">
                 {a.partes.length === 0 ? (
                   <span className="text-ink-muted">{rotuloTerritorio(SEM_TERRITORIO)}</span>
@@ -438,7 +438,7 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina }: { acoes: AcaoT[]; pagina: 
                     {a.partes.map((p) => (
                       <li key={p.nome} className="flex items-center gap-1.5 whitespace-nowrap">
                         <span className="inline-block h-2 w-2 rounded-full" style={{ background: COR_TERRITORIO[p.nome] ?? "#6b7280" }} />
-                        {rotuloTerritorio(p.nome)} <span className="text-ink-muted">{Math.round(p.pct * 100)}%</span>
+                        {rotuloTerritorio(p.nome)}{comPct && <span className="ml-1 text-ink-muted">{Math.round(p.pct * 100)}%</span>}
                       </li>
                     ))}
                   </ul>
@@ -498,7 +498,7 @@ const LIMITE_LISTA_PDF = 5000;
 
 type DadosTracados = { acoes: { id: string; linhas: [number, number][][]; pontos: [number, number][]; poligonos: [number, number][][] }[]; semTracado: number };
 
-function MapaTracados({ acoes, filtros, ehAdmin }: { acoes: AcaoT[]; filtros: string[]; ehAdmin: boolean }) {
+function MapaTracados({ acoes, filtros, ehAdmin, comPct }: { acoes: AcaoT[]; filtros: string[]; ehAdmin: boolean; comPct: boolean }) {
   const [dados, setDados] = useState<DadosTracados | null>(null);
   const [contornos, setContornos] = useState<{ nome: string; linhas: [number, number][][] }[]>([]);
   const [gerado, setGerado] = useState("");
@@ -666,7 +666,7 @@ function MapaTracados({ acoes, filtros, ehAdmin }: { acoes: AcaoT[]; filtros: st
         status: a.status ?? "",
         tipologia: a.tipologia ?? "",
         territorio: a.partes.length ? rotuloTerritorio(principal(a)) : "",
-        territorios: descricaoDosTerritorios(a),
+        territorios: descricaoDosTerritorios(a, comPct),
         vinculacao: vinculada(a) ? "Vinculada" : a.numeroSiafe ? "Pendente" : "Sem número",
         execucao: a.pct != null ? `${Math.round(a.pct * 100)}%` : "",
       }));
@@ -849,7 +849,7 @@ function MapaTracados({ acoes, filtros, ehAdmin }: { acoes: AcaoT[]; filtros: st
       )}
       {verMapa && <JanelaMapa id={verMapa.id} nome={verMapa.nome} aoFechar={() => setVerMapa(null)} />}
     </section>
-    <ListaDoMapa acoes={acoes} filtros={filtros} ehAdmin={ehAdmin} tr={{ fontes, conferidas, resultado, muitas, erroFontes, setFontes, setConferidas, setResultado, conferirUma }} aoAbrirKml={(id, nome) => setVerMapa({ id, nome })} />
+    <ListaDoMapa comPct={comPct} acoes={acoes} filtros={filtros} ehAdmin={ehAdmin} tr={{ fontes, conferidas, resultado, muitas, erroFontes, setFontes, setConferidas, setResultado, conferirUma }} aoAbrirKml={(id, nome) => setVerMapa({ id, nome })} />
     </div>
   );
 }
@@ -874,7 +874,7 @@ type EstadoTracados = {
   conferirUma: (id: string) => Promise<ResultadoLote | null>;
 };
 
-function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr }: { acoes: AcaoT[]; filtros: string[]; aoAbrirKml: (id: string, nome: string) => void; ehAdmin: boolean; tr: EstadoTracados }) {
+function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr, comPct }: { comPct: boolean; acoes: AcaoT[]; filtros: string[]; aoAbrirKml: (id: string, nome: string) => void; ehAdmin: boolean; tr: EstadoTracados }) {
   const { fontes, conferidas, resultado, muitas, erroFontes } = tr;
   const [pagina, setPagina] = useState(1);
   const [conferindo, setConferindo] = useState<Record<string, boolean>>({});
@@ -909,8 +909,8 @@ function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr }: { acoes: AcaoT
       id: a.id,
       nome: a.nome,
       orgao: a.orgao ?? "",
-      municipios: descricaoDosMunicipios(a) === "-" ? "" : descricaoDosMunicipios(a),
-      territorios: descricaoDosTerritorios(a),
+      municipios: descricaoDosMunicipios(a, comPct) === "-" ? "" : descricaoDosMunicipios(a, comPct),
+      territorios: descricaoDosTerritorios(a, comPct),
       status: a.status ?? "",
       tipologia: a.tipologia ?? "",
       georref: georref(a.id) === "..." ? "-" : georref(a.id),
@@ -1030,8 +1030,8 @@ function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr }: { acoes: AcaoT
                   </td>
                   <td className="max-w-xs px-3 py-2 text-ink-primary">{a.nome}</td>
                   <td className="px-3 py-2 text-ink-secondary">{a.orgao ?? "-"}</td>
-                  <td className="px-3 py-2 text-ink-secondary">{descricaoDosMunicipios(a)}</td>
-                  <td className="px-3 py-2 text-ink-secondary">{a.partes.length ? descricaoDosTerritorios(a) : "Sem localização"}</td>
+                  <td className="px-3 py-2 text-ink-secondary">{descricaoDosMunicipios(a, comPct)}</td>
+                  <td className="px-3 py-2 text-ink-secondary">{a.partes.length ? descricaoDosTerritorios(a, comPct) : "Sem localização"}</td>
                   <td className="px-3 py-2 text-ink-secondary">{a.status ?? "-"}</td>
                   <td className="px-3 py-2 text-ink-secondary">{a.tipologia ?? "-"}</td>
                   <td className="whitespace-nowrap px-3 py-2">
@@ -1109,7 +1109,7 @@ function MapaDosTracados({ dados, contornos, infoPorId, corPor, aoAbrir }: { dad
       for (const t of dados.acoes) {
         const a = infoPorId.get(t.id);
         const cor = corPor === "status" ? corDoStatus(a?.status) : (COR_TERRITORIO[a ? principal(a) : ""] ?? "#6b7280");
-        const dica = `${t.id} - ${a?.nome ?? ""}${a ? " · " + (a.status ?? "sem status") + " · " + descricaoDosTerritorios(a) : ""}`;
+        const dica = `${t.id} - ${a?.nome ?? ""}${a ? " · " + (a.status ?? "sem status") + " · " + descricaoDosTerritorios(a, false) : ""}`;
         const aoClicar = () => abrir.current(t.id, a?.nome ?? "");
         for (const l of t.linhas) {
           if (!Array.isArray(l) || l.length < 2) continue;
