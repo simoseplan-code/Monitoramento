@@ -7,6 +7,7 @@ import { Download, Loader2, MapPinned, RefreshCw, Search, X } from "lucide-react
 import type { Map as MapaLeaflet } from "leaflet";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
 import { FiltroCheckbox } from "@/components/FiltroCheckbox";
+import { adicionarBases } from "@/lib/mapaBase";
 import { rotuloTerritorio } from "@/lib/territorios";
 
 export type LinhaLista = {
@@ -678,7 +679,7 @@ function MapaBairros({ dados, bairroFoco }: { dados: DadosMapa; bairroFoco?: str
       mapa = L.map(divRef.current);
       // Define uma visão inicial antes de adicionar as camadas: o Leaflet só desenha polígonos num mapa já posicionado.
       mapa.setView([-7.5, -43], 6);
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(mapa);
+      adicionarBases(L, mapa);
       const todos = L.featureGroup().addTo(mapa);
       dados.bairros.forEach((b, i) => {
         const semBairro = b.bairro === "";

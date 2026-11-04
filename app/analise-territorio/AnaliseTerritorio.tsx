@@ -6,6 +6,7 @@ import { Download, Info, Loader2, MapPinned, Maximize2, Minimize2, RefreshCw, Sa
 import type { Map as MapaDoLeaflet } from "leaflet";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
 import { dataBR } from "@/lib/acoesFiltro";
+import { adicionarBases } from "@/lib/mapaBase";
 import { FiltroCheckbox } from "@/components/FiltroCheckbox";
 import { AtualizarBairros } from "@/components/AtualizarBairros";
 import { JanelaMapa } from "@/app/verificacao-bairros/VerificacaoBairros";
@@ -1183,7 +1184,7 @@ function MapaDosTracados({ dados, contornos, infoPorId, corPor, aoAbrir }: { dad
       roRef.current = new ResizeObserver(() => mapa?.invalidateSize());
       roRef.current.observe(divRef.current);
       mapa.setView([-7.5, -43], 6);
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(mapa);
+      adicionarBases(L, mapa, 44);
       for (const t of contornos) {
         for (const l of t.linhas) if (Array.isArray(l) && l.length > 1) L.polyline(l, { color: "#374151", weight: 2, dashArray: "8 6", opacity: 0.6, interactive: false }).addTo(mapa);
       }
@@ -1350,7 +1351,7 @@ function MapaLeaflet({ dados, linhas, aoEscolher }: { dados: DadosMapaTerritorio
       if (cancelado || !divRef.current) return;
       mapa = L.map(divRef.current);
       mapa.setView([-7.5, -43], 6);
-      L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(mapa);
+      adicionarBases(L, mapa);
       const grupo = L.featureGroup().addTo(mapa);
       for (const m of dados.municipios) {
         const cor = COR_TERRITORIO[m.territorio] ?? "#6b7280";
