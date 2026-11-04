@@ -8,7 +8,7 @@ import { IdAcaoLink } from "@/components/IdAcaoLink";
 import { FiltroCheckbox } from "@/components/FiltroCheckbox";
 import { AtualizarBairros } from "@/components/AtualizarBairros";
 import { JanelaMapa } from "@/app/verificacao-bairros/VerificacaoBairros";
-import { COR_TERRITORIO, SEM_TERRITORIO, rotuloTerritorio } from "@/lib/territorios";
+import { COR_TERRITORIO, SEM_TERRITORIO, corDoStatus, rotuloTerritorio } from "@/lib/territorios";
 import {
   FILTROS,
   aditivada,
@@ -484,6 +484,7 @@ function MapaTracados({ acoes }: { acoes: AcaoT[] }) {
   const [carregando, setCarregando] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [verMapa, setVerMapa] = useState<{ id: string; nome: string } | null>(null);
+  const [corPor, setCorPor] = useState<"status" | "territorio">("status");
 
   const ids = useMemo(() => acoes.map((a) => a.id), [acoes]);
   const assinatura = useMemo(() => ids.join(","), [ids]);
@@ -516,15 +517,21 @@ function MapaTracados({ acoes }: { acoes: AcaoT[] }) {
   }
 
   const infoPorId = useMemo(() => new Map(acoes.map((a) => [a.id, a])), [acoes]);
+  // Cor de cada ação: pelo status (padrão) ou pelo território principal.
+  const rotuloDe = (a: AcaoT | undefined) => (corPor === "status" ? (a?.status ?? "(sem status)") : rotuloTerritorio(a ? principal(a) : SEM_TERRITORIO));
+  const corDe = (a: AcaoT | undefined) => (corPor === "status" ? corDoStatus(a?.status) : (COR_TERRITORIO[a ? principal(a) : ""] ?? "#6b7280"));
   const contagem = useMemo(() => {
-    const m = new Map<string, number>();
+    const m = new Map<string, { n: number; cor: string }>();
     for (const t of dados?.acoes ?? []) {
       const a = infoPorId.get(t.id);
-      const p = a ? principal(a) : SEM_TERRITORIO;
-      m.set(p, (m.get(p) ?? 0) + 1);
+      const r = rotuloDe(a);
+      const x = m.get(r) ?? { n: 0, cor: corDe(a) };
+      x.n++;
+      m.set(r, x);
     }
-    return Array.from(m).sort((a, b) => b[1] - a[1]);
-  }, [dados, infoPorId]);
+    return Array.from(m).sort((a, b) => b[1].n - a[1].n);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dados, infoPorId, corPor]);
 
   return (
     <section className="space-y-3 rounded-xl border border-black/5 bg-surface p-4 shadow-card">
@@ -532,10 +539,17 @@ function MapaTracados({ acoes }: { acoes: AcaoT[] }) {
         <p className="text-xs text-ink-secondary">
           Desenha o traçado (KML do SIMO ou linhas, pontos e polígonos do mapa de obras) das <strong className="text-ink-primary">{inteiro(acoes.length)}</strong> ação(ões) do filtro, na cor do território. Mapa leve: as linhas são simplificadas.
         </p>
+        <label className="ml-auto flex items-center gap-2 text-xs text-ink-secondary">
+          Cor por
+          <select value={corPor} onChange={(e) => setCorPor(e.target.value as "status" | "territorio")} className={campo}>
+            <option value="status">Status</option>
+            <option value="territorio">Território</option>
+          </select>
+        </label>
         <button
           onClick={gerar}
           disabled={carregando || grande || acoes.length === 0}
-          className="ml-auto flex items-center gap-1.5 rounded-full bg-series-1 px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-full bg-series-1 px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
         >
           {carregando ? <Loader2 size={13} className="animate-spin" /> : <MapPinned size={13} />}
           {carregando ? "Gerando..." : dados ? "Gerar de novo" : "Gerar mapa"}
@@ -551,19 +565,19 @@ function MapaTracados({ acoes }: { acoes: AcaoT[] }) {
       {dados && (
         <>
           <ContemErro>
-            <MapaDosTracados dados={dados} contornos={contornos} infoPorId={infoPorId} aoAbrir={(id, nome) => setVerMapa({ id, nome })} />
+            <MapaDosTracados dados={dados} contornos={contornos} infoPorId={infoPorId} corPor={corPor} aoAbrir={(id, nome) => setVerMapa({ id, nome })} />
           </ContemErro>
           <ul className="flex flex-wrap gap-2">
-            {contagem.map(([t, n]) => (
-              <li key={t} className="flex items-center gap-1.5 rounded-full border border-black/10 px-2.5 py-1 text-xs text-ink-secondary">
-                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: COR_TERRITORIO[t] ?? "#6b7280" }} />
-                {rotuloTerritorio(t)}: <strong className="font-semibold">{inteiro(n)}</strong>
+            {contagem.map(([rotulo, x]) => (
+              <li key={rotulo} className="flex items-center gap-1.5 rounded-full border border-black/10 px-2.5 py-1 text-xs text-ink-secondary">
+                <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: x.cor }} />
+                {rotulo}: <strong className="font-semibold">{inteiro(x.n)}</strong>
               </li>
             ))}
           </ul>
           <p className="text-xs text-ink-muted">
             {inteiro(dados.acoes.length)} ação(ões) desenhada(s)
-            {dados.semTracado > 0 ? `; ${inteiro(dados.semTracado)} sem traçado guardado (ficaram de fora)` : ""}. A cor é a do território principal da ação; o contorno tracejado é o dos territórios. Passe o mouse para ver a ação e clique para abrir o Verificar KML.
+            {dados.semTracado > 0 ? `; ${inteiro(dados.semTracado)} sem traçado guardado (ficaram de fora)` : ""}. A cor segue o status (ou o território principal, se você trocar em "Cor por"); o contorno tracejado é o dos territórios. Passe o mouse para ver a ação e clique para abrir o Verificar KML.
           </p>
         </>
       )}
@@ -572,7 +586,7 @@ function MapaTracados({ acoes }: { acoes: AcaoT[] }) {
   );
 }
 
-function MapaDosTracados({ dados, contornos, infoPorId, aoAbrir }: { dados: DadosTracados; contornos: { nome: string; linhas: [number, number][][] }[]; infoPorId: Map<string, AcaoT>; aoAbrir: (id: string, nome: string) => void }) {
+function MapaDosTracados({ dados, contornos, infoPorId, corPor, aoAbrir }: { dados: DadosTracados; contornos: { nome: string; linhas: [number, number][][] }[]; infoPorId: Map<string, AcaoT>; corPor: "status" | "territorio"; aoAbrir: (id: string, nome: string) => void }) {
   const divRef = useRef<HTMLDivElement>(null);
   const abrir = useRef(aoAbrir);
   abrir.current = aoAbrir;
@@ -592,8 +606,8 @@ function MapaDosTracados({ dados, contornos, infoPorId, aoAbrir }: { dados: Dado
       const grupo = L.featureGroup().addTo(mapa);
       for (const t of dados.acoes) {
         const a = infoPorId.get(t.id);
-        const cor = COR_TERRITORIO[a ? principal(a) : ""] ?? "#6b7280";
-        const dica = `${t.id} - ${a?.nome ?? ""}${a ? " (" + descricaoDosTerritorios(a) + ")" : ""}`;
+        const cor = corPor === "status" ? corDoStatus(a?.status) : (COR_TERRITORIO[a ? principal(a) : ""] ?? "#6b7280");
+        const dica = `${t.id} - ${a?.nome ?? ""}${a ? " · " + (a.status ?? "sem status") + " · " + descricaoDosTerritorios(a) : ""}`;
         const aoClicar = () => abrir.current(t.id, a?.nome ?? "");
         for (const l of t.linhas) {
           if (!Array.isArray(l) || l.length < 2) continue;
@@ -622,7 +636,7 @@ function MapaDosTracados({ dados, contornos, infoPorId, aoAbrir }: { dados: Dado
       cancelado = true;
       mapa?.remove();
     };
-  }, [dados, contornos, infoPorId]);
+  }, [dados, contornos, infoPorId, corPor]);
   return <div ref={divRef} className="h-[38rem] w-full overflow-hidden rounded-lg border border-black/5" />;
 }
 

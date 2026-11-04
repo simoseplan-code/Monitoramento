@@ -45,5 +45,20 @@ export const COR_TERRITORIO: Record<string, string> = {
   "VALE DO RIO CANINDÉ": "#7c3aed",
 };
 
+/** Cores dos status das ações (mapa de traçados). Status que não está aqui fica cinza. */
+export const COR_STATUS: Record<string, string> = {
+  "concluido": "#16a34a",
+  "em desenvolvimento": "#2563eb",
+  "cancelado": "#dc2626",
+  "sem evolucao": "#ca8a04",
+  "em aberto": "#9333ea",
+  "paralisado com termo": "#ea580c",
+};
+
+export function corDoStatus(status: string | null | undefined): string {
+  const chave = (status ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
+  return COR_STATUS[chave] ?? "#6b7280";
+}
+
 /** Participação mínima para dizer que a ação "passa" por um território: 0 = qualquer parte do traçado conta, por menor que seja. */
 export const PARTICIPACAO_MINIMA = 0;
