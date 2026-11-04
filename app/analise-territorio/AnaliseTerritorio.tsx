@@ -2,7 +2,7 @@
 
 import "leaflet/dist/leaflet.css";
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Download, Info, Loader2, MapPinned, RefreshCw, Save, X } from "lucide-react";
+import { Download, Info, Loader2, MapPinned, Maximize2, Minimize2, RefreshCw, Save, X } from "lucide-react";
 import type { Map as MapaDoLeaflet } from "leaflet";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
 import { dataBR } from "@/lib/acoesFiltro";
@@ -1167,6 +1167,8 @@ function DetalhesAcao({ acao, comPct, aoFechar }: { acao: AcaoT | undefined; com
 
 function MapaDosTracados({ dados, contornos, infoPorId, corPor, aoAbrir }: { dados: DadosTracados; contornos: { nome: string; linhas: [number, number][][] }[]; infoPorId: Map<string, AcaoT>; corPor: "status" | "territorio"; aoAbrir: (id: string, nome: string) => void }) {
   const divRef = useRef<HTMLDivElement>(null);
+  const roRef = useRef<ResizeObserver | null>(null);
+  const [cheia, setCheia] = useState(false);
   const abrir = useRef(aoAbrir);
   abrir.current = aoAbrir;
   useEffect(() => {
@@ -1177,6 +1179,9 @@ function MapaDosTracados({ dados, contornos, infoPorId, corPor, aoAbrir }: { dad
       if (cancelado || !divRef.current) return;
       // Canvas: milhares de linhas sem pesar (em vez de um elemento por linha).
       mapa = L.map(divRef.current, { preferCanvas: true });
+      // Tela cheia (e qualquer mudança de tamanho): o mapa se ajusta ao novo espaço.
+      roRef.current = new ResizeObserver(() => mapa?.invalidateSize());
+      roRef.current.observe(divRef.current);
       mapa.setView([-7.5, -43], 6);
       L.tileLayer("https://tile.openstreetmap.org/{z}/{x}/{y}.png", { maxZoom: 19, attribution: "&copy; OpenStreetMap" }).addTo(mapa);
       for (const t of contornos) {
@@ -1233,10 +1238,34 @@ function MapaDosTracados({ dados, contornos, infoPorId, corPor, aoAbrir }: { dad
     })();
     return () => {
       cancelado = true;
+      roRef.current?.disconnect();
       mapa?.remove();
     };
   }, [dados, contornos, infoPorId, corPor]);
-  return <div ref={divRef} className="relative z-0 h-[38rem] w-full overflow-hidden rounded-lg border border-black/5" />;
+
+  // Esc sai da tela cheia.
+  useEffect(() => {
+    if (!cheia) return;
+    const sair = (e: KeyboardEvent) => {
+      if (e.key === "Escape") setCheia(false);
+    };
+    window.addEventListener("keydown", sair);
+    return () => window.removeEventListener("keydown", sair);
+  }, [cheia]);
+
+  return (
+    <div className={cheia ? "fixed inset-0 z-[1500] bg-surface p-3" : "relative"}>
+      <div ref={divRef} className={"relative z-0 w-full overflow-hidden rounded-lg border border-black/5 " + (cheia ? "h-full" : "h-[38rem]")} />
+      <button
+        onClick={() => setCheia((c) => !c)}
+        className={"absolute z-10 flex h-8 w-8 items-center justify-center rounded-lg border border-black/15 bg-white text-ink-secondary shadow hover:bg-plane " + (cheia ? "right-6 top-6" : "right-3 top-3")}
+        title={cheia ? "Sair da tela cheia (Esc)" : "Ver o mapa em tela cheia"}
+        aria-label={cheia ? "Sair da tela cheia" : "Mapa em tela cheia"}
+      >
+        {cheia ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
+      </button>
+    </div>
+  );
 }
 
 // ---------- mapa ----------
