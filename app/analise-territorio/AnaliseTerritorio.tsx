@@ -9,6 +9,7 @@ import { FiltroCheckbox } from "@/components/FiltroCheckbox";
 import { AtualizarBairros } from "@/components/AtualizarBairros";
 import { JanelaMapa } from "@/app/verificacao-bairros/VerificacaoBairros";
 import { COR_TERRITORIO, SEM_TERRITORIO, corDoStatus, rotuloTerritorio } from "@/lib/territorios";
+import { grupoDaTipologia, htmlMarcador, svgSimbolo, type GrupoTipologia } from "@/lib/tipologiaMapa";
 import {
   FILTROS,
   aditivada,
@@ -474,6 +475,8 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina }: { acoes: AcaoT[]; pagina: 
 // ---------- mapa de traçados (KML) das ações do filtro ----------
 
 const LIMITE_TRACADOS = 1500;
+// Quantos símbolos o mapa desenha de uma vez (cada um é um elemento da página; acima disso vira bolinha).
+const LIMITE_SIMBOLOS = 2500;
 
 type DadosTracados = { acoes: { id: string; linhas: [number, number][][]; pontos: [number, number][]; poligonos: [number, number][][] }[]; semTracado: number };
 
@@ -520,6 +523,18 @@ function MapaTracados({ acoes }: { acoes: AcaoT[] }) {
   // Cor de cada ação: pelo status (padrão) ou pelo território principal.
   const rotuloDe = (a: AcaoT | undefined) => (corPor === "status" ? (a?.status ?? "(sem status)") : rotuloTerritorio(a ? principal(a) : SEM_TERRITORIO));
   const corDe = (a: AcaoT | undefined) => (corPor === "status" ? corDoStatus(a?.status) : (COR_TERRITORIO[a ? principal(a) : ""] ?? "#6b7280"));
+  // Símbolos que aparecem no mapa: um por tipologia (só as ações que têm pontos).
+  const simbolos = useMemo(() => {
+    const m = new Map<string, { grupo: GrupoTipologia; n: number }>();
+    for (const t of dados?.acoes ?? []) {
+      if (t.pontos.length === 0) continue;
+      const g = grupoDaTipologia(infoPorId.get(t.id)?.tipologia);
+      const x = m.get(g.chave) ?? { grupo: g, n: 0 };
+      x.n++;
+      m.set(g.chave, x);
+    }
+    return Array.from(m.values()).sort((a, b) => b.n - a.n);
+  }, [dados, infoPorId]);
   const contagem = useMemo(() => {
     const m = new Map<string, { n: number; cor: string }>();
     for (const t of dados?.acoes ?? []) {
@@ -575,6 +590,19 @@ function MapaTracados({ acoes }: { acoes: AcaoT[] }) {
               </li>
             ))}
           </ul>
+          {simbolos.length > 0 && (
+            <div>
+              <p className="mb-1.5 text-[11px] uppercase tracking-wide text-ink-muted">Símbolos (tipologia das ações com ponto no mapa)</p>
+              <ul className="flex flex-wrap gap-2">
+                {simbolos.map(({ grupo, n }) => (
+                  <li key={grupo.chave} className="flex items-center gap-1.5 rounded-full border border-black/10 px-2.5 py-1 text-xs text-ink-secondary">
+                    <span className="inline-flex" dangerouslySetInnerHTML={{ __html: svgSimbolo(grupo.icone, "#374151", 15) }} />
+                    {grupo.rotulo}: <strong className="font-semibold">{inteiro(n)}</strong>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
           <p className="text-xs text-ink-muted">
             {inteiro(dados.acoes.length)} ação(ões) desenhada(s)
             {dados.semTracado > 0 ? `; ${inteiro(dados.semTracado)} sem traçado guardado (ficaram de fora)` : ""}. A cor segue o status (ou o território principal, se você trocar em "Cor por"); o contorno tracejado é o dos territórios. Passe o mouse para ver a ação e clique para abrir o Verificar KML.
@@ -604,6 +632,7 @@ function MapaDosTracados({ dados, contornos, infoPorId, corPor, aoAbrir }: { dad
         for (const l of t.linhas) if (Array.isArray(l) && l.length > 1) L.polyline(l, { color: "#374151", weight: 2, dashArray: "8 6", opacity: 0.6, interactive: false }).addTo(mapa);
       }
       const grupo = L.featureGroup().addTo(mapa);
+      let simbolosDesenhados = 0;
       for (const t of dados.acoes) {
         const a = infoPorId.get(t.id);
         const cor = corPor === "status" ? corDoStatus(a?.status) : (COR_TERRITORIO[a ? principal(a) : ""] ?? "#6b7280");
@@ -617,7 +646,19 @@ function MapaDosTracados({ dados, contornos, infoPorId, corPor, aoAbrir }: { dad
           if (!Array.isArray(p) || p.length < 3) continue;
           L.polygon(p, { color: cor, weight: 2, fillColor: cor, fillOpacity: 0.2 }).bindTooltip(dica, { sticky: true }).on("click", aoClicar).addTo(grupo);
         }
-        for (const p of t.pontos) L.circleMarker(p, { radius: 4, color: "#ffffff", weight: 1, fillColor: cor, fillOpacity: 1 }).bindTooltip(dica, { sticky: true }).on("click", aoClicar).addTo(grupo);
+        // Pontos: símbolo da tipologia na cor do status. Se forem muitos, só os primeiros ganham símbolo (os demais viram bolinha).
+        const g = grupoDaTipologia(a?.tipologia);
+        for (const p of t.pontos) {
+          if (simbolosDesenhados < LIMITE_SIMBOLOS) {
+            simbolosDesenhados++;
+            L.marker(p, { icon: L.divIcon({ html: htmlMarcador(g.icone, cor), className: "", iconSize: [26, 26], iconAnchor: [13, 13] }), keyboard: false })
+              .bindTooltip(dica + " · " + g.rotulo, { sticky: true, offset: [10, 0] })
+              .on("click", aoClicar)
+              .addTo(grupo);
+          } else {
+            L.circleMarker(p, { radius: 4, color: "#ffffff", weight: 1, fillColor: cor, fillOpacity: 1 }).bindTooltip(dica, { sticky: true }).on("click", aoClicar).addTo(grupo);
+          }
+        }
       }
       const bounds = grupo.getBounds();
       const enquadrar = () => {
