@@ -53,7 +53,7 @@ async function montarMapa(request: NextRequest) {
     supabase.from("acao_bairros_calculo").select("fonte, extensao_m, metros_fora, pontos, pontos_fora, metros_urbano, metros_rural, pontos_urbano, pontos_rural").eq("id_acao", id).maybeSingle(),
     supabase.from("acao_bairros").select("municipio, bairro, metros, pct, pontos").eq("id_acao", id).order("metros", { ascending: false }),
   ]);
-  if (!calculo) return NextResponse.json({ error: "Esta ação ainda não foi verificada." }, { status: 404 });
+  if (!calculo) return NextResponse.json({ error: await motivoSemVerificacao(id) }, { status: 404 });
 
   // O traçado fica em tabelas só do servidor (o do mapa é restrito a admin e chefe).
   const admin = createAdminClient();
@@ -124,4 +124,25 @@ async function montarMapa(request: NextRequest) {
   })).sort((a, b) => b.pct - a.pct);
 
   return NextResponse.json({ territorios, fonte: calculo.fonte, extensaoM: calculo.extensao_m, metrosFora: calculo.metros_fora, pontosFora: calculo.pontos_fora ?? 0, totalPontos: calculo.pontos ?? 0, zona: { metrosUrbano: calculo.metros_urbano ?? 0, metrosRural: calculo.metros_rural ?? 0, pontosUrbano: calculo.pontos_urbano ?? 0, pontosRural: calculo.pontos_rural ?? 0 }, linhas, trechos, pontos, pontosZ, setores: setoresMapa, contornos, bairros });
+}
+
+const dataBR = (d: string | null | undefined) => (d ? new Date(d).toLocaleDateString("pt-BR") : "");
+
+// Por que a ação não tem mapa: sem KML, KML que não baixou, ou traçado que a verificação de bairros ainda não calculou.
+async function motivoSemVerificacao(id: string): Promise<string> {
+  const admin = createAdminClient();
+  const [{ data: kml }, { data: noMapa }, extra] = await Promise.all([
+    admin.from("kml_arquivos").select("situacao, mensagem, verificado_em, qtd_pontos, qtd_linhas, qtd_poligonos").eq("id_acao", id).maybeSingle(),
+    admin.from("obras_tracado").select("id_acao").eq("id_acao", id).maybeSingle(),
+    geomExtraDe(admin, [id]).then((m) => m.get(id)).catch(() => undefined),
+  ]);
+  const temPontosOuPoligonos = !!(extra?.pontos?.length || extra?.poligonos?.length);
+  const kmlComConteudo = kml?.situacao === "baixado" && ((kml.qtd_linhas ?? 0) > 0 || (kml.qtd_pontos ?? 0) > 0 || (kml.qtd_poligonos ?? 0) > 0);
+  if (noMapa || temPontosOuPoligonos || kmlComConteudo) {
+    return "Esta ação tem traçado guardado, mas a Verificação de bairros ainda não calculou os bairros e o território dela. Abra Verificação de bairros e clique em Atualizar.";
+  }
+  if (kml?.situacao === "sem_kml") return `Esta ação não tem KML no SIMO (conferido em ${dataBR(kml.verificado_em)}) e também não tem traçado no mapa de obras.`;
+  if (kml?.situacao === "erro") return `Não foi possível baixar o KML desta ação do SIMO${kml.mensagem ? ` (${kml.mensagem})` : ""}. Tente de novo em Arquivos KML.`;
+  if (kml?.situacao === "baixado") return "O KML desta ação foi baixado, mas está vazio (sem linhas, pontos nem polígonos), e ela não tem traçado no mapa de obras.";
+  return "Esta ação não tem traçado no mapa de obras e o KML dela ainda não foi baixado do SIMO (veja em Arquivos KML).";
 }
