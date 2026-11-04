@@ -4,6 +4,7 @@ import { AppShell } from "@/components/layout/AppShell";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { territoriosDasAcoes, territorioPorMunicipio } from "@/lib/territoriosDados";
 import type { AcaoT } from "@/lib/analiseTerritorio";
+import { dinheiroParaNumero } from "@/lib/simo/parseCsv";
 import { AnaliseTerritorio } from "./AnaliseTerritorio";
 
 const COLUNAS =
@@ -31,6 +32,13 @@ type Linha = {
 };
 
 const numero = (v: number | string | null): number | null => (v == null || v === "" ? null : Number.isFinite(Number(v)) ? Number(v) : null);
+// VALOR PAGO TOTAL vem do relatório do SIMO; enquanto não é uma coluna própria, fica em "extra" (cabeçalho como no SIMO).
+function valorPagoDe(extra: Record<string, string> | null): number | null {
+  if (!extra) return null;
+  const chave = Object.keys(extra).find((k) => /valor\s*pago/i.test(k));
+  return chave ? dinheiroParaNumero(extra[chave]) : null;
+}
+
 const limpo = (v: string | null) => {
   const s = (v ?? "").trim();
   return s && s !== "-" ? s : null;
@@ -97,6 +105,7 @@ export default async function AnaliseTerritorioPage() {
       recProv: l.data_receb_provisorio,
       original: numero(l.valor_original),
       total: numero(l.valor_total),
+      pago: valorPagoDe(l.extra),
       partes: t?.partes ?? [],
       origem: t?.origem ?? "nenhuma",
       extensaoM: t?.extensaoM ?? 0,

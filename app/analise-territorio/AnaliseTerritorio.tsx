@@ -24,7 +24,6 @@ import {
   principal,
   resumoPorTerritorio,
   valoresDosFiltros,
-  valorFinal,
   vinculada,
   type AcaoT,
   type EstadoFiltros,
@@ -120,7 +119,7 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin }
 
   function exportar() {
     const lista = aba === "cruzam" ? cruzam : filtradas;
-    const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Status", "Estágio Atual", "Território principal", "Territórios (% do traçado)", "Localizada por", "Extensão (km)", "Vinculação SIAFE", "SIAFE automático", "% Execução", "Ano de criação", "Ano de recebimento", "Valor original", "Valor final"];
+    const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Status", "Estágio Atual", "Território principal", "Territórios (% do traçado)", "Localizada por", "Extensão (km)", "Vinculação SIAFE", "SIAFE automático", "% Execução", "Ano de criação", "Ano de recebimento", "Valor contratado", "Valor pago total"];
     const linhas = lista.map((a) =>
       [
         a.id,
@@ -138,7 +137,7 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin }
         anoDeCriacao(a),
         anoDeRecebimento(a),
         a.original ?? "",
-        a.original != null || a.total != null ? valorFinal(a) : "",
+        a.pago ?? "",
       ]
         .map(csvEscape)
         .join(";")
@@ -236,10 +235,16 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin }
 
       {aba === "resumo" && <Resumo linhas={resumo.linhas} geral={resumo.geral} aoEscolher={filtrarTerritorio} />}
       {aba === "mapa" && <MapaTerritorios linhas={resumo.linhas} aoEscolher={filtrarTerritorio} />}
-      {aba === "lista" && <ListaAcoes acoes={filtradas} pagina={pagina} aoMudarPagina={setPagina} />}
+      {aba === "lista" && (
+        <div className="space-y-3">
+          <ResumoSimples acoes={filtradas} />
+          <ListaAcoes acoes={filtradas} pagina={pagina} aoMudarPagina={setPagina} />
+        </div>
+      )}
       {aba === "cruzam" && (
         <div className="space-y-3">
           <p className="text-xs text-ink-muted">Ações cujo traçado passa por mais de um território (qualquer parte conta, mesmo pequena). Servem para conferir o enquadramento e dividir a análise.</p>
+          <ResumoSimples acoes={cruzam} />
           <ListaAcoes acoes={cruzam} pagina={pagina} aoMudarPagina={setPagina} />
         </div>
       )}
@@ -266,7 +271,7 @@ function Resumo({ linhas, geral, aoEscolher }: { linhas: LinhaTerritorio[]; gera
             <th className="px-3 py-2.5 text-right">Com recebimento</th>
             <th className="px-3 py-2.5 text-right">Aditivadas</th>
             <th className="px-3 py-2.5 text-right">Valor contratado</th>
-            <th className="px-3 py-2.5 text-right">Valor final</th>
+            <th className="px-3 py-2.5 text-right">Valor pago</th>
             <th className="px-3 py-2.5 text-right" title="Quilômetros de traçado dentro do território">
               Traçado (km)
             </th>
@@ -311,10 +316,55 @@ function Numeros({ l, total }: { l: LinhaTerritorio; total?: boolean }) {
       <td className={c}>{inteiro(l.comRecebimento)}</td>
       <td className={c}>{inteiro(l.aditivadas)}</td>
       <td className={c}>{dinheiro(l.original)}</td>
-      <td className={c}>{dinheiro(l.total)}</td>
+      <td className={c}>{dinheiro(l.pago)}</td>
       <td className={c}>{l.km.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</td>
       <td className={c}>{inteiro(l.comTracado)}</td>
     </>
+  );
+}
+
+// ---------- resumo simples (acompanha os filtros) ----------
+
+function ResumoSimples({ acoes }: { acoes: AcaoT[] }) {
+  const r = useMemo(() => {
+    const contratado = acoes.reduce((s, a) => s + (a.original ?? 0), 0);
+    const pago = acoes.reduce((s, a) => s + (a.pago ?? 0), 0);
+    return {
+      qtd: acoes.length,
+      vinculadas: acoes.filter(vinculada).length,
+      comTracado: acoes.filter((a) => a.origem === "tracado").length,
+      cruzam: acoes.filter(cruza).length,
+      aditivadas: acoes.filter(aditivada).length,
+      contratado,
+      pago,
+      comPago: acoes.filter((a) => a.pago != null).length,
+      km: acoes.reduce((s, a) => s + a.extensaoM, 0) / 1000,
+    };
+  }, [acoes]);
+  const cartoes: { rotulo: string; valor: string; dica?: string }[] = [
+    { rotulo: "Ações", valor: inteiro(r.qtd), dica: `${inteiro(r.vinculadas)} vinculada(s)` },
+    { rotulo: "Valor contratado", valor: dinheiro(r.contratado) },
+    { rotulo: "Valor pago", valor: dinheiro(r.pago), dica: r.contratado > 0 ? `${((r.pago / r.contratado) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% do contratado` : undefined },
+    { rotulo: "Com traçado", valor: inteiro(r.comTracado), dica: `${inteiro(r.qtd - r.comTracado)} sem traçado` },
+    { rotulo: "Cruzam territórios", valor: inteiro(r.cruzam) },
+    { rotulo: "Aditivadas", valor: inteiro(r.aditivadas) },
+    { rotulo: "Extensão do traçado", valor: `${r.km.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km` },
+  ];
+  return (
+    <section className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
+      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+        {cartoes.map((c) => (
+          <li key={c.rotulo} className="rounded-lg bg-plane px-3 py-2.5">
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted">{c.rotulo}</p>
+            <p className="tabular mt-0.5 text-sm font-semibold text-ink-primary">{c.valor}</p>
+            {c.dica && <p className="text-[11px] text-ink-muted">{c.dica}</p>}
+          </li>
+        ))}
+      </ul>
+      {r.qtd > 0 && r.comPago === 0 && (
+        <p className="mt-2 text-xs text-status-warning">O SIMO ainda não trouxe o valor pago. Inclua a coluna &quot;VALOR PAGO TOTAL&quot; no relatório do SIMO e rode a sincronização.</p>
+      )}
+    </section>
   );
 }
 
@@ -339,7 +389,7 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina }: { acoes: AcaoT[]; pagina: 
             <th className="px-3 py-2.5 text-right">Exec.</th>
             <th className="px-3 py-2.5">Criada</th>
             <th className="px-3 py-2.5">Recebida</th>
-            <th className="px-3 py-2.5 text-right">Valor final</th>
+            <th className="px-3 py-2.5 text-right">Valor pago</th>
             <th className="px-3 py-2.5">KML</th>
           </tr>
         </thead>
@@ -385,7 +435,7 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina }: { acoes: AcaoT[]; pagina: 
               <td className="tabular whitespace-nowrap px-3 py-2 text-right text-ink-secondary">{a.pct != null ? `${(a.pct * 100).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}%` : "-"}</td>
               <td className="tabular whitespace-nowrap px-3 py-2 text-ink-secondary">{anoDeCriacao(a) === "(vazio)" ? "-" : anoDeCriacao(a)}</td>
               <td className="tabular whitespace-nowrap px-3 py-2 text-ink-secondary">{anoDeRecebimento(a) === "(vazio)" ? "-" : anoDeRecebimento(a)}</td>
-              <td className="tabular whitespace-nowrap px-3 py-2 text-right text-ink-secondary">{a.original != null || a.total != null ? dinheiro(valorFinal(a)) : "-"}</td>
+              <td className="tabular whitespace-nowrap px-3 py-2 text-right text-ink-secondary">{a.pago != null ? dinheiro(a.pago) : "-"}</td>
               <td className="px-3 py-2">
                 <button
                   onClick={() => setVerMapa({ id: a.id, nome: a.nome })}
