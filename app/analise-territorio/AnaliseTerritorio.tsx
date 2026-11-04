@@ -1145,7 +1145,7 @@ function MapaDosTracados({ dados, contornos, infoPorId, corPor, aoAbrir }: { dad
       mapa?.remove();
     };
   }, [dados, contornos, infoPorId, corPor]);
-  return <div ref={divRef} className="h-[38rem] w-full overflow-hidden rounded-lg border border-black/5" />;
+  return <div ref={divRef} className="relative z-0 h-[38rem] w-full overflow-hidden rounded-lg border border-black/5" />;
 }
 
 // ---------- mapa ----------
@@ -1269,5 +1269,5 @@ function MapaLeaflet({ dados, linhas, aoEscolher }: { dados: DadosMapaTerritorio
       mapa?.remove();
     };
   }, [dados, porTerritorio]);
-  return <div ref={divRef} className="h-[34rem] w-full overflow-hidden rounded-lg border border-black/5" />;
+  return <div ref={divRef} className="relative z-0 h-[34rem] w-full overflow-hidden rounded-lg border border-black/5" />;
 }

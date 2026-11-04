@@ -587,7 +587,7 @@ export function JanelaMapa({ id, nome, bairroFoco, aoFechar }: { id: string; nom
   }, [id]);
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={aoFechar}>
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40 p-4" onClick={aoFechar}>
       <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-2xl bg-surface p-5 shadow-card" onClick={(e) => e.stopPropagation()}>
         <div className="mb-3 flex items-start justify-between gap-3">
           <div className="min-w-0">
