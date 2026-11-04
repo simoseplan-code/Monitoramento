@@ -3,7 +3,7 @@
 // Regras:
 //  - Cada ação entra no território em que cai a MAIOR parte do traçado (território principal). Sem traçado, vale o município
 //    que veio do SIMO. Sem nenhum dos dois, fica em "(sem localização)".
-//  - A ação "passa" por todos os territórios em que tem pelo menos 5% do traçado; passa por mais de um = "cruza territórios".
+//  - A ação "passa" por TODO território em que cai qualquer parte do traçado (mesmo pequena); passa por mais de um = "cruza territórios".
 //  - Ano de recebimento: provisório; se não houver, definitivo (igual à Análise de obras concluídas).
 //  - Vinculada = tem número de SIAFE automático.
 
@@ -39,7 +39,7 @@ const ou = (v: string | null | undefined) => (v && v.trim() !== "" && v.trim() !
 
 export const principal = (a: AcaoT): string => a.partes[0]?.nome ?? SEM_TERRITORIO;
 export const passaPor = (a: AcaoT): string[] => {
-  const lista = a.partes.filter((p) => p.pct >= PARTICIPACAO_MINIMA).map((p) => p.nome);
+  const lista = a.partes.filter((p) => p.pct > PARTICIPACAO_MINIMA).map((p) => p.nome);
   return lista.length ? lista : a.partes[0] ? [a.partes[0].nome] : [SEM_TERRITORIO];
 };
 export const cruza = (a: AcaoT): boolean => passaPor(a).length > 1;
@@ -174,7 +174,7 @@ export function resumoPorTerritorio(acoes: AcaoT[], todos: string[]): { linhas: 
       if (!alvo) continue;
       alvo.km += parte.metros / 1000;
       geral.km += parte.metros / 1000;
-      if (parte.nome !== p && parte.pct >= PARTICIPACAO_MINIMA) alvo.tambemPassam++;
+      if (parte.nome !== p && parte.pct > PARTICIPACAO_MINIMA) alvo.tambemPassam++;
     }
   }
   const linhas = Array.from(mapa.values()).sort((a, b) => (a.territorio === SEM_TERRITORIO ? 1 : b.territorio === SEM_TERRITORIO ? -1 : b.acoes - a.acoes || a.territorio.localeCompare(b.territorio, "pt-BR")));

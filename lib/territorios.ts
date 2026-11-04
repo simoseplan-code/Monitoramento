@@ -45,5 +45,5 @@ export const COR_TERRITORIO: Record<string, string> = {
   "VALE DO RIO CANINDÉ": "#7c3aed",
 };
 
-/** Participação mínima (5%) para dizer que a ação "passa" por um território. */
-export const PARTICIPACAO_MINIMA = 0.05;
+/** Participação mínima para dizer que a ação "passa" por um território: 0 = qualquer parte do traçado conta, por menor que seja. */
+export const PARTICIPACAO_MINIMA = 0;

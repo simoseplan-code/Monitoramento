@@ -60,7 +60,7 @@ export function AnaliseTerritorio({ acoes, territorios }: { acoes: AcaoT[]; terr
   };
   const ativos = FILTROS.filter((f) => estado.selecao[f.chave] !== null).length + (estado.pctMinimo != null ? 1 : 0) + (estado.busca ? 1 : 0) + (estado.ids.trim() ? 1 : 0);
   const filtrarTerritorio = (rotulo: string) => {
-    mudar({ ...estado, selecao: { ...estado.selecao, territorio: new Set([rotulo]) } });
+    mudar({ ...estado, selecao: { ...estado.selecao, passa: new Set([rotulo]) } });
     setAba("lista");
   };
 
@@ -104,8 +104,7 @@ export function AnaliseTerritorio({ acoes, territorios }: { acoes: AcaoT[]; terr
     <div className="space-y-4">
       <section className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
         <p className="text-xs text-ink-muted">
-          Cada ação entra no território onde cai a maior parte do traçado (o mesmo cálculo da Verificação de bairros). Sem traçado, vale o município informado no SIMO. Uma ação
-          &quot;passa&quot; por todo território com pelo menos 5% do traçado.
+          Cada ação entra no território onde cai a maior parte do traçado (o mesmo cálculo da Verificação de bairros). Sem traçado, vale o município informado no SIMO. Se o traçado cai em mais de um território, a ação aparece em todos eles (mesmo que seja só uma parte), com a % de cada um.
         </p>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {FILTROS.filter((f) => f.chave !== "id").map((f) => (
@@ -159,7 +158,7 @@ export function AnaliseTerritorio({ acoes, territorios }: { acoes: AcaoT[]; terr
       {aba === "lista" && <ListaAcoes acoes={filtradas} pagina={pagina} aoMudarPagina={setPagina} />}
       {aba === "cruzam" && (
         <div className="space-y-3">
-          <p className="text-xs text-ink-muted">Ações cujo traçado passa por mais de um território (pelo menos 5% em cada). Servem para conferir o enquadramento e dividir a análise.</p>
+          <p className="text-xs text-ink-muted">Ações cujo traçado passa por mais de um território (qualquer parte conta, mesmo pequena). Servem para conferir o enquadramento e dividir a análise.</p>
           <ListaAcoes acoes={cruzam} pagina={pagina} aoMudarPagina={setPagina} />
         </div>
       )}
@@ -197,7 +196,7 @@ function Resumo({ linhas, geral, aoEscolher }: { linhas: LinhaTerritorio[]; gera
           {linhas.map((l) => (
             <tr key={l.territorio} className="border-b border-black/5 last:border-0 hover:bg-plane/60">
               <td className="px-4 py-2">
-                <button onClick={() => aoEscolher(rotuloTerritorio(l.territorio))} className="flex items-center gap-2 font-medium text-ink-primary hover:underline" title="Ver as ações deste território">
+                <button onClick={() => aoEscolher(rotuloTerritorio(l.territorio))} className="flex items-center gap-2 font-medium text-ink-primary hover:underline" title="Ver as ações que passam por este território (inclui as que só passam em parte)">
                   <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: COR_TERRITORIO[l.territorio] ?? "#6b7280" }} />
                   {rotuloTerritorio(l.territorio)}
                 </button>
