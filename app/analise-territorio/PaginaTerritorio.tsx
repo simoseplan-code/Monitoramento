@@ -109,6 +109,7 @@ export async function PaginaTerritorio({ modo }: { modo: "analise" | "mapa" }) {
       total: numero(l.valor_total),
       pago: valorPagoDe(l.extra),
       partes: t?.partes ?? [],
+      municipios: t?.municipios ?? [],
       origem: t?.origem ?? "nenhuma",
       extensaoM: t?.extensaoM ?? 0,
     };

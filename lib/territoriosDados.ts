@@ -19,6 +19,8 @@ export type TerritoriosDaAcao = {
   partes: ParteDoTerritorio[];
   origem: "tracado" | "municipio" | "nenhuma";
   extensaoM: number;
+  /** Municípios do traçado, do maior para o menor (nome como está na base de bairros). */
+  municipios: { nome: string; pct: number }[];
 };
 
 /**
@@ -32,6 +34,7 @@ export async function territoriosDasAcoes(supabase: SupabaseClient, extras: Map<
 
   // Metros e pontos por ação e município (somando os bairros).
   const acum = new Map<string, Map<string, { metros: number; pontos: number }>>();
+  const acumMun = new Map<string, Map<string, { metros: number; pontos: number }>>();
   for (let de = 0; ; de += 1000) {
     const { data, error } = await supabase.from("acao_bairros").select("id_acao, municipio, metros, pontos").order("id_acao").range(de, de + 999);
     if (error) {
@@ -41,6 +44,12 @@ export async function territoriosDasAcoes(supabase: SupabaseClient, extras: Map<
     for (const r of data ?? []) {
       const t = mapa.get(normalizarNome((r.municipio as string) ?? ""));
       if (!t) continue;
+      let porM = acumMun.get(r.id_acao as string);
+      if (!porM) acumMun.set(r.id_acao as string, (porM = new Map()));
+      const m = porM.get(r.municipio as string) ?? { metros: 0, pontos: 0 };
+      m.metros += (r.metros as number) ?? 0;
+      m.pontos += (r.pontos as number) ?? 0;
+      porM.set(r.municipio as string, m);
       let porT = acum.get(r.id_acao as string);
       if (!porT) acum.set(r.id_acao as string, (porT = new Map()));
       const x = porT.get(t) ?? { metros: 0, pontos: 0 };
@@ -67,7 +76,10 @@ export async function territoriosDasAcoes(supabase: SupabaseClient, extras: Map<
     const total = Array.from(porT.values()).reduce((s, x) => s + peso(x), 0);
     if (total <= 0) continue;
     const partes: ParteDoTerritorio[] = Array.from(porT, ([nome, x]) => ({ nome, pct: peso(x) / total, metros: Math.round(x.metros), pontos: x.pontos })).sort((a, b) => b.pct - a.pct);
-    porAcao.set(id, { partes, origem: "tracado", extensaoM: extensoes.get(id) ?? 0 });
+    const porM = acumMun.get(id) ?? new Map();
+    const totalM = Array.from(porM.values()).reduce((s, x) => s + peso(x), 0);
+    const municipios = Array.from(porM, ([nome, x]) => ({ nome, pct: totalM > 0 ? peso(x) / totalM : 0 })).sort((a, b) => b.pct - a.pct);
+    porAcao.set(id, { partes, origem: "tracado", extensaoM: extensoes.get(id) ?? 0, municipios });
   }
 
   // Sem traçado: o município que o SIMO informou (se a coluna existir), contando a ação inteira nele.
@@ -75,7 +87,7 @@ export async function territoriosDasAcoes(supabase: SupabaseClient, extras: Map<
     if (porAcao.has(id) || !extra) continue;
     const chave = Object.keys(extra).find((k) => /munic/i.test(k) && !/bairro/i.test(k));
     const t = chave ? mapa.get(normalizarNome(extra[chave] ?? "")) : undefined;
-    if (t) porAcao.set(id, { partes: [{ nome: t, pct: 1, metros: 0, pontos: 0 }], origem: "municipio", extensaoM: 0 });
+    if (t) porAcao.set(id, { partes: [{ nome: t, pct: 1, metros: 0, pontos: 0 }], origem: "municipio", extensaoM: 0, municipios: [{ nome: (extra[chave as string] ?? "").trim(), pct: 1 }] });
   }
   return { porAcao, erro };
 }

@@ -35,6 +35,8 @@ export type AcaoT = {
   partes: ParteDoTerritorio[];
   origem: "tracado" | "municipio" | "nenhuma";
   extensaoM: number;
+  /** Municípios em que cai o traçado, do maior para o menor. */
+  municipios: { nome: string; pct: number }[];
 };
 
 const ou = (v: string | null | undefined) => (v && v.trim() !== "" && v.trim() !== "-" ? v.trim() : VAZIO);
@@ -53,6 +55,13 @@ export const vinculada = (a: AcaoT) => !!a.numeroAutomatico;
 export const valorFinal = (a: AcaoT) => a.total ?? a.original ?? 0;
 export const aditivada = (a: AcaoT) => a.original != null && valorFinal(a) - a.original > 0.005;
 export const suprimida = (a: AcaoT) => a.original != null && valorFinal(a) - a.original < -0.005;
+
+/** Municípios da ação em texto: "Jurema" ou, se são vários, "Jurema 70%, Anísio de Abreu 30%". */
+export function descricaoDosMunicipios(a: AcaoT): string {
+  if (a.municipios.length === 0) return "-";
+  if (a.municipios.length === 1) return a.municipios[0].nome;
+  return a.municipios.map((m) => `${m.nome} ${Math.round(m.pct * 100)}%`).join(", ");
+}
 
 export function descricaoDosTerritorios(a: AcaoT): string {
   if (a.partes.length === 0) return "-";

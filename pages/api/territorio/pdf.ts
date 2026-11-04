@@ -44,6 +44,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       id: txt(x.id, 12),
       nome: txt(x.nome, 300),
       orgao: txt(x.orgao, 40),
+      municipios: txt(x.municipios, 200),
       territorios: txt(x.territorios, 200),
       status: txt(x.status, 40),
       tipologia: txt(x.tipologia, 80),

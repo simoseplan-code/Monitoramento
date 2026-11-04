@@ -17,6 +17,7 @@ import {
   anoDeRecebimento,
   cruza,
   descreverFiltros,
+  descricaoDosMunicipios,
   descricaoDosTerritorios,
   estadoDeGravado,
   estadoParaGravar,
@@ -122,13 +123,14 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
 
   function exportar() {
     const lista = aba === "cruzam" ? cruzam : filtradas;
-    const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Tipologia", "Status", "Estágio Atual", "Território principal", "Territórios (% do traçado)", "Localizada por", "Extensão (km)", "Vinculação SIAFE", "SIAFE automático", "% Execução", "Ano de criação", "Ano de recebimento", "Valor contratado", "Valor pago total"];
+    const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Tipologia", "Município(s)", "Status", "Estágio Atual", "Território principal", "Territórios (% do traçado)", "Localizada por", "Extensão (km)", "Vinculação SIAFE", "SIAFE automático", "% Execução", "Ano de criação", "Ano de recebimento", "Valor contratado", "Valor pago total"];
     const linhas = lista.map((a) =>
       [
         a.id,
         a.nome,
         a.orgao,
         a.tipologia,
+        a.municipios.length ? descricaoDosMunicipios(a) : "",
         a.status,
         a.estagio,
         rotuloTerritorio(principal(a)),
@@ -391,6 +393,7 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina }: { acoes: AcaoT[]; pagina: 
             <th className="px-3 py-2.5">Ação</th>
             <th className="px-3 py-2.5">Órgão</th>
             <th className="px-3 py-2.5">Tipologia</th>
+            <th className="px-3 py-2.5">Município(s)</th>
             <th className="px-3 py-2.5">Território(s)</th>
             <th className="px-3 py-2.5">Status</th>
             <th className="px-3 py-2.5">Vinculação</th>
@@ -404,7 +407,7 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina }: { acoes: AcaoT[]; pagina: 
         <tbody>
           {visiveis.length === 0 && (
             <tr>
-              <td colSpan={12} className="px-4 py-8 text-center text-ink-muted">
+              <td colSpan={13} className="px-4 py-8 text-center text-ink-muted">
                 Nenhuma ação com os filtros atuais.
               </td>
             </tr>
@@ -420,6 +423,7 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina }: { acoes: AcaoT[]; pagina: 
               </td>
               <td className="px-3 py-2 text-ink-secondary">{a.orgao ?? "-"}</td>
               <td className="px-3 py-2 text-ink-secondary">{a.tipologia ?? "-"}</td>
+              <td className="px-3 py-2 text-ink-secondary">{descricaoDosMunicipios(a)}</td>
               <td className="px-3 py-2 text-ink-secondary">
                 {a.partes.length === 0 ? (
                   <span className="text-ink-muted">{rotuloTerritorio(SEM_TERRITORIO)}</span>
@@ -899,6 +903,7 @@ function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr }: { acoes: AcaoT
       id: a.id,
       nome: a.nome,
       orgao: a.orgao ?? "",
+      municipios: descricaoDosMunicipios(a) === "-" ? "" : descricaoDosMunicipios(a),
       territorios: descricaoDosTerritorios(a),
       status: a.status ?? "",
       tipologia: a.tipologia ?? "",
@@ -989,6 +994,7 @@ function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr }: { acoes: AcaoT
               <th className="px-4 py-2.5">ID</th>
               <th className="px-3 py-2.5">Descrição</th>
               <th className="px-3 py-2.5">Órgão</th>
+              <th className="px-3 py-2.5">Município(s)</th>
               <th className="px-3 py-2.5">Território(s)</th>
               <th className="px-3 py-2.5">Status</th>
               <th className="px-3 py-2.5">Tipologia</th>
@@ -1003,7 +1009,7 @@ function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr }: { acoes: AcaoT
           <tbody>
             {visiveis.length === 0 && (
               <tr>
-                <td colSpan={12} className="px-4 py-8 text-center text-ink-muted">
+                <td colSpan={13} className="px-4 py-8 text-center text-ink-muted">
                   Nenhuma obra com os filtros atuais.
                 </td>
               </tr>
@@ -1018,6 +1024,7 @@ function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr }: { acoes: AcaoT
                   </td>
                   <td className="max-w-xs px-3 py-2 text-ink-primary">{a.nome}</td>
                   <td className="px-3 py-2 text-ink-secondary">{a.orgao ?? "-"}</td>
+                  <td className="px-3 py-2 text-ink-secondary">{descricaoDosMunicipios(a)}</td>
                   <td className="px-3 py-2 text-ink-secondary">{a.partes.length ? descricaoDosTerritorios(a) : "Sem localização"}</td>
                   <td className="px-3 py-2 text-ink-secondary">{a.status ?? "-"}</td>
                   <td className="px-3 py-2 text-ink-secondary">{a.tipologia ?? "-"}</td>

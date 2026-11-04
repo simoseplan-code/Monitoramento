@@ -10,6 +10,7 @@ export type LinhaPdfTerritorio = {
   id: string;
   nome: string;
   orgao: string;
+  municipios: string;
   territorios: string;
   status: string;
   tipologia: string;
@@ -58,9 +59,10 @@ export function TerritorioPdf({ linhas, filtros, geradoEm, geradoPor }: { linhas
         <Tabela
           colunas={[
             { titulo: "ID", flex: 0.6 },
-            { titulo: "Descrição", flex: 3.4 },
+            { titulo: "Descrição", flex: 3 },
             { titulo: "Órgão", flex: 0.8 },
-            { titulo: "Território(s)", flex: 1.5 },
+            { titulo: "Município(s)", flex: 1.2 },
+            { titulo: "Território(s)", flex: 1.4 },
             { titulo: "Status", flex: 0.9 },
             { titulo: "Tipologia", flex: 1.1 },
             { titulo: "Georreferenciada", flex: 1 },
@@ -69,7 +71,7 @@ export function TerritorioPdf({ linhas, filtros, geradoEm, geradoPor }: { linhas
             { titulo: "Pago", flex: 1.1, direita: true },
             { titulo: "Exec.", flex: 0.5, direita: true },
           ]}
-          linhas={lista.map((l) => [l.id, curto(l.nome || "-", 110), l.orgao || "-", curto(l.territorios || "-", 50), l.status || "-", curto(l.tipologia || "-", 28), l.georref, reais(l.contratado), reais(l.total), reais(l.pago), l.execucao || "-"])}
+          linhas={lista.map((l) => [l.id, curto(l.nome || "-", 110), l.orgao || "-", curto(l.municipios || "-", 40), curto(l.territorios || "-", 50), l.status || "-", curto(l.tipologia || "-", 28), l.georref, reais(l.contratado), reais(l.total), reais(l.pago), l.execucao || "-"])}
           vazio="Nenhuma obra nos filtros atuais."
         />
       </Pagina>
