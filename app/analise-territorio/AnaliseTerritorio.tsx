@@ -271,6 +271,7 @@ function Resumo({ linhas, geral, aoEscolher }: { linhas: LinhaTerritorio[]; gera
             <th className="px-3 py-2.5 text-right">Com recebimento</th>
             <th className="px-3 py-2.5 text-right">Aditivadas</th>
             <th className="px-3 py-2.5 text-right">Valor contratado</th>
+            <th className="px-3 py-2.5 text-right">Valor final</th>
             <th className="px-3 py-2.5 text-right">Valor pago</th>
             <th className="px-3 py-2.5 text-right" title="Quilômetros de traçado dentro do território">
               Traçado (km)
@@ -316,6 +317,7 @@ function Numeros({ l, total }: { l: LinhaTerritorio; total?: boolean }) {
       <td className={c}>{inteiro(l.comRecebimento)}</td>
       <td className={c}>{inteiro(l.aditivadas)}</td>
       <td className={c}>{dinheiro(l.original)}</td>
+      <td className={c}>{dinheiro(l.total)}</td>
       <td className={c}>{dinheiro(l.pago)}</td>
       <td className={c}>{l.km.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</td>
       <td className={c}>{inteiro(l.comTracado)}</td>

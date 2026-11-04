@@ -150,6 +150,8 @@ export type LinhaTerritorio = {
   comRecebimento: number;
   aditivadas: number;
   original: number;
+  /** Valor ao final da obra (com aditivos). */
+  total: number;
   /** Valor pago total das ações do território. */
   pago: number;
   /** Ações de outro território principal que também passam por este. */
@@ -159,7 +161,7 @@ export type LinhaTerritorio = {
   comTracado: number;
 };
 
-const linhaVazia = (territorio: string): LinhaTerritorio => ({ territorio, acoes: 0, vinculadas: 0, naoVinculadas: 0, comRecebimento: 0, aditivadas: 0, original: 0, pago: 0, tambemPassam: 0, km: 0, comTracado: 0 });
+const linhaVazia = (territorio: string): LinhaTerritorio => ({ territorio, acoes: 0, vinculadas: 0, naoVinculadas: 0, comRecebimento: 0, aditivadas: 0, original: 0, total: 0, pago: 0, tambemPassam: 0, km: 0, comTracado: 0 });
 
 export function resumoPorTerritorio(acoes: AcaoT[], todos: string[]): { linhas: LinhaTerritorio[]; geral: LinhaTerritorio } {
   const mapa = new Map<string, LinhaTerritorio>();
@@ -177,6 +179,7 @@ export function resumoPorTerritorio(acoes: AcaoT[], todos: string[]): { linhas: 
       if (dataDeRecebimento(a)) x.comRecebimento++;
       if (aditivada(a)) x.aditivadas++;
       x.original += a.original ?? 0;
+      x.total += valorFinal(a);
       x.pago += a.pago ?? 0;
       if (a.origem === "tracado") x.comTracado++;
     }
