@@ -2,9 +2,10 @@
 
 import "leaflet/dist/leaflet.css";
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Download, Loader2, MapPinned, RefreshCw, Save } from "lucide-react";
+import { Download, Info, Loader2, MapPinned, RefreshCw, Save, X } from "lucide-react";
 import type { Map as MapaDoLeaflet } from "leaflet";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
+import { dataBR } from "@/lib/acoesFiltro";
 import { FiltroCheckbox } from "@/components/FiltroCheckbox";
 import { AtualizarBairros } from "@/components/AtualizarBairros";
 import { JanelaMapa } from "@/app/verificacao-bairros/VerificacaoBairros";
@@ -253,7 +254,7 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
 
       {aba === "resumo" && <Resumo linhas={resumo.linhas} geral={resumo.geral} aoEscolher={filtrarTerritorio} />}
       {aba === "mapa" && <MapaTerritorios linhas={resumo.linhas} aoEscolher={filtrarTerritorio} />}
-      {aba === "tracados" && <MapaTracados acoes={filtradas} filtros={descreverFiltros(estado, valores)} ehAdmin={ehAdmin} comPct={comPct} />}
+      {aba === "tracados" && <MapaTracados acoes={filtradas} filtros={descreverFiltros(estado, valores)} ehAdmin={ehAdmin} comPct={comPct} detalhes={modo === "hidricos"} />}
       {aba === "lista" && (
         <div className="space-y-3">
           <ResumoSimples acoes={filtradas} />
@@ -504,7 +505,7 @@ const LIMITE_LISTA_PDF = 5000;
 
 type DadosTracados = { acoes: { id: string; linhas: [number, number][][]; pontos: [number, number][]; poligonos: [number, number][][] }[]; semTracado: number };
 
-function MapaTracados({ acoes, filtros, ehAdmin, comPct }: { acoes: AcaoT[]; filtros: string[]; ehAdmin: boolean; comPct: boolean }) {
+function MapaTracados({ acoes, filtros, ehAdmin, comPct, detalhes = false }: { acoes: AcaoT[]; filtros: string[]; ehAdmin: boolean; comPct: boolean; detalhes?: boolean }) {
   const [dados, setDados] = useState<DadosTracados | null>(null);
   const [contornos, setContornos] = useState<{ nome: string; linhas: [number, number][][] }[]>([]);
   const [gerado, setGerado] = useState("");
@@ -853,9 +854,9 @@ function MapaTracados({ acoes, filtros, ehAdmin, comPct }: { acoes: AcaoT[]; fil
           </p>
         </>
       )}
-      {verMapa && <JanelaMapa id={verMapa.id} nome={verMapa.nome} aoFechar={() => setVerMapa(null)} />}
+      {verMapa && (detalhes ? <DetalhesAcao acao={infoPorId.get(verMapa.id)} comPct={comPct} aoFechar={() => setVerMapa(null)} /> : <JanelaMapa id={verMapa.id} nome={verMapa.nome} aoFechar={() => setVerMapa(null)} />)}
     </section>
-    <ListaDoMapa comPct={comPct} acoes={acoes} filtros={filtros} ehAdmin={ehAdmin} tr={{ fontes, conferidas, resultado, muitas, erroFontes, setFontes, setConferidas, setResultado, conferirUma }} aoAbrirKml={(id, nome) => setVerMapa({ id, nome })} />
+    <ListaDoMapa detalhes={detalhes} comPct={comPct} acoes={acoes} filtros={filtros} ehAdmin={ehAdmin} tr={{ fontes, conferidas, resultado, muitas, erroFontes, setFontes, setConferidas, setResultado, conferirUma }} aoAbrirKml={(id, nome) => setVerMapa({ id, nome })} />
     </div>
   );
 }
@@ -880,7 +881,7 @@ type EstadoTracados = {
   conferirUma: (id: string) => Promise<ResultadoLote | null>;
 };
 
-function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr, comPct }: { comPct: boolean; acoes: AcaoT[]; filtros: string[]; aoAbrirKml: (id: string, nome: string) => void; ehAdmin: boolean; tr: EstadoTracados }) {
+function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr, comPct, detalhes = false }: { detalhes?: boolean; comPct: boolean; acoes: AcaoT[]; filtros: string[]; aoAbrirKml: (id: string, nome: string) => void; ehAdmin: boolean; tr: EstadoTracados }) {
   const { fontes, conferidas, resultado, muitas, erroFontes } = tr;
   const [pagina, setPagina] = useState(1);
   const [conferindo, setConferindo] = useState<Record<string, boolean>>({});
@@ -1050,7 +1051,12 @@ function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr, comPct }: { comP
                   <td className="tabular whitespace-nowrap px-3 py-2 text-right text-ink-secondary">{a.pct != null ? `${Math.round(a.pct * 100)}%` : "-"}</td>
                   <td className="px-3 py-2">
                     <div className="flex flex-col items-start gap-1">
-                      {sim && (
+                      {detalhes && (
+                        <button onClick={() => aoAbrirKml(a.id, a.nome)} className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-black/10 px-2.5 py-1 text-xs font-medium text-ink-secondary hover:bg-plane" title="Ver os dados da obra">
+                          <Info size={13} /> Detalhes
+                        </button>
+                      )}
+                      {!detalhes && sim && (
                         <button onClick={() => aoAbrirKml(a.id, a.nome)} className="flex items-center gap-1.5 whitespace-nowrap rounded-full border border-black/10 px-2.5 py-1 text-xs font-medium text-ink-secondary hover:bg-plane" title="Ver o traçado guardado no mapa">
                           <MapPinned size={13} /> Ver no mapa
                         </button>
@@ -1090,6 +1096,72 @@ function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr, comPct }: { comP
         </span>
       </div>
     </section>
+  );
+}
+
+// ---------- detalhes da obra (janela do Mapa de Recursos Hídricos) ----------
+
+function DetalhesAcao({ acao, comPct, aoFechar }: { acao: AcaoT | undefined; comPct: boolean; aoFechar: () => void }) {
+  const campoDet = (rotulo: string, valor: React.ReactNode) => (
+    <div className="min-w-0">
+      <dt className="text-[11px] uppercase tracking-wide text-ink-muted">{rotulo}</dt>
+      <dd className="mt-0.5 break-words text-sm text-ink-primary">{valor === "" || valor == null ? "-" : valor}</dd>
+    </div>
+  );
+  const a = acao;
+  const valorFinalDaObra = a ? (a.total ?? a.original) : null;
+  const aditivoValor = a && a.original != null && valorFinalDaObra != null ? valorFinalDaObra - a.original : null;
+  return (
+    <div className="fixed inset-0 z-[2000] flex items-center justify-center bg-black/40 p-4" onClick={aoFechar}>
+      <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-surface p-5 shadow-card" onClick={(e) => e.stopPropagation()}>
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <p className="text-sm font-semibold text-ink-primary">Obra {a?.id}</p>
+            <p className="mt-0.5 text-xs text-ink-secondary">{a?.nome}</p>
+          </div>
+          <button onClick={aoFechar} className="rounded-lg p-1 text-ink-muted hover:bg-plane" aria-label="Fechar">
+            <X size={16} />
+          </button>
+        </div>
+        {!a ? (
+          <p className="text-xs text-ink-muted">Não encontrei os dados desta obra no filtro atual.</p>
+        ) : (
+          <>
+            <dl className="grid grid-cols-2 gap-x-6 gap-y-3 sm:grid-cols-3">
+              {campoDet("Órgão", a.orgao)}
+              {campoDet("Tipologia", a.tipologia)}
+              {campoDet("Status", a.status)}
+              {campoDet("Estágio atual", a.estagio)}
+              {campoDet("Execução", a.pct != null ? `${Math.round(a.pct * 100)}%` : "")}
+              {campoDet("Vinculação SIAFE", vinculada(a) ? "Vinculada" : a.numeroSiafe ? "Pendente" : "Sem número")}
+              {campoDet("Município(s)", descricaoDosMunicipios(a, comPct))}
+              {campoDet("Território(s)", a.partes.length ? descricaoDosTerritorios(a, comPct) : "Sem localização")}
+              {campoDet("Extensão do traçado", a.extensaoM ? `${(a.extensaoM / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 })} km` : "")}
+              {campoDet("Criada em", dataBR(a.criadaEm))}
+              {campoDet("Recebida em", dataBR(a.recProv || a.recDef))}
+              {campoDet("Classificação", a.classificacao)}
+            </dl>
+            <dl className="mt-4 grid grid-cols-2 gap-3 rounded-xl bg-plane p-3 sm:grid-cols-4">
+              {campoDet("Valor contratado", reais(a.original))}
+              {campoDet("Total do contrato", reais(valorFinalDaObra))}
+              {campoDet("Aditivo", aditivoValor == null ? "-" : `${aditivoValor > 0.005 ? "+" : ""}${reais(aditivoValor)}`)}
+              {campoDet("Valor pago", reais(a.pago))}
+            </dl>
+            {a.pago != null && valorFinalDaObra != null && valorFinalDaObra > 0 && (
+              <div className="mt-3">
+                <div className="mb-1 flex justify-between text-[11px] text-ink-muted">
+                  <span>Pago do total do contrato</span>
+                  <span className="tabular">{((a.pago / valorFinalDaObra) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%</span>
+                </div>
+                <div className="h-2 rounded bg-black/5">
+                  <div className="h-2 rounded bg-status-good" style={{ width: `${Math.min(100, (a.pago / valorFinalDaObra) * 100)}%` }} />
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    </div>
   );
 }
 

@@ -76,6 +76,7 @@ const um = (f: (a: AcaoT) => string) => (a: AcaoT) => [f(a)];
 export const FILTROS: DefinicaoFiltro[] = [
   { chave: "territorio", rotulo: "Território (principal)", valores: um((a) => rotuloTerritorio(principal(a))) },
   { chave: "passa", rotulo: "Passa pelo território", valores: (a) => passaPor(a).map(rotuloTerritorio) },
+  { chave: "municipio", rotulo: "Município", valores: (a) => (a.municipios.length ? a.municipios.map((m) => m.nome) : [VAZIO]) },
   { chave: "cruza", rotulo: "Cruza territórios", valores: um((a) => (cruza(a) ? "Sim, mais de um" : "Não")) },
   { chave: "origem", rotulo: "Localizada por", valores: um((a) => (a.origem === "tracado" ? "Traçado (KML/mapa)" : a.origem === "municipio" ? "Município do SIMO" : "Sem localização")) },
   { chave: "vinculacao", rotulo: "Vinculação SIAFE", valores: um((a) => (vinculada(a) ? "Vinculada" : a.numeroSiafe ? "Pendente" : "Sem número")) },
