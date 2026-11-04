@@ -488,6 +488,9 @@ function MapaTracados({ acoes }: { acoes: AcaoT[] }) {
   const [erro, setErro] = useState<string | null>(null);
   const [verMapa, setVerMapa] = useState<{ id: string; nome: string } | null>(null);
   const [corPor, setCorPor] = useState<"status" | "territorio">("status");
+  const [subpastas, setSubpastas] = useState<"tipologia" | "status">("tipologia");
+  const [baixando, setBaixando] = useState(false);
+  const [avisoKml, setAvisoKml] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
 
   const ids = useMemo(() => acoes.map((a) => a.id), [acoes]);
   const assinatura = useMemo(() => ids.join(","), [ids]);
@@ -516,6 +519,46 @@ function MapaTracados({ acoes }: { acoes: AcaoT[] }) {
       setErro("Sem conexão com o servidor.");
     } finally {
       setCarregando(false);
+    }
+  }
+
+  // Baixa um KML com as ações do filtro (uma pasta por território; dentro, uma por tipologia ou status) para abrir no Google Earth.
+  async function baixarKml() {
+    setBaixando(true);
+    setAvisoKml(null);
+    try {
+      const itens = acoes.map((a) => ({
+        id: a.id,
+        nome: a.nome,
+        orgao: a.orgao ?? "",
+        status: a.status ?? "",
+        tipologia: a.tipologia ?? "",
+        territorio: a.partes.length ? rotuloTerritorio(principal(a)) : "",
+        territorios: descricaoDosTerritorios(a),
+        vinculacao: vinculada(a) ? "Vinculada" : a.numeroSiafe ? "Pendente" : "Sem número",
+        execucao: a.pct != null ? `${Math.round(a.pct * 100)}%` : "",
+      }));
+      const resp = await fetch("/api/territorios/kml", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ itens, subpastas }) });
+      if (!resp.ok) {
+        const json = (await resp.json().catch(() => null)) as { error?: string } | null;
+        setAvisoKml({ tipo: "erro", texto: json?.error ?? `Não foi possível gerar o KML (o servidor respondeu ${resp.status}).` });
+        return;
+      }
+      const semTracado = Number(resp.headers.get("X-Sem-Tracado") ?? 0);
+      const comTracado = Number(resp.headers.get("X-Com-Tracado") ?? 0);
+      const url = URL.createObjectURL(await resp.blob());
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `mapa-geral-${new Date().toISOString().slice(0, 10)}.kml`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      URL.revokeObjectURL(url);
+      setAvisoKml({ tipo: "ok", texto: `KML baixado com ${inteiro(comTracado)} ação(ões)${semTracado > 0 ? `; ${inteiro(semTracado)} sem traçado guardado ficaram de fora` : ""}. Abra no Google Earth.` });
+    } catch {
+      setAvisoKml({ tipo: "erro", texto: "Sem conexão com o servidor." });
+    } finally {
+      setBaixando(false);
     }
   }
 
@@ -569,7 +612,24 @@ function MapaTracados({ acoes }: { acoes: AcaoT[] }) {
           {carregando ? <Loader2 size={13} className="animate-spin" /> : <MapPinned size={13} />}
           {carregando ? "Gerando..." : dados ? "Gerar de novo" : "Gerar mapa"}
         </button>
+        <label className="flex items-center gap-2 text-xs text-ink-secondary">
+          Subpastas do KML
+          <select value={subpastas} onChange={(e) => setSubpastas(e.target.value as "tipologia" | "status")} className={campo}>
+            <option value="tipologia">Território › Tipologia</option>
+            <option value="status">Território › Status</option>
+          </select>
+        </label>
+        <button
+          onClick={baixarKml}
+          disabled={baixando || grande || acoes.length === 0}
+          className="flex items-center gap-1.5 rounded-full bg-status-good px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+          title="Baixa um arquivo KML com as ações do filtro, para abrir no Google Earth: uma pasta por território e subpastas por tipologia (ou status)"
+        >
+          {baixando ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
+          {baixando ? "Gerando KML..." : "Baixar KML"}
+        </button>
       </div>
+      {avisoKml && <p className={"rounded-lg px-3 py-2 text-xs " + (avisoKml.tipo === "ok" ? "bg-status-good-bg text-status-good" : "bg-status-critical/10 text-status-critical")}>{avisoKml.texto}</p>}
       {grande && (
         <p className="rounded-lg bg-status-warning-bg px-3 py-2 text-xs text-status-warning">
           São {inteiro(acoes.length)} ações. Para o mapa ficar leve, filtre até {inteiro(LIMITE_TRACADOS)} (por exemplo um território, um ano ou um órgão) e volte aqui.
