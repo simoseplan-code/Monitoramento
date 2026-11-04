@@ -6,6 +6,7 @@ import { Download, Loader2, MapPinned, Save } from "lucide-react";
 import type { Map as MapaDoLeaflet } from "leaflet";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
 import { FiltroCheckbox } from "@/components/FiltroCheckbox";
+import { AtualizarBairros } from "@/components/AtualizarBairros";
 import { JanelaMapa } from "@/app/verificacao-bairros/VerificacaoBairros";
 import { COR_TERRITORIO, SEM_TERRITORIO, rotuloTerritorio } from "@/lib/territorios";
 import {
@@ -47,7 +48,7 @@ function csvEscape(v: unknown): string {
   return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-export function AnaliseTerritorio({ acoes, territorios, filtroGravado }: { acoes: AcaoT[]; territorios: string[]; filtroGravado: { estado: unknown; atualizadoEm: string; por?: string | null } | null }) {
+export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin }: { acoes: AcaoT[]; territorios: string[]; ehAdmin: boolean; filtroGravado: { estado: unknown; atualizadoEm: string; por?: string | null } | null }) {
   const valores = useMemo(() => valoresDosFiltros(acoes), [acoes]);
   // Abre no filtro gravado (um só, vale para todos os usuários); sem filtro gravado, abre tudo aberto.
   const [estado, setEstado] = useState<EstadoFiltros>(() => (filtroGravado ? estadoDeGravado(filtroGravado.estado, valores) : estadoPadrao()));
@@ -158,6 +159,12 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado }: { acoes
         <p className="text-xs text-ink-muted">
           Cada ação entra no território onde cai a maior parte do traçado (o mesmo cálculo da Verificação de bairros). Sem traçado, vale o município informado no SIMO. Se o traçado cai em mais de um território, a ação aparece em todos eles (mesmo que seja só uma parte), com a % de cada um.
         </p>
+        <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-plane px-3 py-2">
+          <p className="text-xs text-ink-secondary">
+            <strong className="text-ink-primary">{inteiro(acoes.filter((a) => a.origem === "nenhuma").length)}</strong> ação(ões) ainda sem localização (sem traçado calculado).
+          </p>
+          <AtualizarBairros ehAdmin={ehAdmin} />
+        </div>
         <div className="mt-3 flex flex-wrap items-center gap-2">
           {FILTROS.filter((f) => f.chave !== "id").map((f) => (
             <FiltroCheckbox key={f.chave} rotulo={f.rotulo} opcoes={valores[f.chave] ?? []} selecionados={estado.selecao[f.chave]} aoMudar={(v) => mudar({ ...estado, selecao: { ...estado.selecao, [f.chave]: v } })} />

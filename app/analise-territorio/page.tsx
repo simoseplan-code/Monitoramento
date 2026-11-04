@@ -115,7 +115,7 @@ export default async function AnaliseTerritorioPage() {
       {erro ? (
         <p className="rounded-lg bg-status-critical/10 px-3 py-2 text-xs text-status-critical">Falha ao carregar os dados: {erro}</p>
       ) : (
-        <AnaliseTerritorio acoes={acoes} territorios={territorios} filtroGravado={filtroGravado} />
+        <AnaliseTerritorio acoes={acoes} territorios={territorios} filtroGravado={filtroGravado} ehAdmin={!!profile?.is_admin} />
       )}
     </AppShell>
   );
