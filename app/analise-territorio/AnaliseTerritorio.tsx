@@ -568,7 +568,7 @@ function MapaTracados({ acoes, filtros, ehAdmin }: { acoes: AcaoT[]; filtros: st
   const [refazerSemKml, setRefazerSemKml] = useState(false);
   const parar = useRef(false);
   const alvos = useMemo(
-    () => (fontes === null ? [] : acoes.filter((a) => fontes[a.id] !== "kml" && fontes[a.id] !== "ambos" && (refazerSemKml || conferidas[a.id] !== "sem_kml")).map((a) => a.id)),
+    () => (fontes === null ? [] : acoes.filter((a) => !fontes[a.id] && (refazerSemKml || conferidas[a.id] !== "sem_kml")).map((a) => a.id)),
     [acoes, fontes, conferidas, refazerSemKml]
   );
 
@@ -758,7 +758,7 @@ function MapaTracados({ acoes, filtros, ehAdmin }: { acoes: AcaoT[]; filtros: st
                 onClick={conferirTodas}
                 disabled={alvos.length === 0 || fontes === null}
                 className="flex items-center gap-1.5 rounded-full border border-black/10 bg-surface px-4 py-2 text-xs font-semibold text-ink-secondary hover:bg-plane disabled:opacity-50"
-                title="Vai ao SIMO ver, uma por uma, as obras do filtro que ainda não têm KML guardado. Se achar, já baixa e guarda (vale para Arquivos KML, Sobreposições e Verificação de bairros)."
+                title="Vai ao SIMO ver, uma por uma, só as obras do filtro que ainda não têm traçado (as que já têm "Ver no mapa" não entram). Se achar, já baixa e guarda (vale para Arquivos KML, Sobreposições e Verificação de bairros)."
               >
                 <RefreshCw size={13} /> Conferir {fontes === null ? "" : inteiro(alvos.length) + " "}no SIMO
               </button>
@@ -1028,7 +1028,7 @@ function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr }: { acoes: AcaoT
                           <MapPinned size={13} /> Ver no mapa
                         </button>
                       )}
-                      {ehAdmin ? (
+                      {sim ? null : ehAdmin ? (
                         <button
                           onClick={() => conferirNoSimo(a.id)}
                           disabled={conferindo[a.id]}
@@ -1039,7 +1039,7 @@ function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr }: { acoes: AcaoT
                           {conferindo[a.id] ? "Conferindo..." : "Conferir no SIMO"}
                         </button>
                       ) : (
-                        !sim && <span className="text-[10px] text-ink-muted">Conferir no SIMO: só admin e chefe</span>
+                        <span className="text-[10px] text-ink-muted">Conferir no SIMO: só admin e chefe</span>
                       )}
                     </div>
                   </td>
