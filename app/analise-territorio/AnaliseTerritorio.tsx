@@ -389,6 +389,7 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina }: { acoes: AcaoT[]; pagina: 
             <th className="px-4 py-2.5">ID</th>
             <th className="px-3 py-2.5">Ação</th>
             <th className="px-3 py-2.5">Órgão</th>
+            <th className="px-3 py-2.5">Tipologia</th>
             <th className="px-3 py-2.5">Território(s)</th>
             <th className="px-3 py-2.5">Status</th>
             <th className="px-3 py-2.5">Vinculação</th>
@@ -402,7 +403,7 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina }: { acoes: AcaoT[]; pagina: 
         <tbody>
           {visiveis.length === 0 && (
             <tr>
-              <td colSpan={11} className="px-4 py-8 text-center text-ink-muted">
+              <td colSpan={12} className="px-4 py-8 text-center text-ink-muted">
                 Nenhuma ação com os filtros atuais.
               </td>
             </tr>
@@ -417,6 +418,7 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina }: { acoes: AcaoT[]; pagina: 
                 {aditivada(a) && <span className="ml-1.5 rounded bg-status-warning-bg px-1.5 py-0.5 text-[10px] text-status-warning">aditivada</span>}
               </td>
               <td className="px-3 py-2 text-ink-secondary">{a.orgao ?? "-"}</td>
+              <td className="px-3 py-2 text-ink-secondary">{a.tipologia ?? "-"}</td>
               <td className="px-3 py-2 text-ink-secondary">
                 {a.partes.length === 0 ? (
                   <span className="text-ink-muted">{rotuloTerritorio(SEM_TERRITORIO)}</span>
