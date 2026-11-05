@@ -66,9 +66,11 @@ export default async function NovasAcoesPage({
     data: { user },
   } = await supabase.auth.getUser();
 
-  // A aba "Concluídas" é só para admin/chefe: para os demais o parâmetro é ignorado.
+  // A aba "Concluídas" é de toda a equipe, mas cada pessoa vê só as concluídas DELAS (admin e chefe veem todas).
+  // Reabrir segue a regra de sempre: o responsável (ou admin).
   const { data: acesso } = await supabase.from("profiles").select("is_admin").eq("id", user!.id).single();
-  const mostrarConcluidos = concluidos === "1" && !!acesso?.is_admin;
+  const mostrarConcluidos = concluidos === "1";
+  const soAsMinhas = mostrarConcluidos && !acesso?.is_admin;
 
   const [
     { data: profile },
@@ -92,8 +94,9 @@ export default async function NovasAcoesPage({
       orgao_filtro: orgao || null,
       mostrar_concluidos: false,
       somente_concluidos: mostrarConcluidos,
-      pagina: paginaAtual,
-      tamanho: PAGE_SIZE,
+      // Só as minhas: traz as concluídas (poucas), filtra pelo responsável aqui e pagina depois.
+      pagina: soAsMinhas ? 1 : paginaAtual,
+      tamanho: soAsMinhas ? 5000 : PAGE_SIZE,
     }),
     supabase.rpc("novas_acoes_orgaos", { data_inicio: DATA_INICIO_REVISAO }),
     supabase.rpc("contar_aguardando_atualizacao", { data_inicio: DATA_INICIO_REVISAO }),
@@ -145,7 +148,11 @@ export default async function NovasAcoesPage({
   const equipe = ehAdmin ? ((equipeAtiva ?? []) as { id: string; nome: string }[]) : [];
   const usuario = { id: user!.id, nome: profile?.nome ?? "Você" };
 
-  const linhas = (linhasRpc ?? []) as LinhaNovaAcao[];
+  let linhas = (linhasRpc ?? []) as LinhaNovaAcao[];
+  if (soAsMinhas) {
+    const minhas = linhas.filter((l) => l.responsavel_id === user!.id);
+    linhas = minhas.slice((paginaAtual - 1) * PAGE_SIZE, paginaAtual * PAGE_SIZE).map((l) => ({ ...l, total_geral: minhas.length }));
+  }
   // Quais destas ações já têm KML guardado (botão "Analisar KML" fica verde).
   const { data: kmlGuardados } = linhas.map((l) => l.id_acao).length
     ? await supabase.from("kml_arquivos").select("id_acao").eq("situacao", "baixado").in("id_acao", linhas.map((l) => l.id_acao))
@@ -183,7 +190,7 @@ export default async function NovasAcoesPage({
         >
           Aguardando solução de pendência <span className="tabular opacity-80">({encaminhadas.length})</span>
         </Link>
-        {ehAdmin && (
+        {(
           <Link
             href="/novas-acoes?concluidos=1"
             className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
