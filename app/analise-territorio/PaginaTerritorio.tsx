@@ -1,3 +1,4 @@
+import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AppShell } from "@/components/layout/AppShell";
@@ -59,6 +60,8 @@ export async function PaginaTerritorio({ modo }: { modo: "analise" | "mapa" | "h
 
   const { data: profile } = await supabase.from("profiles").select("nome, cargo, is_admin, status").eq("id", user!.id).single();
   const digepi = profile?.status === "digepi";
+  // Mapa geral (traçado de todas as obras): só admin e chefe.
+  if (modo === "mapa" && !profile?.is_admin) redirect("/");
   // Recursos Hídricos: os dados vêm do servidor, já só com as tipologias de recursos hídricos (a pessoa DIGEPI não lê nada direto do banco).
   const dados = hidricos ? createAdminClient() : supabase;
   let totalAcoes: number | null = 0;

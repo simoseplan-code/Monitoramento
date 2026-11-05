@@ -107,7 +107,12 @@ export default async function EquipePage() {
       )}
 
       <section className="rounded-xl border border-black/5 bg-surface p-5 shadow-card">
-        <h2 className="mb-3 text-sm font-semibold text-ink-primary">Pessoas ativas</h2>
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
+          <h2 className="text-sm font-semibold text-ink-primary">Pessoas ativas</h2>
+          <a href="/api/admin/acessos-excel" className="rounded-full bg-status-good px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90" title="Baixa uma planilha com cada pessoa e o que ela acessa no painel">
+            Baixar planilha de acessos
+          </a>
+        </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead className="border-b border-black/5 text-left text-xs uppercase tracking-wide text-ink-muted">

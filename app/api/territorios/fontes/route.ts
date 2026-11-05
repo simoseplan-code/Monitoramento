@@ -22,7 +22,7 @@ export async function POST(request: NextRequest) {
 
     const corpo = (await request.json().catch(() => null)) as { ids?: unknown } | null;
     let ids = Array.isArray(corpo?.ids) ? Array.from(new Set(corpo.ids.map(String).filter((s) => /^\d{1,12}$/.test(s)))) : [];
-    if (acesso.digepi) ids = await idsHidricos(createAdminClient(), ids);
+    if (!acesso.supervisor) ids = await idsHidricos(createAdminClient(), ids);
     if (ids.length === 0) return NextResponse.json({ fontes: {}, conferidas: {} });
     if (ids.length > LIMITE) return NextResponse.json({ error: `Até ${LIMITE} ações por vez.` }, { status: 413 });
 

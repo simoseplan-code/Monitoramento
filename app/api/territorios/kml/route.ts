@@ -44,7 +44,7 @@ export async function POST(request: NextRequest) {
         itens.push({ id, nome: texto(x.nome), orgao: texto(x.orgao), status: texto(x.status), tipologia: texto(x.tipologia), territorio: texto(x.territorio), territorios: texto(x.territorios, 400), vinculacao: texto(x.vinculacao), execucao: texto(x.execucao, 20) });
       }
     }
-    if (acesso.digepi) {
+    if (!acesso.supervisor) {
       const ok = new Set(await idsHidricos(createAdminClient(), itens.map((i) => i.id)));
       for (let k = itens.length - 1; k >= 0; k--) if (!ok.has(itens[k].id)) itens.splice(k, 1);
     }

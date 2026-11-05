@@ -48,7 +48,7 @@ export async function POST(request: NextRequest) {
     const corpo = (await request.json().catch(() => null)) as { ids?: unknown } | null;
     let ids = Array.isArray(corpo?.ids) ? Array.from(new Set(corpo.ids.map(String).filter((s) => /^\d{1,12}$/.test(s)))) : [];
     if (ids.length === 0) return NextResponse.json({ error: "Nenhuma ação pedida." }, { status: 400 });
-    if (acesso.digepi) ids = await idsHidricos(createAdminClient(), ids);
+    if (!acesso.supervisor) ids = await idsHidricos(createAdminClient(), ids);
     if (ids.length > LIMITE_ACOES) return NextResponse.json({ error: `São ${ids.length} ações: filtre até ${LIMITE_ACOES} para gerar o mapa.` }, { status: 413 });
 
     const admin = createAdminClient();

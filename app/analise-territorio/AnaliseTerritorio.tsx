@@ -241,7 +241,7 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
       </section>
 
       <nav className={"flex flex-wrap gap-2" + (modo !== "analise" ? " hidden" : "")}>
-        {ABAS.map((a) => (
+        {ABAS.filter((a) => a.chave !== "tracados" || ehAdmin).map((a) => (
           <button
             key={a.chave}
             onClick={() => setAba(a.chave)}
