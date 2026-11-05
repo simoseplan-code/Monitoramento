@@ -109,9 +109,14 @@ export default async function EquipePage() {
       <section className="rounded-xl border border-black/5 bg-surface p-5 shadow-card">
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="text-sm font-semibold text-ink-primary">Pessoas ativas</h2>
+          <span className="flex flex-wrap items-center gap-2">
+          <a href="/api/admin/backup-analises" className="rounded-full border border-black/10 bg-surface px-3.5 py-1.5 text-xs font-semibold text-ink-secondary hover:bg-plane" title="Baixa um arquivo com todas as análises, comentários, responsáveis e listas que a equipe preencheu (guarde no seu computador)">
+            Baixar cópia das análises
+          </a>
           <a href="/api/admin/acessos-excel" className="rounded-full bg-status-good px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90" title="Baixa uma planilha com cada pessoa e o que ela acessa no painel">
             Baixar planilha de acessos
           </a>
+          </span>
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm">

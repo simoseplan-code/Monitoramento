@@ -4,6 +4,7 @@ import { csvParaObras, cabecalhoDoCsv, type ObraRow } from "@/lib/simo/parseCsv"
 import { sugerirUnidadeQuantidade, paraTextoBR } from "@/lib/unidadeQuantidade/sugestao";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { gzipSync, gunzipSync } from "node:zlib";
+import { guardarSnapshot, montarSnapshot } from "@/lib/simo/snapshot";
 
 const TAMANHO_LOTE = 1000;
 
@@ -68,6 +69,16 @@ export async function executarSyncBaixar(): Promise<{ kb: number }> {
     const csvText = await baixarCsvSimo(cookie, Math.max(20_000, 270_000 - (Date.now() - inicio)));
     const tExport = seg();
 
+    // Proteção: um relatório bem menor que o anterior quase sempre é filtrado ou cortado (ex.: alguém filtrou o
+    // relatório no SIMO). Não guarda, para não substituir o bom. "SYNC_ACEITAR_QUEDA=1" no servidor libera.
+    const { data: anterior } = await admin.from("sync_csv").select("bytes_originais").order("id", { ascending: false }).limit(1).maybeSingle();
+    const bytesAnterior = Number(anterior?.bytes_originais ?? 0);
+    if (!process.env.SYNC_ACEITAR_QUEDA && bytesAnterior > 100_000 && csvText.length < bytesAnterior * 0.5) {
+      throw new Error(
+        `O relatório baixado (${Math.round(csvText.length / 1024)} KB) é bem menor que o anterior (${Math.round(bytesAnterior / 1024)} KB): parece filtrado ou cortado. Nada foi guardado; o relatório anterior continua valendo. Confira se o relatório do SIMO está sem filtros.`
+      );
+    }
+
     await log.fase("guardando o CSV no banco");
     const comprimido = gzipSync(Buffer.from(csvText, "utf8")).toString("base64");
     const { data: novo, error } = await admin
@@ -120,6 +131,23 @@ export async function executarSyncObras(): Promise<{ linhas: number }> {
       throw new Error("O SIMO retornou 0 linhas, provavelmente algo mudou no relatório. Sync abortado sem apagar dados.");
     }
 
+    // Proteção: relatório com bem menos obras do que o banco já tem = relatório filtrado ou cortado. Cancela sem
+    // gravar nem apagar nada. "SYNC_ACEITAR_QUEDA=1" no servidor libera (queda de propósito).
+    const { count: atualNoBanco } = await admin.from("obras").select("id_acao", { count: "exact", head: true });
+    if (!process.env.SYNC_ACEITAR_QUEDA && (atualNoBanco ?? 0) >= 200 && obras.length < (atualNoBanco ?? 0) * 0.8) {
+      throw new Error(
+        `O relatório do SIMO veio com ${obras.length} ações e o painel tem ${atualNoBanco}: parece filtrado ou cortado. Sincronização cancelada, nada foi alterado. Confira se o relatório do SIMO está sem filtros.`
+      );
+    }
+
+    // Foto das análises ANTES de mexer em qualquer coisa (se falhar, só avisa: não trava a sincronização).
+    await log.fase("guardando foto das análises");
+    try {
+      await guardarSnapshot(admin, await montarSnapshot(admin), "antes do sync de obras");
+    } catch (e) {
+      console.error("sync: foto das análises:", e instanceof Error ? e.message : e);
+    }
+
     // Um único carimbo de tempo pra toda a execução: cada linha gravada
     // agora leva esse valor, então dá pra achar as que "sumiram" do
     // relatório do SIMO comparando o carimbo, em vez de montar uma
@@ -159,13 +187,18 @@ export async function executarSyncObras(): Promise<{ linhas: number }> {
     const pendentes = obras.filter((o) => !o.numero_automatico && !!o.numero_siafe).length;
     const dadoIncorreto = obras.filter((o) => o.numero_siafe && !/^\d{8}$/.test(o.numero_siafe)).length;
 
-    const [resDelete] = await Promise.all([
-      // Ações que existiam antes desse carimbo e não foram tocadas
-      // nesta execução saíram do relatório do SIMO (encerradas/excluídas lá).
-      admin.from("obras").delete().lt("atualizado_em", syncIniciadoEm),
-      admin.from("obras_historico").insert({ total: obras.length, vinculadas, pendentes, dado_incorreto: dadoIncorreto }),
-    ]);
-    if (resDelete.error) throw new Error(`Falha ao remover ações obsoletas: ${resDelete.error.message}`);
+    // Ações que existiam antes desse carimbo e não foram tocadas nesta execução saíram do relatório do SIMO
+    // (encerradas/excluídas lá). Se forem MUITAS, não apaga: é sinal de relatório incompleto.
+    const { count: aApagar } = await admin.from("obras").select("id_acao", { count: "exact", head: true }).lt("atualizado_em", syncIniciadoEm);
+    const limiteApagar = Math.max(100, Math.round(obras.length * 0.02));
+    let avisoApagar = "";
+    if (!process.env.SYNC_ACEITAR_QUEDA && (aApagar ?? 0) > limiteApagar) {
+      avisoApagar = ` ATENÇÃO: ${aApagar} ações não vieram no relatório e NÃO foram apagadas (limite ${limiteApagar}); confira o relatório do SIMO.`;
+    } else {
+      const { error: erroApagar } = await admin.from("obras").delete().lt("atualizado_em", syncIniciadoEm);
+      if (erroApagar) throw new Error(`Falha ao remover ações obsoletas: ${erroApagar.message}`);
+    }
+    await admin.from("obras_historico").insert({ total: obras.length, vinculadas, pendentes, dado_incorreto: dadoIncorreto });
 
     // Status, tipologia e data das ações mudam a cada sync: os filtros de Sobreposições
     // usam esses dados pré-calculados por local.
@@ -175,7 +208,7 @@ export async function executarSyncObras(): Promise<{ linhas: number }> {
     await log.fim({
       sucesso: true,
       linhas_processadas: obras.length,
-      mensagem: `OK obras: ${obras.length} ações em ${seg()}s (leitura ${tLeitura}s, gravação até ${tGravacao}s).${resumoRecebimento(obras)} Colunas no arquivo: ${colunasArquivo.join(", ")}.`,
+      mensagem: `OK obras: ${obras.length} ações em ${seg()}s (leitura ${tLeitura}s, gravação até ${tGravacao}s).${avisoApagar}${resumoRecebimento(obras)} Colunas no arquivo: ${colunasArquivo.join(", ")}.`,
     });
 
     return { linhas: obras.length };
