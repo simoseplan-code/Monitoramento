@@ -703,34 +703,41 @@ function MapaTracados({ acoes, filtros, ehAdmin, comPct, detalhes = false }: { a
     }
   }
 
-  // Excel com os dados dos KML de TODAS as ações do filtro: uma linha por geometria e bairro (ID duplicado quando preciso).
+  // Excel com os dados dos KML de TUDO que está guardado (sem filtro): uma linha por geometria e bairro (ID duplicado quando preciso).
   async function baixarExcelKml() {
     setAvisoKml(null);
-    const todas = acoes;
-    setExcelKml({ feitos: 0, total: todas.length });
+    setExcelKml({ feitos: 0, total: 0 });
     try {
       const linhas: { id: string; pasta: string; geometria: string; tipo: string; municipio: string; bairro: string; zona: string; km: number | null; kmTotal: number | null }[] = [];
       const sem: { id: string; motivo: string }[] = [];
-      const LOTE = 12;
-      for (let i = 0; i < todas.length; i += LOTE) {
-        const ids = todas.slice(i, i + LOTE).map((a) => a.id);
-        let json: { linhas?: typeof linhas; sem?: typeof sem; error?: string } | null = null;
+      const dados = new Map<string, { nome: string; orgao: string; tipologia: string }>();
+      type Resp = { linhas?: typeof linhas; sem?: typeof sem; info?: Record<string, { nome: string; orgao: string; tipologia: string }>; proximo?: string | null; total?: number | null; error?: string };
+      let apos = "";
+      let total = 0;
+      let feitos = 0;
+      for (;;) {
+        let json: Resp | null = null;
         let ok = false;
         for (let tentativa = 0; tentativa < 3 && !ok; tentativa++) {
-          const resp = await fetch("/api/territorios/kml-excel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids }) }).catch(() => null);
+          const resp = await fetch("/api/territorios/kml-excel", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ todos: true, apos }) }).catch(() => null);
           json = resp ? await resp.json().catch(() => null) : null;
           ok = !!resp?.ok && Array.isArray(json?.linhas);
         }
-        if (!ok) {
+        if (!ok || !json) {
           setAvisoKml({ tipo: "erro", texto: json?.error ?? "Não consegui ler os KML (sem resposta do servidor). Tente de novo." });
           return;
         }
-        linhas.push(...(json!.linhas ?? []));
-        sem.push(...(json!.sem ?? []));
-        setExcelKml({ feitos: Math.min(todas.length, i + LOTE), total: todas.length });
+        linhas.push(...(json.linhas ?? []));
+        sem.push(...(json.sem ?? []));
+        for (const [k, v] of Object.entries(json.info ?? {})) dados.set(k, v);
+        if (typeof json.total === "number") total = json.total;
+        feitos += new Set((json.linhas ?? []).map((l) => l.id)).size + (json.sem ?? []).length;
+        setExcelKml({ feitos: Math.min(feitos, total), total });
+        if (!json.proximo) break;
+        apos = json.proximo;
       }
 
-      const info = new Map(todas.map((a) => [a.id, a]));
+      const info = dados;
       const { default: ExcelJS } = await import("exceljs");
       const wb = new ExcelJS.Workbook();
       wb.creator = "Monitoramento de Obras";
@@ -775,7 +782,7 @@ function MapaTracados({ acoes, filtros, ehAdmin, comPct, detalhes = false }: { a
       link.remove();
       URL.revokeObjectURL(url);
       const comKml = new Set(linhas.map((l) => l.id)).size;
-      setAvisoKml({ tipo: "ok", texto: `Excel baixado: ${inteiro(linhas.length)} linha(s) de ${inteiro(comKml)} ação(ões) com KML; ${inteiro(sem.length)} ação(ões) sem KML ficaram na aba "Sem KML" com o motivo.` });
+      setAvisoKml({ tipo: "ok", texto: `Excel baixado: ${inteiro(linhas.length)} linha(s) de ${inteiro(comKml)} ação(ões) com KML; ${inteiro(sem.length)} ação(ões) com problema na leitura ficaram na aba "Sem KML".` });
     } catch {
       setAvisoKml({ tipo: "erro", texto: "Não foi possível gerar o Excel dos KML." });
     } finally {
@@ -884,9 +891,9 @@ function MapaTracados({ acoes, filtros, ehAdmin, comPct, detalhes = false }: { a
         </button>
         <button
           onClick={baixarExcelKml}
-          disabled={excelKml !== null || acoes.length === 0}
+          disabled={excelKml !== null}
           className="flex items-center gap-1.5 rounded-full bg-status-good px-4 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
-          title="Baixa um Excel com os dados dos KML de todas as ações do filtro: ID, município, bairro, zona, nome e tipo da geometria e trecho em km (o ID se repete quando a ação tem várias geometrias ou passa por mais de um bairro)"
+          title="Baixa um Excel com os dados de TODOS os KML guardados (não usa os filtros da tela): ID, município, bairro, zona, nome e tipo da geometria e trecho em km (o ID se repete quando a ação tem várias geometrias ou passa por mais de um bairro)"
         >
           {excelKml ? <Loader2 size={13} className="animate-spin" /> : <Download size={13} />}
           {excelKml ? `Lendo KML ${inteiro(excelKml.feitos)}/${inteiro(excelKml.total)}...` : "Excel dos KML"}

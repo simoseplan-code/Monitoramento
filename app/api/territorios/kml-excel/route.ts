@@ -57,13 +57,37 @@ export async function POST(request: NextRequest) {
     const acesso = await acessoDoUsuario(supabase, user.id);
     if (!acesso.liberado) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
 
-    const corpo = (await request.json().catch(() => null)) as { ids?: unknown } | null;
-    let ids = Array.isArray(corpo?.ids) ? Array.from(new Set(corpo.ids.map(String).filter((s) => /^\d{1,12}$/.test(s)))) : [];
-    if (ids.length === 0) return NextResponse.json({ error: "Nenhuma ação pedida." }, { status: 400 });
+    const corpo = (await request.json().catch(() => null)) as { ids?: unknown; todos?: unknown; apos?: unknown } | null;
     const admin = createAdminClient();
-    if (!acesso.supervisor) ids = await idsHidricos(admin, ids);
+    // Modo "todos": percorre TODOS os KML guardados (sem filtro), LOTE por vez; "apos" é o último ID já lido.
+    const todos = corpo?.todos === true;
+    let proximo: string | null = null;
+    let total: number | null = null;
+    let ids: string[] = [];
+    if (todos) {
+      const apos = typeof corpo?.apos === "string" && /^\d{1,12}$/.test(corpo.apos) ? corpo.apos : "";
+      if (!apos) {
+        const { count } = await admin.from("kml_arquivos").select("id_acao", { count: "exact", head: true }).eq("situacao", "baixado");
+        total = count ?? 0;
+      }
+      let q = admin.from("kml_arquivos").select("id_acao").eq("situacao", "baixado").order("id_acao").limit(LOTE);
+      if (apos) q = q.gt("id_acao", apos);
+      const { data: pagina, error: e0 } = await q;
+      if (e0) throw new Error(e0.message);
+      ids = (pagina ?? []).map((r) => r.id_acao as string);
+      proximo = ids.length === LOTE ? ids[ids.length - 1] : null;
+    } else {
+      ids = Array.isArray(corpo?.ids) ? Array.from(new Set(corpo.ids.map(String).filter((s) => /^\d{1,12}$/.test(s)))) : [];
+      if (ids.length === 0) return NextResponse.json({ error: "Nenhuma ação pedida." }, { status: 400 });
+    }
+    if (!acesso.supervisor && ids.length) ids = await idsHidricos(admin, ids);
     if (ids.length > LOTE) return NextResponse.json({ error: `Peça no máximo ${LOTE} ações por vez.` }, { status: 413 });
 
+    const info: Record<string, { nome: string; orgao: string; tipologia: string }> = {};
+    if (ids.length) {
+      const { data: obras } = await admin.from("obras").select("id_acao, nome_acao, orgao, tipologia").in("id_acao", ids);
+      for (const o of obras ?? []) info[o.id_acao as string] = { nome: (o.nome_acao as string) ?? "", orgao: (o.orgao as string) ?? "", tipologia: (o.tipologia as string) ?? "" };
+    }
     const [bairros, municipios, setores] = await Promise.all([carregarBairros(), carregarMunicipios(), carregarSetores()]);
     const { data: arquivos, error } = await admin.from("kml_arquivos").select("id_acao, situacao, kml_gzip_b64, mensagem").in("id_acao", ids);
     if (error) throw new Error(error.message);
@@ -155,7 +179,7 @@ export async function POST(request: NextRequest) {
         sem.push({ id, motivo: `Não consegui ler o KML: ${e instanceof Error ? e.message.slice(0, 100) : "erro"}` });
       }
     }
-    return NextResponse.json({ linhas, sem });
+    return NextResponse.json({ linhas, sem, info, proximo, total });
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error("territorios kml-excel:", msg);
