@@ -7,7 +7,7 @@ import { lerIds } from "@/lib/acoesFiltro";
 // Lista de IDs que a equipe toda decidiu DESCONSIDERAR de uma análise (uma lista por tela).
 // A lista fica no banco (tabela acoes_desconsideradas): vale para todas as pessoas.
 
-export type Desconsiderada = { id: string; em: string; por: string | null; nome?: string | null; orgao?: string | null; status?: string | null };
+export type Desconsiderada = { id: string; em: string; por: string | null; nome?: string | null; orgao?: string | null; status?: string | null; origem?: "manual" | "filha" };
 export type TelaDesconsideradas = "todas" | "nao_vinculadas" | "concluidas" | "siafe_duplicado" | "bairros";
 
 const inteiro = (v: number) => v.toLocaleString("pt-BR");

@@ -15,20 +15,23 @@ export type DesconsideradaComDetalhe = {
   nome: string | null;
   orgao: string | null;
   status: string | null;
+  /** "filha" = entrou sozinha por ser ação filha na Configuração de TD (SQL 0092); "manual" = alguém desconsiderou. */
+  origem: "manual" | "filha";
 };
 
 /** As linhas de uma ou mais listas, com nome, órgão e status da ação. */
 export async function listarDesconsideradas(supabase: SupabaseClient, telas: string[]): Promise<(DesconsideradaComDetalhe & { tela: string })[]> {
-  const linhas: { tela: string; id: string; em: string; por: string | null }[] = [];
+  const linhas: { tela: string; id: string; em: string; por: string | null; origem: "manual" | "filha" }[] = [];
+  let colunas = "tela, id_acao, desconsiderada_em, por_nome, origem";
   for (let de = 0; ; de += 1000) {
-    const { data, error } = await supabase
-      .from("acoes_desconsideradas")
-      .select("tela, id_acao, desconsiderada_em, por_nome")
-      .in("tela", telas)
-      .order("id_acao")
-      .range(de, de + 999);
+    let { data, error } = await supabase.from("acoes_desconsideradas").select(colunas).in("tela", telas).order("id_acao").range(de, de + 999);
+    if (error && colunas.includes("origem")) {
+      // O SQL 0092 (coluna origem) ainda não rodou: lê sem ela.
+      colunas = "tela, id_acao, desconsiderada_em, por_nome";
+      ({ data, error } = await supabase.from("acoes_desconsideradas").select(colunas).in("tela", telas).order("id_acao").range(de, de + 999));
+    }
     if (error) break; // se o SQL ainda não rodou, segue sem a lista
-    for (const r of data ?? []) linhas.push({ tela: r.tela as string, id: r.id_acao as string, em: r.desconsiderada_em as string, por: (r.por_nome as string | null) ?? null });
+    for (const r of (data ?? []) as unknown as Record<string, unknown>[]) linhas.push({ tela: r.tela as string, id: r.id_acao as string, em: r.desconsiderada_em as string, por: (r.por_nome as string | null) ?? null, origem: r.origem === "filha" ? "filha" : "manual" });
     if (!data || data.length < 1000) break;
   }
   const ids = Array.from(new Set(linhas.map((l) => l.id)));

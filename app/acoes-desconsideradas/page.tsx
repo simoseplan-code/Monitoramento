@@ -22,7 +22,16 @@ export default async function AcoesDesconsideradasPage() {
     ),
   ]);
 
-  const listas: Record<string, { id: string; em: string; por: string | null; nome: string | null; orgao: string | null; status: string | null }[]> = {};
+  // De qual ação mãe cada filha é filha (Configuração de TD).
+  const maes: Record<string, string> = {};
+  for (let de = 0; ; de += 1000) {
+    const { data, error } = await supabase.from("td_acoes_filha").select("id_acao, id_acao_mae").order("id_acao").range(de, de + 999);
+    if (error) break;
+    for (const f of data ?? []) maes[f.id_acao as string] = f.id_acao_mae as string;
+    if (!data || data.length < 1000) break;
+  }
+
+  const listas: Record<string, { id: string; em: string; por: string | null; nome: string | null; orgao: string | null; status: string | null; origem: "manual" | "filha" }[]> = {};
   for (const t of TELAS_DESCONSIDERADAS) listas[t.chave] = [];
   for (const l of todas) {
     const { tela, ...resto } = l;
@@ -39,7 +48,7 @@ export default async function AcoesDesconsideradasPage() {
       titulo="Ações desconsideradas"
       subtitulo={`${total.toLocaleString("pt-BR")} ação(ões) tiradas de alguma análise`}
     >
-      <AcoesDesconsideradas listas={listas} ehAdmin={!!profile?.is_admin} />
+      <AcoesDesconsideradas listas={listas} ehAdmin={!!profile?.is_admin} maes={maes} />
     </AppShell>
   );
 }
