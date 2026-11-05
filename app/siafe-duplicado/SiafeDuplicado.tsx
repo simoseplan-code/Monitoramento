@@ -190,7 +190,7 @@ function ListaDeGrupos({ grupos, rotulo, explica, buscaInicial, arquivo }: { gru
   const orgaos = useMemo(() => Array.from(new Set(grupos.flatMap((g) => g.acoes.map((a) => a.orgao).filter(Boolean) as string[]))).sort(), [grupos]);
   const statusLista = useMemo(() => Array.from(new Set(grupos.flatMap((g) => g.acoes.map((a) => a.status).filter(Boolean) as string[]))).sort(), [grupos]);
 
-  const anos = useMemo(() => Array.from(new Set(grupos.flatMap((g) => g.acoes.map((a) => (a.criadaEm ?? "").slice(0, 4)).filter((y) => /^d{4}$/.test(y))))).sort().reverse(), [grupos]);
+  const anos = useMemo(() => Array.from(new Set(grupos.flatMap((g) => g.acoes.map((a) => (a.criadaEm ?? "").slice(0, 4)).filter((y) => /^\d{4}$/.test(y))))).sort().reverse(), [grupos]);
 
   const filtrados = useMemo(() => {
     const termo = busca.trim().toLowerCase();
