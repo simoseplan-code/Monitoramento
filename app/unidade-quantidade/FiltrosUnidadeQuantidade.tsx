@@ -16,6 +16,8 @@ export function FiltrosUnidadeQuantidade({
   anos,
   tipologiaAtual,
   tipologias,
+  eixoAtual,
+  eixos,
 }: {
   buscaAtual: string;
   orgaoAtual: string;
@@ -26,6 +28,8 @@ export function FiltrosUnidadeQuantidade({
   anos: number[];
   tipologiaAtual: string;
   tipologias: string[];
+  eixoAtual: string;
+  eixos: string[];
 }) {
   const router = useRouter();
   const [busca, setBusca] = useState(buscaAtual);
@@ -36,7 +40,7 @@ export function FiltrosUnidadeQuantidade({
   const anoAtualNumero = parseInt(anoMinAtual, 10);
   const opcoesAnos = Number.isNaN(anoAtualNumero) || anos.includes(anoAtualNumero) ? anos : [...anos, anoAtualNumero].sort((a, b) => b - a);
 
-  function aplicar(overrides: { busca?: string; orgao?: string; confianca?: string; status?: string; anoMin?: string; tipologia?: string }) {
+  function aplicar(overrides: { busca?: string; orgao?: string; confianca?: string; status?: string; anoMin?: string; tipologia?: string; eixo?: string }) {
     const params = new URLSearchParams();
     const buscaValor = overrides.busca ?? busca;
     const orgaoValor = overrides.orgao ?? orgaoAtual;
@@ -44,8 +48,10 @@ export function FiltrosUnidadeQuantidade({
     const statusValor = overrides.status ?? statusAtual;
     const anoMinValor = overrides.anoMin ?? anoMinAtual;
     const tipologiaValor = overrides.tipologia ?? tipologiaAtual;
+    const eixoValor = overrides.eixo ?? eixoAtual;
     if (buscaValor) params.set("busca", buscaValor);
     if (tipologiaValor) params.set("tipologia", tipologiaValor);
+    if (eixoValor) params.set("eixo", eixoValor);
     if (orgaoValor) params.set("orgao", orgaoValor);
     if (confiancaValor) params.set("confianca", confiancaValor);
     if (statusValor !== "pendentes") params.set("status", statusValor);
@@ -91,6 +97,22 @@ export function FiltrosUnidadeQuantidade({
           </option>
         ))}
       </select>
+
+      {eixos.length > 0 && (
+        <select
+          value={eixoAtual}
+          onChange={(e) => aplicar({ eixo: e.target.value })}
+          className="max-w-[16rem] rounded-lg border border-black/10 bg-plane px-3 py-2 text-sm text-ink-secondary focus:border-series-1 focus:outline-none"
+        >
+          <option value="">Todos os eixos</option>
+          <option value="__sem__">(sem eixo)</option>
+          {eixos.map((x) => (
+            <option key={x} value={x}>
+              {x}
+            </option>
+          ))}
+        </select>
+      )}
 
       <select
         value={confiancaAtual}
