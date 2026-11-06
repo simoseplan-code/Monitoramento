@@ -11,9 +11,11 @@ export async function POST(request: NextRequest) {
   } = await supabase.auth.getUser();
   if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
 
-  const { idAcao, aprovado, unidadeFinal, quantidadeFinal } = (await request.json()) as {
+  const { idAcao, aprovado, unidadeFinal, quantidadeFinal, tentarConcluida } = (await request.json()) as {
     idAcao?: string;
     aprovado?: boolean;
+    /** Ação concluída: o SIMO costuma travar, mas a pessoa pode pedir para tentar mesmo assim. */
+    tentarConcluida?: boolean;
     unidadeFinal?: string;
     quantidadeFinal?: string | null;
   };
@@ -33,11 +35,11 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: "Quantidade precisa ser um número (ex.: 9, 25,28 ou 1.732,32)." }, { status: 400 });
     }
 
-    // O SIMO trava edição de ação "Concluído", aprovar só criaria um
-    // erro de "somente leitura" na hora de gravar.
+    // O SIMO trava edição de ação "Concluído": aprovar costuma dar erro de "somente leitura" na hora de gravar.
+    // Só deixa passar quando a pessoa pede de propósito para tentar (o resultado aparece ao gravar no SIMO).
     const { data: obra } = await supabase.from("obras").select("status").eq("id_acao", idAcao).maybeSingle();
-    if (/^conclu[ií]do$/i.test((obra?.status ?? "").trim())) {
-      return NextResponse.json({ error: "Ação concluída, o SIMO não permite alterar Unidade/Quantidade." }, { status: 400 });
+    if (/^conclu[ií]do$/i.test((obra?.status ?? "").trim()) && tentarConcluida !== true) {
+      return NextResponse.json({ error: "Ação concluída, o SIMO costuma não permitir alterar Unidade/Quantidade. Use \"Tentar aprovar\" para tentar mesmo assim." }, { status: 400 });
     }
   }
 

@@ -97,7 +97,7 @@ export function CardSugestaoUnidade({
       const resp = await fetch("/api/unidade/aprovar", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ idAcao, aprovado: novoAprovado, unidadeFinal: unidade, quantidadeFinal: quantidade }),
+        body: JSON.stringify({ idAcao, aprovado: novoAprovado, unidadeFinal: unidade, quantidadeFinal: quantidade, tentarConcluida: concluida }),
       });
       if (!resp.ok) {
         const data = await resp.json();
@@ -231,7 +231,7 @@ export function CardSugestaoUnidade({
       </p>
       {concluida && !bloqueado && (
         <p className="mb-3 text-xs font-medium text-status-warning">
-          Ação concluída, o SIMO trava a edição, fica aqui só de registro (não dá pra aprovar).
+          Ação concluída: o SIMO costuma travar a edição. Dá para tentar aprovar mesmo assim; se o SIMO recusar, o erro aparece na hora de gravar.
         </p>
       )}
 
@@ -266,12 +266,12 @@ export function CardSugestaoUnidade({
         {!bloqueado && (
           <button
             onClick={() => salvar(true)}
-            disabled={salvando || !unidade || concluida}
-            title={concluida ? "Ação concluída, o SIMO não permite editar" : !unidade ? "Escolha uma unidade antes de aprovar" : undefined}
+            disabled={salvando || !unidade}
+            title={!unidade ? "Escolha uma unidade antes de aprovar" : concluida ? "Ação concluída: o SIMO costuma travar, mas você pode tentar" : undefined}
             className="ml-auto flex items-center gap-1.5 rounded-lg bg-status-good px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
           >
             <Check size={13} />
-            {aprovado ? "Salvar alteração" : "Aprovar"}
+            {aprovado ? "Salvar alteração" : concluida ? "Tentar aprovar" : "Aprovar"}
           </button>
         )}
       </div>
