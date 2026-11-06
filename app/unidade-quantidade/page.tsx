@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { CardSugestaoUnidade } from "./CardSugestaoUnidade";
@@ -31,6 +32,9 @@ type LinhaSugestao = {
   motivo: string;
   aprovado: boolean;
   aplicado_em: string | null;
+  pendencia_em?: string | null;
+  pendencia_obs?: string | null;
+  pendencia_por_nome?: string | null;
   total_geral: number;
 };
 
@@ -62,6 +66,7 @@ export default async function UnidadeQuantidadePage({
     { data: anosRpc },
     { data: tipologiasRpc },
     { data: eixosRpc },
+    { count: totalPendencias },
   ] = await Promise.all([
     supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
     supabase.from("obras").select("id_acao", { count: "exact", head: true }),
@@ -85,6 +90,8 @@ export default async function UnidadeQuantidadePage({
     supabase.rpc("unidade_sugestao_anos"),
     supabase.rpc("unidade_sugestao_tipologias"),
     supabase.rpc("unidade_sugestao_eixos"),
+    // Quantas estão em pendência (aba "Pendências"); sem o SQL 0095 a consulta falha e a aba só não mostra o número.
+    supabase.from("obras_unidade_sugestao").select("id_acao", { count: "exact", head: true }).not("pendencia_em", "is", null).is("aplicado_em", null),
   ]);
 
   const linhas = (linhasRpc ?? []) as LinhaSugestao[];
@@ -109,7 +116,7 @@ export default async function UnidadeQuantidadePage({
       }}
       titulo="Unidade / Quantidade"
       subtitulo={`${totalGeral} ação(ões), ${
-        { pendentes: "aguardando revisão", aprovadas: "aprovadas, aguardando gravação", aplicadas: "já aplicadas no SIMO", todas: "no total" }[
+        { pendentes: "aguardando revisão", pendencia: "em pendência (para analisar depois)", aprovadas: "aprovadas, aguardando gravação", aplicadas: "já aplicadas no SIMO", todas: "no total" }[
           statusAtual
         ] ?? "aguardando revisão"
       }`}
@@ -126,6 +133,21 @@ export default async function UnidadeQuantidadePage({
           <AplicarUnidadeBotao pendentes={sugestoesUnidadeAprovadas ?? 0} />
         </div>
       )}
+
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Link
+          href="/unidade-quantidade"
+          className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${statusAtual !== "pendencia" ? "bg-series-1 text-white" : "border border-black/10 text-ink-secondary hover:bg-plane"}`}
+        >
+          Análise
+        </Link>
+        <Link
+          href="/unidade-quantidade?status=pendencia&anoMin=todos"
+          className={`flex items-center gap-1.5 rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${statusAtual === "pendencia" ? "bg-status-warning text-white" : "border border-black/10 text-ink-secondary hover:bg-plane"}`}
+        >
+          Pendências <span className="tabular opacity-80">({totalPendencias ?? 0})</span>
+        </Link>
+      </div>
 
       <div className="mb-4">
         <FiltrosUnidadeQuantidade
@@ -164,6 +186,9 @@ export default async function UnidadeQuantidadePage({
             motivo={s.motivo}
             aprovado={s.aprovado}
             aplicadoEm={s.aplicado_em}
+            pendenciaEm={s.pendencia_em ?? null}
+            pendenciaObs={s.pendencia_obs ?? null}
+            pendenciaPorNome={s.pendencia_por_nome ?? null}
           />
         ))}
 

@@ -145,6 +145,7 @@ export function FiltrosUnidadeQuantidade({
       >
         <option value="pendentes">Aguardando revisão</option>
         <option value="aprovadas">Aprovadas, aguardando gravação</option>
+        <option value="pendencia">Em pendência (analisar depois)</option>
         <option value="aplicadas">Já aplicadas no SIMO</option>
         <option value="todas">Todas</option>
       </select>

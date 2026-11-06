@@ -374,11 +374,11 @@ async function calcularSugestoesUnidade(
   // Linhas já aplicadas no SIMO ficam: depois de gravar, a Unidade do
   // SIMO passa a bater com a sugestão e a ação sai da fila, sem esse
   // filtro a aba "Já aplicadas" esvaziaria a cada sync.
-  const { error: erroDelete } = await admin
-    .from("obras_unidade_sugestao")
-    .delete()
-    .lt("atualizado_em", syncIniciadoEm)
-    .is("aplicado_em", null);
+  // O que está em pendência (com comentário da equipe) também fica (SQL 0095; sem a coluna, apaga como antes).
+  let { error: erroDelete } = await admin.from("obras_unidade_sugestao").delete().lt("atualizado_em", syncIniciadoEm).is("aplicado_em", null).is("pendencia_em", null);
+  if (erroDelete && /pendencia/i.test(erroDelete.message)) {
+    ({ error: erroDelete } = await admin.from("obras_unidade_sugestao").delete().lt("atualizado_em", syncIniciadoEm).is("aplicado_em", null));
+  }
   if (erroDelete) throw new Error(`Falha ao limpar sugestões de unidade obsoletas: ${erroDelete.message}`);
   return linhas.length;
 }
