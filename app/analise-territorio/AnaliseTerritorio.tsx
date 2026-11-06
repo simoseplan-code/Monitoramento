@@ -2,7 +2,7 @@
 
 import "leaflet/dist/leaflet.css";
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { Download, Info, Loader2, MapPinned, Maximize2, Minimize2, RefreshCw, Save, X } from "lucide-react";
+import { AlertTriangle, Download, Info, Loader2, MapPinned, Maximize2, Minimize2, RefreshCw, Save, X } from "lucide-react";
 import type { Map as MapaDoLeaflet } from "leaflet";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
 import { dataBR } from "@/lib/acoesFiltro";
@@ -168,6 +168,12 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
   return (
     <div className="space-y-4">
       <section className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
+        <p className="mb-3 flex items-start gap-2 rounded-lg border border-status-warning/30 bg-status-warning-bg px-3 py-2 text-xs font-medium text-status-warning">
+          <AlertTriangle size={15} className="mt-px shrink-0" />
+          <span>
+            <strong>Atenção:</strong> esta tela é focada na análise de KML. Os dados de município e território são calculados a partir do KML anexado à ação.
+          </span>
+        </p>
         <p className="text-xs text-ink-muted">
           Cada ação entra no território onde cai a maior parte do traçado (o mesmo cálculo da Verificação de bairros). Sem traçado, vale o município informado no SIMO. Se o traçado cai em mais de um território, a ação aparece em todos eles (mesmo que seja só uma parte), com a % de cada um.
         </p>
@@ -409,8 +415,8 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina, comPct }: { acoes: AcaoT[]; 
             <th className="px-3 py-2.5">Ação</th>
             <th className="px-3 py-2.5">Órgão</th>
             <th className="px-3 py-2.5">Tipologia</th>
-            <th className="px-3 py-2.5">Unidade</th>
-            <th className="px-3 py-2.5 text-right">Quantidade</th>
+            <th className="px-3 py-2.5 text-series-1">Unidade</th>
+            <th className="px-3 py-2.5 text-right text-series-1">Quantidade</th>
             <th className="px-3 py-2.5">Município(s)</th>
             <th className="px-3 py-2.5">Território(s)</th>
             <th className="px-3 py-2.5">Status</th>
@@ -441,8 +447,8 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina, comPct }: { acoes: AcaoT[]; 
               </td>
               <td className="px-3 py-2 text-ink-secondary">{a.orgao ?? "-"}</td>
               <td className="px-3 py-2 text-ink-secondary">{a.tipologia ?? "-"}</td>
-              <td className="whitespace-nowrap px-3 py-2 text-ink-secondary">{a.unidade ?? "-"}</td>
-              <td className="tabular whitespace-nowrap px-3 py-2 text-right text-ink-secondary">{(a.quantidade != null ? a.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "-")}</td>
+              <td className="whitespace-nowrap px-3 py-2 font-medium text-series-1">{a.unidade ?? "-"}</td>
+              <td className="tabular whitespace-nowrap px-3 py-2 text-right font-medium text-series-1">{(a.quantidade != null ? a.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "-")}</td>
               <td className="px-3 py-2 text-ink-secondary">{descricaoDosMunicipios(a, comPct)}</td>
               <td className="px-3 py-2 text-ink-secondary">
                 {a.partes.length === 0 ? (
@@ -1117,8 +1123,8 @@ function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr, comPct, detalhes
               <th className="px-3 py-2.5">Território(s)</th>
               <th className="px-3 py-2.5">Status</th>
               <th className="px-3 py-2.5">Tipologia</th>
-              <th className="px-3 py-2.5">Unidade</th>
-              <th className="px-3 py-2.5 text-right">Quantidade</th>
+              <th className="px-3 py-2.5 text-series-1">Unidade</th>
+              <th className="px-3 py-2.5 text-right text-series-1">Quantidade</th>
               <th className="px-3 py-2.5">Georreferenciada</th>
               <th className="px-3 py-2.5 text-right">Contratado</th>
               <th className="px-3 py-2.5 text-right">Total do contrato</th>
@@ -1149,8 +1155,8 @@ function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr, comPct, detalhes
                   <td className="px-3 py-2 text-ink-secondary">{a.partes.length ? descricaoDosTerritorios(a, comPct) : "Sem localização"}</td>
                   <td className="px-3 py-2 text-ink-secondary">{a.status ?? "-"}</td>
                   <td className="px-3 py-2 text-ink-secondary">{a.tipologia ?? "-"}</td>
-                  <td className="whitespace-nowrap px-3 py-2 text-ink-secondary">{a.unidade ?? "-"}</td>
-                  <td className="tabular whitespace-nowrap px-3 py-2 text-right text-ink-secondary">{(a.quantidade != null ? a.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "-")}</td>
+                  <td className="whitespace-nowrap px-3 py-2 font-medium text-series-1">{a.unidade ?? "-"}</td>
+                  <td className="tabular whitespace-nowrap px-3 py-2 text-right font-medium text-series-1">{(a.quantidade != null ? a.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "-")}</td>
                   <td className="whitespace-nowrap px-3 py-2">
                     <span className={"rounded-full px-2 py-0.5 text-[10px] font-semibold " + (sim ? "bg-status-good-bg text-status-good" : g.startsWith("Não") ? "bg-status-critical/10 text-status-critical" : "bg-plane text-ink-muted")}>{g}</span>
                     {resultado[a.id] && <span className="mt-0.5 block text-[10px] text-ink-muted">{resultado[a.id]}</span>}
