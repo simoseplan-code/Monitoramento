@@ -5,6 +5,7 @@ import { Paginacao } from "@/components/Paginacao";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { sanitizarBusca } from "@/lib/seguranca";
 import { ListaNovasExecucao } from "./ListaNovasExecucao";
+import { FiltroOrgaos } from "./FiltroOrgaos";
 import { PendenciasPorOrgao, type ConfigPendencias, type GrupoOrgao } from "@/app/novas-acoes/PendenciasPorOrgao";
 import { ITENS_EXECUCAO } from "@/lib/execucao";
 
@@ -50,9 +51,11 @@ type Linha = {
 export default async function NovasEmExecucaoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ busca?: string; concluidos?: string; pagina?: string; aba?: string }>;
+  searchParams: Promise<{ busca?: string; concluidos?: string; pagina?: string; aba?: string; orgaos?: string }>;
 }) {
-  const { busca, concluidos, pagina, aba } = await searchParams;
+  const { busca, concluidos, pagina, aba, orgaos: orgaosParam } = await searchParams;
+  // Órgãos marcados no filtro (vários, separados por | no endereço); vazio = todos.
+  const orgaosMarcados = (orgaosParam ?? "").split("|").map((o) => o.trim()).filter(Boolean);
   const abaPendencias = aba === "pendencias";
   const concluidosPedido = concluidos === "1";
   const paginaAtual = Math.max(1, parseInt(pagina ?? "1", 10) || 1);
@@ -73,15 +76,21 @@ export default async function NovasEmExecucaoPage({
       supabase.from("obras").select("id_acao", { count: "exact", head: true }),
       supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
       contarNovasAcoesPendentes(supabase),
-      supabase.rpc("novas_execucao_lista", { mostrar_concluidos: mostrarConcluidos, busca: termo || null, pagina: paginaAtual, tamanho: PAGE_SIZE }),
+      supabase.rpc("novas_execucao_lista", { mostrar_concluidos: mostrarConcluidos, busca: termo || null, pagina: 1, tamanho: 5000 }),
       supabase.rpc("contar_novas_execucao_pendentes"),
       // Só admin enxerga os perfis de todo mundo (RLS); pros demais volta vazio e a troca nem aparece.
       supabase.from("profiles").select("id, nome").eq("status", "aprovado").order("nome"),
       supabase.rpc("novas_execucao_encaminhadas"),
     ]);
 
-  const linhas = (linhasRpc ?? []) as Linha[];
-  const totalFiltrado = linhas[0]?.total_geral ?? 0;
+  const todasAsLinhas = (linhasRpc ?? []) as Linha[];
+  // Órgãos que aparecem na lista de agora (com a quantidade), para marcar um ou mais.
+  const contagemOrgaos = new Map<string, number>();
+  for (const l of todasAsLinhas) contagemOrgaos.set(l.orgao ?? "(sem órgão)", (contagemOrgaos.get(l.orgao ?? "(sem órgão)") ?? 0) + 1);
+  const opcoesOrgaos = Array.from(contagemOrgaos, ([valor, qtd]) => ({ valor, qtd })).sort((a, b) => a.valor.localeCompare(b.valor, "pt-BR"));
+  const filtradas = orgaosMarcados.length ? todasAsLinhas.filter((l) => orgaosMarcados.includes(l.orgao ?? "(sem órgão)")) : todasAsLinhas;
+  const totalFiltrado = filtradas.length;
+  const linhas = filtradas.slice((paginaAtual - 1) * PAGE_SIZE, paginaAtual * PAGE_SIZE);
   // Quais destas ações já têm KML guardado (botão "Analisar KML" fica verde).
   const { data: kmlGuardados } = linhas.map((l) => l.id_acao).length
     ? await supabase.from("kml_arquivos").select("id_acao").eq("situacao", "baixado").in("id_acao", linhas.map((l) => l.id_acao))
@@ -147,6 +156,7 @@ export default async function NovasEmExecucaoPage({
           {!abaPendencias && (
             <form action="/novas-em-execucao" className="ml-auto flex items-center gap-2">
               {mostrarConcluidos && <input type="hidden" name="concluidos" value="1" />}
+              {orgaosMarcados.length > 0 && <input type="hidden" name="orgaos" value={orgaosMarcados.join("|")} />}
               <input
                 name="busca"
                 defaultValue={busca ?? ""}
@@ -156,6 +166,13 @@ export default async function NovasEmExecucaoPage({
             </form>
           )}
         </div>
+
+        {!abaPendencias && opcoesOrgaos.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <FiltroOrgaos opcoes={opcoesOrgaos} selecionados={orgaosMarcados.length ? orgaosMarcados : null} baseHref="/novas-em-execucao" params={{ busca: termo || undefined, concluidos: mostrarConcluidos ? "1" : undefined }} />
+            {orgaosMarcados.length > 0 && <span className="text-xs text-ink-muted">{totalFiltrado} de {todasAsLinhas.length} ação(ões)</span>}
+          </div>
+        )}
 
         {abaPendencias ? (
           <PendenciasPorOrgao grupos={grupos} usuarioId={usuario.id} ehAdmin={ehAdmin} config={CONFIG_PENDENCIAS_EXECUCAO} />
@@ -198,7 +215,7 @@ export default async function NovasEmExecucaoPage({
             paginaAtual={paginaAtual}
             totalPaginas={totalPaginas}
             baseHref="/novas-em-execucao"
-            params={{ busca: termo || undefined, concluidos: mostrarConcluidos ? "1" : undefined }}
+            params={{ busca: termo || undefined, concluidos: mostrarConcluidos ? "1" : undefined, orgaos: orgaosMarcados.length ? orgaosMarcados.join("|") : undefined }}
           />
         </div>
         </>
