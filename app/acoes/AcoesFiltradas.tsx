@@ -115,9 +115,9 @@ export function AcoesFiltradas({
 
   function exportarExcel() {
     setMenuExportar(false);
-    const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Eixo", "Número Automático", "Número do Contrato no SIAFE", ...(naoVinc ? [] : ["Situação"]), "Status", "Estágio Atual", "Tipologia", "Classificação", "Percentual de Execução", "Ação Conveniada", "Data de Criação", "Ano de Recebimento"];
+    const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Eixo", "Número Automático", "Número do Contrato no SIAFE", ...(naoVinc ? [] : ["Situação"]), "Status", "Estágio Atual", "Tipologia", "Classificação", "Percentual de Execução", "Ação Conveniada", "Data de Criação", "Ano de Recebimento", "Valor Original (Contratado)", "Valor Total (com Aditivos)", "Valor Pago"];
     const linhas = filtradas.map((a) =>
-      [a.id, a.nome, a.orgao, a.eixo, a.numeroAutomatico, a.numeroSiafe, ...(naoVinc ? [] : [vinculacao(a)]), a.status, a.estagio, a.tipologia, a.classificacao, a.pct != null ? a.pct : "", a.conveniada, a.criadaEm, anoDeRecebimento(a) === "(vazio)" ? "" : anoDeRecebimento(a)]
+      [a.id, a.nome, a.orgao, a.eixo, a.numeroAutomatico, a.numeroSiafe, ...(naoVinc ? [] : [vinculacao(a)]), a.status, a.estagio, a.tipologia, a.classificacao, a.pct != null ? a.pct : "", a.conveniada, a.criadaEm, anoDeRecebimento(a) === "(vazio)" ? "" : anoDeRecebimento(a), a.valorOriginal != null ? a.valorOriginal.toFixed(2).replace(".", ",") : "", a.valorTotal != null ? a.valorTotal.toFixed(2).replace(".", ",") : "", a.valorPago != null ? a.valorPago.toFixed(2).replace(".", ",") : ""]
         .map(csvEscape)
         .join(";")
     );

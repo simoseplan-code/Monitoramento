@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { dinheiroParaNumero } from "@/lib/simo/parseCsv";
 import {
   contagemVinculacao,
   descreverFiltros,
@@ -9,7 +10,7 @@ import {
   type AcaoLinha,
 } from "@/lib/acoesFiltro";
 
-const COLUNAS = "id_acao, nome_acao, orgao, status, estagio_atual, tipologia, classificacao, acao_conveniada, percentual_execucao, numero_automatico, numero_siafe, data_criacao, data_receb_definitivo, data_receb_provisorio, eixo:extra->>EIXO";
+const COLUNAS = "id_acao, nome_acao, orgao, status, estagio_atual, tipologia, classificacao, acao_conveniada, percentual_execucao, numero_automatico, numero_siafe, data_criacao, data_receb_definitivo, data_receb_provisorio, valor_original, valor_total, extra, eixo:extra->>EIXO";
 
 type Linha = {
   id_acao: string;
@@ -27,9 +28,19 @@ type Linha = {
   data_receb_definitivo: string | null;
   data_receb_provisorio: string | null;
   eixo: string | null;
+  valor_original: number | string | null;
+  valor_total: number | string | null;
+  extra: Record<string, string> | null;
 };
 
 const numero = (v: number | string | null): number | null => (v == null || v === "" ? null : Number.isFinite(Number(v)) ? Number(v) : null);
+
+// VALOR PAGO TOTAL vem do relatório do SIMO e fica em "extra" (cabeçalho como no SIMO).
+function valorPagoDe(extra: Record<string, string> | null): number | null {
+  if (!extra) return null;
+  const chave = Object.keys(extra).find((k) => /valor\s*pago/i.test(k));
+  return chave ? dinheiroParaNumero(extra[chave]) : null;
+}
 
 export const paraAcao = (l: Linha): AcaoLinha => ({
   id: l.id_acao,
@@ -47,6 +58,9 @@ export const paraAcao = (l: Linha): AcaoLinha => ({
   criadaEm: l.data_criacao,
   recDef: l.data_receb_definitivo,
   recProv: l.data_receb_provisorio,
+  valorOriginal: numero(l.valor_original),
+  valorTotal: numero(l.valor_total),
+  valorPago: valorPagoDe(l.extra),
 });
 
 /** Todas as ações, lidas em páginas de 1000. */

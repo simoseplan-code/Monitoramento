@@ -26,6 +26,10 @@ export type AcaoLinha = {
   criadaEm: string | null;
   recDef: string | null;
   recProv: string | null;
+  /** Valor original (contratado), valor total (com aditivos) e valor pago total; só aparecem na exportação. */
+  valorOriginal: number | null;
+  valorTotal: number | null;
+  valorPago: number | null;
 };
 
 export type Vinculacao = "Vinculada" | "Pendente" | "Sem número";
