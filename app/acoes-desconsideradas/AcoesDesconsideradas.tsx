@@ -10,7 +10,7 @@ import { lerIds } from "@/lib/acoesFiltro";
 const inteiro = (v: number) => v.toLocaleString("pt-BR");
 const campo = "rounded-lg border border-black/10 bg-plane px-3 py-2 text-xs text-ink-secondary focus:border-series-1 focus:outline-none";
 
-export function AcoesDesconsideradas({ listas, ehAdmin, maes = {}, eixos = {} }: { listas: Record<string, Desconsiderada[]>; ehAdmin: boolean; maes?: Record<string, string>; eixos?: Record<string, string[]> }) {
+export function AcoesDesconsideradas({ listas, ehAdmin, maes = {} }: { listas: Record<string, Desconsiderada[]>; ehAdmin: boolean; maes?: Record<string, string> }) {
   const [aba, setAba] = useState<ChaveTela>("todas");
   const [qtds, setQtds] = useState<Record<string, number>>(() => Object.fromEntries(TELAS_DESCONSIDERADAS.map((t) => [t.chave, (listas[t.chave] ?? []).length])));
 
@@ -42,7 +42,6 @@ export function AcoesDesconsideradas({ listas, ehAdmin, maes = {}, eixos = {} }:
             somenteLeitura={t.restrita && !ehAdmin}
             inicial={listas[t.chave] ?? []}
             maes={maes}
-            eixos={eixos}
             aoContar={(n) => setQtds((q) => (q[t.chave] === n ? q : { ...q, [t.chave]: n }))}
           />
         </div>
@@ -57,7 +56,6 @@ function ListaDeUmaAnalise({
   somenteLeitura,
   inicial,
   maes,
-  eixos,
   aoContar,
 }: {
   tela: ChaveTela;
@@ -65,7 +63,6 @@ function ListaDeUmaAnalise({
   somenteLeitura: boolean;
   inicial: Desconsiderada[];
   maes: Record<string, string>;
-  eixos: Record<string, string[]>;
   aoContar: (n: number) => void;
 }) {
   const { desc, ocupado, erro, mudar } = useDesconsideradas(tela, inicial);
@@ -73,9 +70,8 @@ function ListaDeUmaAnalise({
   const [busca, setBusca] = useState("");
   // Na lista "Todas": ver tudo, só o que a equipe pôs, ou só as ações filhas (entram sozinhas).
   const [origem, setOrigem] = useState<"todas" | "manual" | "filha">("todas");
-  // Filtro por eixo (só vê as desconsideradas daquele eixo) e escolha de eixo para desconsiderar de uma vez.
+  // Filtro por eixo: só para ver as desconsideradas daquele eixo (não desconsidera nada).
   const [eixoVer, setEixoVer] = useState("");
-  const [eixoAdd, setEixoAdd] = useState("");
   const qtdFilhas = desc.filter((d) => d.origem === "filha").length;
   const qtdManuais = desc.length - qtdFilhas;
 
@@ -92,8 +88,6 @@ function ListaDeUmaAnalise({
     for (const d of desc) m.set(d.eixo ?? "__sem__", (m.get(d.eixo ?? "__sem__") ?? 0) + 1);
     return Array.from(m).sort((a, b) => b[1] - a[1]);
   }, [desc]);
-  const nomesEixos = Object.keys(eixos).sort((a, b) => a.localeCompare(b, "pt-BR"));
-  const idsDoEixo = eixoAdd ? (eixos[eixoAdd] ?? []).filter((i) => !jaTem.has(i)) : [];
   const filtradas = termo ? porEixo.filter((d) => d.id.includes(termo) || (d.nome ?? "").toLowerCase().includes(termo) || (d.orgao ?? "").toLowerCase().includes(termo)) : porOrigem;
 
   return (
@@ -161,32 +155,6 @@ function ListaDeUmaAnalise({
       )}
       {erro && <p className="text-xs font-medium text-status-critical">{erro}</p>}
 
-      {!somenteLeitura && nomesEixos.length > 0 && (
-        <div className="flex flex-wrap items-center gap-2 rounded-lg border border-black/5 bg-plane/60 p-3 text-xs text-ink-secondary">
-          <span className="font-semibold text-ink-primary">Desconsiderar por eixo:</span>
-          <select value={eixoAdd} onChange={(e) => setEixoAdd(e.target.value)} className={campo}>
-            <option value="">Escolha o eixo...</option>
-            {nomesEixos.map((e) => (
-              <option key={e} value={e}>
-                {e} ({inteiro(eixos[e].length)})
-              </option>
-            ))}
-          </select>
-          <button
-            onClick={async () => {
-              if (idsDoEixo.length === 0) return;
-              if (!window.confirm(`Desconsiderar ${inteiro(idsDoEixo.length)} ação(ões) do eixo ${eixoAdd} nesta lista? Vale para a equipe toda; dá para devolver depois.`)) return;
-              if (await mudar("adicionar", idsDoEixo)) setEixoAdd("");
-            }}
-            disabled={ocupado || idsDoEixo.length === 0}
-            className="flex items-center gap-1.5 rounded-full bg-series-1 px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
-          >
-            {ocupado && <Loader2 size={13} className="animate-spin" />}
-            {eixoAdd ? `Desconsiderar ${inteiro(idsDoEixo.length)} do eixo` : "Desconsiderar o eixo"}
-          </button>
-          {eixoAdd && idsDoEixo.length < (eixos[eixoAdd]?.length ?? 0) && <span className="text-ink-muted">{inteiro((eixos[eixoAdd]?.length ?? 0) - idsDoEixo.length)} já estava(m) na lista.</span>}
-        </div>
-      )}
 
       {desc.length > 0 && (
         <div className="flex flex-wrap items-center gap-2">
