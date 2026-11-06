@@ -92,6 +92,8 @@ export const FILTROS: DefinicaoFiltro[] = [
   { chave: "orgao", rotulo: "Órgão", valores: um((a) => ou(a.orgao)) },
   { chave: "estagio", rotulo: "Estágio atual", valores: um((a) => ou(a.estagio)) },
   { chave: "tipologia", rotulo: "Tipologia", valores: um((a) => ou(a.tipologia)) },
+  // Unidade de medida em maiúsculas (Km e KM são a mesma coisa).
+  { chave: "unidade", rotulo: "Unidade de medida", valores: um((a) => ou(a.unidade?.toUpperCase())) },
   { chave: "tipoOutros", rotulo: "Tipo de outros documentos", valores: um((a) => ou(a.tipoOutros)) },
   { chave: "conveniada", rotulo: "Ação conveniada", valores: um((a) => ou(a.conveniada)) },
   { chave: "aditivo", rotulo: "Aditivo", valores: um((a) => (a.original == null ? "Sem valor informado" : aditivada(a) ? "Com aditivo" : suprimida(a) ? "Com supressão" : "Sem aditivo")) },

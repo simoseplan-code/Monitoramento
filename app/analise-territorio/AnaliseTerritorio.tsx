@@ -388,7 +388,7 @@ function ResumoSimples({ acoes }: { acoes: AcaoT[] }) {
     { rotulo: "Cruzam territórios", valor: inteiro(r.cruzam) },
     { rotulo: "Aditivadas", valor: inteiro(r.aditivadas) },
     { rotulo: "Extensão do traçado", valor: `${r.km.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km` },
-    { rotulo: "Quantidade (soma)", valor: "", azul: r.porUnidade.slice(0, 4).map(([u, v]) => `${v.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} ${u}`), dica: r.porUnidade.length > 4 ? `+ ${r.porUnidade.length - 4} unidade(s)` : r.porUnidade.length === 0 ? "sem quantidade" : "somada por unidade" },
+    { rotulo: "Quantidade (soma)", valor: "", azul: r.porUnidade.map(([u, v]) => `${v.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} ${u}`), dica: r.porUnidade.length === 0 ? "sem quantidade" : "somada por unidade" },
   ];
   return (
     <section className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
@@ -397,7 +397,7 @@ function ResumoSimples({ acoes }: { acoes: AcaoT[] }) {
           <li key={c.rotulo} className="rounded-lg bg-plane px-3 py-2.5">
             <p className="text-[11px] uppercase tracking-wide text-ink-muted">{c.rotulo}</p>
             {c.azul ? (
-              <ul className="mt-0.5 space-y-0.5">
+              <ul className="mt-0.5 max-h-24 space-y-0.5 overflow-y-auto pr-1">
                 {c.azul.map((l) => (
                   <li key={l} className="tabular text-sm font-semibold text-series-1">
                     {l}
