@@ -360,7 +360,15 @@ function ResumoSimples({ acoes }: { acoes: AcaoT[] }) {
   const r = useMemo(() => {
     const contratado = acoes.reduce((s, a) => s + (a.original ?? 0), 0);
     const pago = acoes.reduce((s, a) => s + (a.pago ?? 0), 0);
+    // Quantidade somada POR UNIDADE (km, m², unidade...: somar unidades diferentes não faz sentido).
+    const porUnidade = new Map<string, number>();
+    for (const a of acoes) {
+      if (a.quantidade == null) continue;
+      const u = (a.unidade ?? "").trim().toUpperCase() || "SEM UNIDADE";
+      porUnidade.set(u, (porUnidade.get(u) ?? 0) + a.quantidade);
+    }
     return {
+      porUnidade: Array.from(porUnidade).sort((x, y) => y[1] - x[1]),
       qtd: acoes.length,
       vinculadas: acoes.filter(vinculada).length,
       comTracado: acoes.filter((a) => a.origem === "tracado").length,
@@ -372,7 +380,7 @@ function ResumoSimples({ acoes }: { acoes: AcaoT[] }) {
       km: acoes.reduce((s, a) => s + a.extensaoM, 0) / 1000,
     };
   }, [acoes]);
-  const cartoes: { rotulo: string; valor: string; dica?: string }[] = [
+  const cartoes: { rotulo: string; valor: string; dica?: string; azul?: string[] }[] = [
     { rotulo: "Ações", valor: inteiro(r.qtd), dica: `${inteiro(r.vinculadas)} vinculada(s)` },
     { rotulo: "Valor contratado", valor: dinheiro(r.contratado) },
     { rotulo: "Valor pago", valor: dinheiro(r.pago), dica: r.contratado > 0 ? `${((r.pago / r.contratado) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% do contratado` : undefined },
@@ -380,14 +388,25 @@ function ResumoSimples({ acoes }: { acoes: AcaoT[] }) {
     { rotulo: "Cruzam territórios", valor: inteiro(r.cruzam) },
     { rotulo: "Aditivadas", valor: inteiro(r.aditivadas) },
     { rotulo: "Extensão do traçado", valor: `${r.km.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} km` },
+    { rotulo: "Quantidade (soma)", valor: "", azul: r.porUnidade.slice(0, 4).map(([u, v]) => `${v.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} ${u}`), dica: r.porUnidade.length > 4 ? `+ ${r.porUnidade.length - 4} unidade(s)` : r.porUnidade.length === 0 ? "sem quantidade" : "somada por unidade" },
   ];
   return (
     <section className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
-      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-7">
+      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4 lg:grid-cols-8">
         {cartoes.map((c) => (
           <li key={c.rotulo} className="rounded-lg bg-plane px-3 py-2.5">
             <p className="text-[11px] uppercase tracking-wide text-ink-muted">{c.rotulo}</p>
-            <p className="tabular mt-0.5 text-sm font-semibold text-ink-primary">{c.valor}</p>
+            {c.azul ? (
+              <ul className="mt-0.5 space-y-0.5">
+                {c.azul.map((l) => (
+                  <li key={l} className="tabular text-sm font-semibold text-series-1">
+                    {l}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="tabular mt-0.5 text-sm font-semibold text-ink-primary">{c.valor}</p>
+            )}
             {c.dica && <p className="text-[11px] text-ink-muted">{c.dica}</p>}
           </li>
         ))}
