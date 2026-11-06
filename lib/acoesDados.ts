@@ -9,7 +9,7 @@ import {
   type AcaoLinha,
 } from "@/lib/acoesFiltro";
 
-const COLUNAS = "id_acao, nome_acao, orgao, status, estagio_atual, tipologia, classificacao, acao_conveniada, percentual_execucao, numero_automatico, numero_siafe, data_criacao, data_receb_definitivo, data_receb_provisorio";
+const COLUNAS = "id_acao, nome_acao, orgao, status, estagio_atual, tipologia, classificacao, acao_conveniada, percentual_execucao, numero_automatico, numero_siafe, data_criacao, data_receb_definitivo, data_receb_provisorio, eixo:extra->>EIXO";
 
 type Linha = {
   id_acao: string;
@@ -26,6 +26,7 @@ type Linha = {
   data_criacao: string | null;
   data_receb_definitivo: string | null;
   data_receb_provisorio: string | null;
+  eixo: string | null;
 };
 
 const numero = (v: number | string | null): number | null => (v == null || v === "" ? null : Number.isFinite(Number(v)) ? Number(v) : null);
@@ -38,6 +39,7 @@ export const paraAcao = (l: Linha): AcaoLinha => ({
   estagio: l.estagio_atual,
   tipologia: l.tipologia,
   classificacao: l.classificacao,
+  eixo: l.eixo?.trim() && l.eixo.trim() !== "-" ? l.eixo.trim() : null,
   conveniada: l.acao_conveniada,
   pct: numero(l.percentual_execucao),
   numeroAutomatico: l.numero_automatico,

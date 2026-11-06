@@ -11,7 +11,7 @@ import { idsDaLista } from "@/lib/desconsideradas";
 import { AnaliseTerritorio } from "./AnaliseTerritorio";
 
 const COLUNAS =
-  "id_acao, nome_acao, orgao, status, estagio_atual, tipologia, classificacao, tipo_outros_documentos, acao_conveniada, percentual_execucao, numero_automatico, numero_siafe, data_criacao, data_receb_definitivo, data_receb_provisorio, valor_original, valor_total, extra";
+  "id_acao, nome_acao, orgao, status, estagio_atual, tipologia, classificacao, tipo_outros_documentos, acao_conveniada, percentual_execucao, numero_automatico, numero_siafe, data_criacao, data_receb_definitivo, data_receb_provisorio, valor_original, valor_total, extra, eixo:extra->>EIXO";
 
 type Linha = {
   id_acao: string;
@@ -31,6 +31,7 @@ type Linha = {
   data_receb_provisorio: string | null;
   valor_original: number | string | null;
   valor_total: number | string | null;
+  eixo: string | null;
   extra: Record<string, string> | null;
 };
 
@@ -120,6 +121,7 @@ export async function PaginaTerritorio({ modo }: { modo: "analise" | "mapa" | "h
       estagio: l.estagio_atual,
       tipologia: l.tipologia,
       classificacao: l.classificacao,
+      eixo: limpo(l.eixo),
       tipoOutros: l.tipo_outros_documentos,
       conveniada: l.acao_conveniada,
       pct: numero(l.percentual_execucao),

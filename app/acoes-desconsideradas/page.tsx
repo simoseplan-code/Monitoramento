@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { TELAS_DESCONSIDERADAS, listarDesconsideradas } from "@/lib/desconsideradas";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { AcoesDesconsideradas } from "./AcoesDesconsideradas";
 
 // Aberta a toda a equipe aprovada: todas as listas de IDs desconsiderados, uma aba por análise.
@@ -31,7 +32,19 @@ export default async function AcoesDesconsideradasPage() {
     if (!data || data.length < 1000) break;
   }
 
-  const listas: Record<string, { id: string; em: string; por: string | null; nome: string | null; orgao: string | null; status: string | null; origem: "manual" | "filha" }[]> = {};
+  // Eixo de cada ação da base (para escolher "todas as ações de um eixo" ao desconsiderar). Base completa, como no resto da tela.
+  const eixos: Record<string, string[]> = {};
+  for (let de = 0; ; de += 1000) {
+    const { data, error } = await createAdminClient().from("obras").select("id_acao, eixo:extra->>EIXO").order("id_acao").range(de, de + 999);
+    if (error) break;
+    for (const o of (data ?? []) as unknown as { id_acao: string; eixo: string | null }[]) {
+      const e = (o.eixo ?? "").trim();
+      if (e && e !== "-") (eixos[e] ??= []).push(o.id_acao);
+    }
+    if (!data || data.length < 1000) break;
+  }
+
+  const listas: Record<string, { id: string; em: string; por: string | null; nome: string | null; orgao: string | null; status: string | null; eixo: string | null; origem: "manual" | "filha" }[]> = {};
   for (const t of TELAS_DESCONSIDERADAS) listas[t.chave] = [];
   for (const l of todas) {
     const { tela, ...resto } = l;
@@ -48,7 +61,7 @@ export default async function AcoesDesconsideradasPage() {
       titulo="Ações desconsideradas"
       subtitulo={`${total.toLocaleString("pt-BR")} ação(ões) tiradas de alguma análise`}
     >
-      <AcoesDesconsideradas listas={listas} ehAdmin={!!profile?.is_admin} maes={maes} />
+      <AcoesDesconsideradas listas={listas} ehAdmin={!!profile?.is_admin} maes={maes} eixos={eixos} />
     </AppShell>
   );
 }

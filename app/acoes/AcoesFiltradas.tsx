@@ -115,9 +115,9 @@ export function AcoesFiltradas({
 
   function exportarExcel() {
     setMenuExportar(false);
-    const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Número Automático", "Número do Contrato no SIAFE", ...(naoVinc ? [] : ["Situação"]), "Status", "Estágio Atual", "Tipologia", "Classificação", "Percentual de Execução", "Ação Conveniada", "Data de Criação", "Ano de Recebimento"];
+    const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Eixo", "Número Automático", "Número do Contrato no SIAFE", ...(naoVinc ? [] : ["Situação"]), "Status", "Estágio Atual", "Tipologia", "Classificação", "Percentual de Execução", "Ação Conveniada", "Data de Criação", "Ano de Recebimento"];
     const linhas = filtradas.map((a) =>
-      [a.id, a.nome, a.orgao, a.numeroAutomatico, a.numeroSiafe, ...(naoVinc ? [] : [vinculacao(a)]), a.status, a.estagio, a.tipologia, a.classificacao, a.pct != null ? a.pct : "", a.conveniada, a.criadaEm, anoDeRecebimento(a) === "(vazio)" ? "" : anoDeRecebimento(a)]
+      [a.id, a.nome, a.orgao, a.eixo, a.numeroAutomatico, a.numeroSiafe, ...(naoVinc ? [] : [vinculacao(a)]), a.status, a.estagio, a.tipologia, a.classificacao, a.pct != null ? a.pct : "", a.conveniada, a.criadaEm, anoDeRecebimento(a) === "(vazio)" ? "" : anoDeRecebimento(a)]
         .map(csvEscape)
         .join(";")
     );
@@ -262,6 +262,7 @@ export function AcoesFiltradas({
                   <th className="px-4 py-3">ID</th>
                   <th className="px-4 py-3">Nome da ação</th>
                   <th className="px-4 py-3">Órgão</th>
+                  <th className="px-4 py-3">Eixo</th>
                   <th className="px-4 py-3">Nº SIAFE</th>
                   <th className="px-4 py-3">Status</th>
                   <th className="px-4 py-3">Estágio</th>
@@ -280,6 +281,7 @@ export function AcoesFiltradas({
                       </td>
                       <td className="px-4 py-3 text-ink-secondary">{r.nome}</td>
                       <td className="px-4 py-3 text-ink-secondary">{r.orgao}</td>
+                      <td className="px-4 py-3 text-ink-secondary">{r.eixo ?? "-"}</td>
                       <td className={`px-4 py-3 ${r.numeroSiafe && !siafeValido(r.numeroSiafe) ? "font-medium text-status-critical" : "text-ink-secondary"}`}>{r.numeroSiafe ?? "-"}</td>
                       <td className="px-4 py-3 text-ink-secondary">{r.status ?? "-"}</td>
                       <td className="px-4 py-3 text-ink-secondary">{r.estagio ?? "-"}</td>
@@ -295,7 +297,7 @@ export function AcoesFiltradas({
                 })}
                 {visiveis.length === 0 && (
                   <tr>
-                    <td colSpan={naoVinc ? 8 : 9} className="px-4 py-10 text-center text-sm text-ink-muted">
+                    <td colSpan={naoVinc ? 9 : 10} className="px-4 py-10 text-center text-sm text-ink-muted">
                       Nenhuma ação encontrada com esses filtros.
                     </td>
                   </tr>

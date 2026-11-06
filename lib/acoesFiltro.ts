@@ -16,6 +16,8 @@ export type AcaoLinha = {
   estagio: string | null;
   tipologia: string | null;
   classificacao: string | null;
+  /** Eixo da ação (coluna EIXO do relatório do SIMO). */
+  eixo: string | null;
   conveniada: string | null;
   /** Percentual de execução em fração (1 = 100%). */
   pct: number | null;
@@ -61,6 +63,7 @@ export const FILTROS: DefinicaoFiltro[] = [
   { chave: "estagio", rotulo: "Estágio atual", valor: (a) => ou(a.estagio) },
   { chave: "tipologia", rotulo: "Tipologia", valor: (a) => ou(a.tipologia) },
   { chave: "classificacao", rotulo: "Classificação", valor: (a) => ou(a.classificacao) },
+  { chave: "eixo", rotulo: "Eixo", valor: (a) => ou(a.eixo) },
   { chave: "conveniada", rotulo: "Ação conveniada", valor: (a) => ou(a.conveniada) },
   { chave: "siafe", rotulo: "Nº SIAFE", valor: (a) => (!a.numeroSiafe ? "Sem número SIAFE" : siafeValido(a.numeroSiafe) ? "Número válido" : "Dado incorreto") },
   { chave: "id", rotulo: "ID", valor: (a) => a.id },

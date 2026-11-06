@@ -15,6 +15,7 @@ export type DesconsideradaComDetalhe = {
   nome: string | null;
   orgao: string | null;
   status: string | null;
+  eixo: string | null;
   /** "filha" = entrou sozinha por ser ação filha na Configuração de TD (SQL 0092); "manual" = alguém desconsiderou. */
   origem: "manual" | "filha";
 };
@@ -35,13 +36,13 @@ export async function listarDesconsideradas(supabase: SupabaseClient, telas: str
     if (!data || data.length < 1000) break;
   }
   const ids = Array.from(new Set(linhas.map((l) => l.id)));
-  const info = new Map<string, { nome: string | null; orgao: string | null; status: string | null }>();
+  const info = new Map<string, { nome: string | null; orgao: string | null; status: string | null; eixo: string | null }>();
   for (let i = 0; i < ids.length; i += 200) {
     // Base completa (as ações da lista "Todas" ficam escondidas para o acesso comum).
-    const { data } = await createAdminClient().from("obras").select("id_acao, nome_acao, orgao, status").in("id_acao", ids.slice(i, i + 200));
-    for (const o of data ?? []) info.set(o.id_acao as string, { nome: (o.nome_acao as string | null) ?? null, orgao: (o.orgao as string | null) ?? null, status: (o.status as string | null) ?? null });
+    const { data } = await createAdminClient().from("obras").select("id_acao, nome_acao, orgao, status, eixo:extra->>EIXO").in("id_acao", ids.slice(i, i + 200));
+    for (const o of data ?? []) info.set(o.id_acao as string, { nome: (o.nome_acao as string | null) ?? null, orgao: (o.orgao as string | null) ?? null, status: (o.status as string | null) ?? null, eixo: ((o as { eixo?: string | null }).eixo ?? null) || null });
   }
-  return linhas.map((l) => ({ ...l, nome: info.get(l.id)?.nome ?? null, orgao: info.get(l.id)?.orgao ?? null, status: info.get(l.id)?.status ?? null }));
+  return linhas.map((l) => ({ ...l, nome: info.get(l.id)?.nome ?? null, orgao: info.get(l.id)?.orgao ?? null, status: info.get(l.id)?.status ?? null, eixo: info.get(l.id)?.eixo ?? null }));
 }
 
 /** Só os IDs que valem para uma análise: os da própria lista e os da lista "todas". */

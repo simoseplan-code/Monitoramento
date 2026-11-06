@@ -19,6 +19,7 @@ export type AcaoT = {
   estagio: string | null;
   tipologia: string | null;
   classificacao: string | null;
+  eixo: string | null;
   tipoOutros: string | null;
   conveniada: string | null;
   pct: number | null;
@@ -81,6 +82,7 @@ export const FILTROS: DefinicaoFiltro[] = [
   { chave: "origem", rotulo: "Localizada por", valores: um((a) => (a.origem === "tracado" ? "Traçado (KML/mapa)" : a.origem === "municipio" ? "Município do SIMO" : "Sem localização")) },
   { chave: "vinculacao", rotulo: "Vinculação SIAFE", valores: um((a) => (vinculada(a) ? "Vinculada" : a.numeroSiafe ? "Pendente" : "Sem número")) },
   { chave: "classificacao", rotulo: "Classificação", valores: um((a) => ou(a.classificacao)) },
+  { chave: "eixo", rotulo: "Eixo", valores: um((a) => ou(a.eixo)) },
   { chave: "ano", rotulo: "Ano de recebimento", valores: um(anoDeRecebimento) },
   { chave: "anoCriacao", rotulo: "Ano de criação", valores: um(anoDeCriacao) },
   { chave: "status", rotulo: "Status", valores: um((a) => ou(a.status)) },
