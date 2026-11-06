@@ -127,13 +127,15 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
 
   function exportar() {
     const lista = aba === "cruzam" ? cruzam : filtradas;
-    const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Tipologia", "Município(s)", "Status", "Estágio Atual", "Território principal", (comPct ? "Territórios (% do traçado)" : "Territórios"), "Localizada por", "Extensão (km)", "Vinculação SIAFE", "SIAFE automático", "% Execução", "Ano de criação", "Ano de recebimento", "Valor contratado", "Valor pago total"];
+    const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Tipologia", "Unidade de medida", "Quantidade", "Município(s)", "Status", "Estágio Atual", "Território principal", (comPct ? "Territórios (% do traçado)" : "Territórios"), "Localizada por", "Extensão (km)", "Vinculação SIAFE", "SIAFE automático", "% Execução", "Ano de criação", "Ano de recebimento", "Valor contratado", "Valor pago total"];
     const linhas = lista.map((a) =>
       [
         a.id,
         a.nome,
         a.orgao,
         a.tipologia,
+        a.unidade,
+        a.quantidade != null ? a.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "",
         a.municipios.length ? descricaoDosMunicipios(a, comPct) : "",
         a.status,
         a.estagio,
@@ -407,6 +409,8 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina, comPct }: { acoes: AcaoT[]; 
             <th className="px-3 py-2.5">Ação</th>
             <th className="px-3 py-2.5">Órgão</th>
             <th className="px-3 py-2.5">Tipologia</th>
+            <th className="px-3 py-2.5">Unidade</th>
+            <th className="px-3 py-2.5 text-right">Quantidade</th>
             <th className="px-3 py-2.5">Município(s)</th>
             <th className="px-3 py-2.5">Território(s)</th>
             <th className="px-3 py-2.5">Status</th>
@@ -421,7 +425,7 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina, comPct }: { acoes: AcaoT[]; 
         <tbody>
           {visiveis.length === 0 && (
             <tr>
-              <td colSpan={13} className="px-4 py-8 text-center text-ink-muted">
+              <td colSpan={15} className="px-4 py-8 text-center text-ink-muted">
                 Nenhuma ação com os filtros atuais.
               </td>
             </tr>
@@ -437,6 +441,8 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina, comPct }: { acoes: AcaoT[]; 
               </td>
               <td className="px-3 py-2 text-ink-secondary">{a.orgao ?? "-"}</td>
               <td className="px-3 py-2 text-ink-secondary">{a.tipologia ?? "-"}</td>
+              <td className="whitespace-nowrap px-3 py-2 text-ink-secondary">{a.unidade ?? "-"}</td>
+              <td className="tabular whitespace-nowrap px-3 py-2 text-right text-ink-secondary">{(a.quantidade != null ? a.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "-")}</td>
               <td className="px-3 py-2 text-ink-secondary">{descricaoDosMunicipios(a, comPct)}</td>
               <td className="px-3 py-2 text-ink-secondary">
                 {a.partes.length === 0 ? (
@@ -1018,6 +1024,8 @@ function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr, comPct, detalhes
       territorios: descricaoDosTerritorios(a, comPct),
       status: a.status ?? "",
       tipologia: a.tipologia ?? "",
+      unidade: a.unidade ?? "",
+      quantidade: a.quantidade,
       georref: georref(a.id) === "..." ? "-" : georref(a.id),
       contratado: a.original,
       total: a.total ?? a.original,
@@ -1109,6 +1117,8 @@ function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr, comPct, detalhes
               <th className="px-3 py-2.5">Território(s)</th>
               <th className="px-3 py-2.5">Status</th>
               <th className="px-3 py-2.5">Tipologia</th>
+              <th className="px-3 py-2.5">Unidade</th>
+              <th className="px-3 py-2.5 text-right">Quantidade</th>
               <th className="px-3 py-2.5">Georreferenciada</th>
               <th className="px-3 py-2.5 text-right">Contratado</th>
               <th className="px-3 py-2.5 text-right">Total do contrato</th>
@@ -1120,7 +1130,7 @@ function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr, comPct, detalhes
           <tbody>
             {visiveis.length === 0 && (
               <tr>
-                <td colSpan={13} className="px-4 py-8 text-center text-ink-muted">
+                <td colSpan={15} className="px-4 py-8 text-center text-ink-muted">
                   Nenhuma obra com os filtros atuais.
                 </td>
               </tr>
@@ -1139,6 +1149,8 @@ function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr, comPct, detalhes
                   <td className="px-3 py-2 text-ink-secondary">{a.partes.length ? descricaoDosTerritorios(a, comPct) : "Sem localização"}</td>
                   <td className="px-3 py-2 text-ink-secondary">{a.status ?? "-"}</td>
                   <td className="px-3 py-2 text-ink-secondary">{a.tipologia ?? "-"}</td>
+                  <td className="whitespace-nowrap px-3 py-2 text-ink-secondary">{a.unidade ?? "-"}</td>
+                  <td className="tabular whitespace-nowrap px-3 py-2 text-right text-ink-secondary">{(a.quantidade != null ? a.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "-")}</td>
                   <td className="whitespace-nowrap px-3 py-2">
                     <span className={"rounded-full px-2 py-0.5 text-[10px] font-semibold " + (sim ? "bg-status-good-bg text-status-good" : g.startsWith("Não") ? "bg-status-critical/10 text-status-critical" : "bg-plane text-ink-muted")}>{g}</span>
                     {resultado[a.id] && <span className="mt-0.5 block text-[10px] text-ink-muted">{resultado[a.id]}</span>}

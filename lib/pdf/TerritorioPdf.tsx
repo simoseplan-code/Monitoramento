@@ -14,6 +14,8 @@ export type LinhaPdfTerritorio = {
   territorios: string;
   status: string;
   tipologia: string;
+  unidade: string;
+  quantidade: number | null;
   georref: string;
   contratado: number | null;
   total: number | null;
@@ -65,13 +67,15 @@ export function TerritorioPdf({ linhas, filtros, geradoEm, geradoPor }: { linhas
             { titulo: "Território(s)", flex: 1.4 },
             { titulo: "Status", flex: 0.9 },
             { titulo: "Tipologia", flex: 1.1 },
+            { titulo: "Unid.", flex: 0.5 },
+            { titulo: "Quant.", flex: 0.7, direita: true },
             { titulo: "Georreferenciada", flex: 1 },
             { titulo: "Contratado", flex: 1.1, direita: true },
             { titulo: "Total do contrato", flex: 1.1, direita: true },
             { titulo: "Pago", flex: 1.1, direita: true },
             { titulo: "Exec.", flex: 0.5, direita: true },
           ]}
-          linhas={lista.map((l) => [l.id, curto(l.nome || "-", 110), l.orgao || "-", curto(l.municipios || "-", 40), curto(l.territorios || "-", 50), l.status || "-", curto(l.tipologia || "-", 28), l.georref, reais(l.contratado), reais(l.total), reais(l.pago), l.execucao || "-"])}
+          linhas={lista.map((l) => [l.id, curto(l.nome || "-", 110), l.orgao || "-", curto(l.municipios || "-", 40), curto(l.territorios || "-", 50), l.status || "-", curto(l.tipologia || "-", 28), l.unidade || "-", l.quantidade != null ? l.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "-", l.georref, reais(l.contratado), reais(l.total), reais(l.pago), l.execucao || "-"])}
           vazio="Nenhuma obra nos filtros atuais."
         />
       </Pagina>

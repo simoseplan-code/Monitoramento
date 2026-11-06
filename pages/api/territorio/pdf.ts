@@ -48,6 +48,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       territorios: txt(x.territorios, 200),
       status: txt(x.status, 40),
       tipologia: txt(x.tipologia, 80),
+      unidade: txt(x.unidade, 20),
+      quantidade: num(x.quantidade),
       georref: txt(x.georref, 30),
       contratado: num(x.contratado),
       total: num(x.total),

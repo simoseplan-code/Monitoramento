@@ -18,6 +18,9 @@ export type AcaoT = {
   status: string | null;
   estagio: string | null;
   tipologia: string | null;
+  /** Unidade de medida e quantitativo da ação (do SIMO). */
+  unidade: string | null;
+  quantidade: number | null;
   classificacao: string | null;
   eixo: string | null;
   tipoOutros: string | null;
