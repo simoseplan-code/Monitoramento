@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { CardSugestaoUnidade } from "./CardSugestaoUnidade";
 import { FiltrosUnidadeQuantidade } from "./FiltrosUnidadeQuantidade";
+import { GrupoOrgaoPendencia } from "./GrupoOrgaoPendencia";
 import { Paginacao } from "@/components/Paginacao";
 import { AplicarUnidadeBotao } from "@/components/unidadeQuantidade/AplicarUnidadeBotao";
 import { SincronizarBotao } from "@/components/admin/SincronizarBotao";
@@ -84,7 +85,8 @@ export default async function UnidadeQuantidadePage({
       // Só manda o eixo quando foi escolhido (o SQL 0094 cria este filtro).
       ...(eixo ? { eixo_filtro: eixo } : {}),
       pagina: paginaAtual,
-      tamanho: PAGE_SIZE,
+      // Na aba Pendências vem tudo de uma vez (agrupado por órgão, sem paginar).
+      tamanho: statusAtual === "pendencia" ? 2000 : PAGE_SIZE,
     }),
     supabase.rpc("unidade_sugestao_orgaos"),
     supabase.rpc("unidade_sugestao_anos"),
@@ -96,12 +98,47 @@ export default async function UnidadeQuantidadePage({
 
   const linhas = (linhasRpc ?? []) as LinhaSugestao[];
   const totalGeral = linhas[0]?.total_geral ?? 0;
-  const totalPaginas = Math.max(1, Math.ceil(totalGeral / PAGE_SIZE));
+  const totalPaginas = statusAtual === "pendencia" ? 1 : Math.max(1, Math.ceil(totalGeral / PAGE_SIZE));
   const orgaosDisponiveis = (orgaosRpc ?? []).map((r: { orgao: string }) => r.orgao);
   const anosDisponiveis = (anosRpc ?? []).map((r: { ano: number }) => r.ano);
   const tipologiasDisponiveis = (tipologiasRpc ?? []).map((r: { tipologia: string }) => r.tipologia);
   const eixosDisponiveis = (eixosRpc ?? []).map((r: { eixo: string }) => r.eixo);
   const isAdmin = !!profile?.is_admin;
+
+  const cartao = (s: LinhaSugestao) => (
+    <CardSugestaoUnidade
+      key={s.id_acao}
+      idAcao={s.id_acao}
+      nomeAcao={s.nome_acao}
+      orgao={s.orgao}
+      tipologia={s.tipologia}
+      statusAcao={s.status_acao}
+      unidadeAtual={s.unidade_atual}
+      quantidadeAtual={s.quantidade_atual}
+      unidadeSugerida={s.unidade_sugerida}
+      quantidadeSugerida={s.quantidade_sugerida}
+      semQuantidade={s.sem_quantidade}
+      unidadeFinal={s.unidade_final}
+      quantidadeFinal={s.quantidade_final}
+      confianca={s.confianca}
+      avisoTipologia={s.aviso_tipologia}
+      motivo={s.motivo}
+      aprovado={s.aprovado}
+      aplicadoEm={s.aplicado_em}
+      pendenciaEm={s.pendencia_em ?? null}
+      pendenciaObs={s.pendencia_obs ?? null}
+      pendenciaPorNome={s.pendencia_por_nome ?? null}
+    />
+  );
+
+  // Aba Pendências: um grupo por órgão (ordem alfabética).
+  const gruposPendencia = Array.from(
+    linhas.reduce((m, l) => {
+      const k = l.orgao?.trim() || "Sem órgão";
+      (m.get(k) ?? m.set(k, []).get(k)!).push(l);
+      return m;
+    }, new Map<string, LinhaSugestao[]>())
+  ).sort((a, b) => a[0].localeCompare(b[0], "pt-BR"));
 
   return (
     <AppShell
@@ -166,31 +203,13 @@ export default async function UnidadeQuantidadePage({
       </div>
 
       <div className="space-y-3">
-        {linhas.map((s) => (
-          <CardSugestaoUnidade
-            key={s.id_acao}
-            idAcao={s.id_acao}
-            nomeAcao={s.nome_acao}
-            orgao={s.orgao}
-            tipologia={s.tipologia}
-            statusAcao={s.status_acao}
-            unidadeAtual={s.unidade_atual}
-            quantidadeAtual={s.quantidade_atual}
-            unidadeSugerida={s.unidade_sugerida}
-            quantidadeSugerida={s.quantidade_sugerida}
-            semQuantidade={s.sem_quantidade}
-            unidadeFinal={s.unidade_final}
-            quantidadeFinal={s.quantidade_final}
-            confianca={s.confianca}
-            avisoTipologia={s.aviso_tipologia}
-            motivo={s.motivo}
-            aprovado={s.aprovado}
-            aplicadoEm={s.aplicado_em}
-            pendenciaEm={s.pendencia_em ?? null}
-            pendenciaObs={s.pendencia_obs ?? null}
-            pendenciaPorNome={s.pendencia_por_nome ?? null}
-          />
-        ))}
+        {statusAtual === "pendencia"
+          ? gruposPendencia.map(([nomeOrgao, itens]) => (
+              <GrupoOrgaoPendencia key={nomeOrgao} orgao={nomeOrgao} quantidade={itens.length}>
+                {itens.map(cartao)}
+              </GrupoOrgaoPendencia>
+            ))
+          : linhas.map(cartao)}
 
         {linhas.length === 0 && (
           <div className="rounded-xl border border-black/5 bg-surface p-10 text-center shadow-card">
