@@ -42,9 +42,9 @@ type LinhaSugestao = {
 export default async function UnidadeQuantidadePage({
   searchParams,
 }: {
-  searchParams: Promise<{ busca?: string; orgao?: string; confianca?: string; status?: string; anoMin?: string; tipologia?: string; eixo?: string; pagina?: string }>;
+  searchParams: Promise<{ busca?: string; orgao?: string; confianca?: string; status?: string; anoMin?: string; tipologia?: string; eixo?: string; statusAcao?: string; pagina?: string }>;
 }) {
-  const { busca, orgao, confianca, status, anoMin, tipologia, eixo, pagina } = await searchParams;
+  const { busca, orgao, confianca, status, anoMin, tipologia, eixo, statusAcao, pagina } = await searchParams;
   const statusAtual = status || "pendentes";
   // anoMin=todos -> sem filtro; ausente -> padrão 2023; qualquer outro valor -> esse ano.
   const anoMinAtual = anoMin ?? ANO_MINIMO_PADRAO;
@@ -67,7 +67,9 @@ export default async function UnidadeQuantidadePage({
     { data: anosRpc },
     { data: tipologiasRpc },
     { data: eixosRpc },
+    { data: statusAcoesRpc },
     { count: totalPendencias },
+    { count: totalAplicadas },
   ] = await Promise.all([
     supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
     supabase.from("obras").select("id_acao", { count: "exact", head: true }),
@@ -84,6 +86,8 @@ export default async function UnidadeQuantidadePage({
       tipologia_filtro: tipologia || null,
       // Só manda o eixo quando foi escolhido (o SQL 0094 cria este filtro).
       ...(eixo ? { eixo_filtro: eixo } : {}),
+      // Idem para o status da ação (SQL 0096).
+      ...(statusAcao ? { status_acao_filtro: statusAcao } : {}),
       pagina: paginaAtual,
       // Na aba Pendências vem tudo de uma vez (agrupado por órgão, sem paginar).
       tamanho: statusAtual === "pendencia" ? 2000 : PAGE_SIZE,
@@ -92,8 +96,10 @@ export default async function UnidadeQuantidadePage({
     supabase.rpc("unidade_sugestao_anos"),
     supabase.rpc("unidade_sugestao_tipologias"),
     supabase.rpc("unidade_sugestao_eixos"),
+    supabase.rpc("unidade_sugestao_status_acao"),
     // Quantas estão em pendência (aba "Pendências"); sem o SQL 0095 a consulta falha e a aba só não mostra o número.
     supabase.from("obras_unidade_sugestao").select("id_acao", { count: "exact", head: true }).not("pendencia_em", "is", null).is("aplicado_em", null),
+    supabase.from("obras_unidade_sugestao").select("id_acao", { count: "exact", head: true }).not("aplicado_em", "is", null),
   ]);
 
   const linhas = (linhasRpc ?? []) as LinhaSugestao[];
@@ -103,6 +109,7 @@ export default async function UnidadeQuantidadePage({
   const anosDisponiveis = (anosRpc ?? []).map((r: { ano: number }) => r.ano);
   const tipologiasDisponiveis = (tipologiasRpc ?? []).map((r: { tipologia: string }) => r.tipologia);
   const eixosDisponiveis = (eixosRpc ?? []).map((r: { eixo: string }) => r.eixo);
+  const statusAcoesDisponiveis = (statusAcoesRpc ?? []).map((r: { status_acao: string }) => r.status_acao);
   const isAdmin = !!profile?.is_admin;
 
   const cartao = (s: LinhaSugestao) => (
@@ -171,6 +178,21 @@ export default async function UnidadeQuantidadePage({
         </div>
       )}
 
+      <div className="mb-3 grid grid-cols-2 gap-3 sm:grid-cols-4">
+        {[
+          { rotulo: "Aguardando revisão", valor: sugestoesUnidadePendentes, dica: "ano 2023 em diante, sem concluídas", cor: "text-ink-primary" },
+          { rotulo: "Em pendência", valor: totalPendencias ?? 0, dica: "para analisar depois", cor: "text-status-warning" },
+          { rotulo: "Aprovadas", valor: sugestoesUnidadeAprovadas ?? 0, dica: "aguardando gravação no SIMO", cor: "text-series-1" },
+          { rotulo: "Já aplicadas", valor: totalAplicadas ?? 0, dica: "gravadas no SIMO", cor: "text-status-good" },
+        ].map((c) => (
+          <div key={c.rotulo} className="rounded-xl border border-black/5 bg-surface p-3 shadow-card">
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted">{c.rotulo}</p>
+            <p className={`tabular mt-0.5 text-xl font-semibold ${c.cor}`}>{Number(c.valor).toLocaleString("pt-BR")}</p>
+            <p className="text-[11px] text-ink-muted">{c.dica}</p>
+          </div>
+        ))}
+      </div>
+
       <div className="mb-3 flex flex-wrap items-center gap-2">
         <Link
           href="/unidade-quantidade"
@@ -199,6 +221,8 @@ export default async function UnidadeQuantidadePage({
           tipologias={tipologiasDisponiveis}
           eixoAtual={eixo ?? ""}
           eixos={eixosDisponiveis}
+          statusAcaoAtual={statusAcao ?? ""}
+          statusAcoes={statusAcoesDisponiveis}
         />
       </div>
 
@@ -227,6 +251,7 @@ export default async function UnidadeQuantidadePage({
             confianca,
             tipologia,
             eixo,
+            statusAcao,
             status: statusAtual !== "pendentes" ? statusAtual : undefined,
             anoMin: anoMinAtual !== ANO_MINIMO_PADRAO ? anoMinAtual : undefined,
           }}

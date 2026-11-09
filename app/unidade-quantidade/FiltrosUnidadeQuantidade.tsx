@@ -18,6 +18,8 @@ export function FiltrosUnidadeQuantidade({
   tipologias,
   eixoAtual,
   eixos,
+  statusAcaoAtual,
+  statusAcoes,
 }: {
   buscaAtual: string;
   orgaoAtual: string;
@@ -30,6 +32,8 @@ export function FiltrosUnidadeQuantidade({
   tipologias: string[];
   eixoAtual: string;
   eixos: string[];
+  statusAcaoAtual: string;
+  statusAcoes: string[];
 }) {
   const router = useRouter();
   const [busca, setBusca] = useState(buscaAtual);
@@ -40,7 +44,7 @@ export function FiltrosUnidadeQuantidade({
   const anoAtualNumero = parseInt(anoMinAtual, 10);
   const opcoesAnos = Number.isNaN(anoAtualNumero) || anos.includes(anoAtualNumero) ? anos : [...anos, anoAtualNumero].sort((a, b) => b - a);
 
-  function aplicar(overrides: { busca?: string; orgao?: string; confianca?: string; status?: string; anoMin?: string; tipologia?: string; eixo?: string }) {
+  function aplicar(overrides: { busca?: string; orgao?: string; confianca?: string; status?: string; anoMin?: string; tipologia?: string; eixo?: string; statusAcao?: string }) {
     const params = new URLSearchParams();
     const buscaValor = overrides.busca ?? busca;
     const orgaoValor = overrides.orgao ?? orgaoAtual;
@@ -49,6 +53,8 @@ export function FiltrosUnidadeQuantidade({
     const anoMinValor = overrides.anoMin ?? anoMinAtual;
     const tipologiaValor = overrides.tipologia ?? tipologiaAtual;
     const eixoValor = overrides.eixo ?? eixoAtual;
+    const statusAcaoValor = overrides.statusAcao ?? statusAcaoAtual;
+    if (statusAcaoValor) params.set("statusAcao", statusAcaoValor);
     if (buscaValor) params.set("busca", buscaValor);
     if (tipologiaValor) params.set("tipologia", tipologiaValor);
     if (eixoValor) params.set("eixo", eixoValor);
@@ -107,6 +113,22 @@ export function FiltrosUnidadeQuantidade({
           <option value="">Todos os eixos</option>
           <option value="__sem__">(sem eixo)</option>
           {eixos.map((x) => (
+            <option key={x} value={x}>
+              {x}
+            </option>
+          ))}
+        </select>
+      )}
+
+      {statusAcoes.length > 0 && (
+        <select
+          value={statusAcaoAtual}
+          onChange={(e) => aplicar({ statusAcao: e.target.value })}
+          className="max-w-[16rem] rounded-lg border border-black/10 bg-plane px-3 py-2 text-sm text-ink-secondary focus:border-series-1 focus:outline-none"
+          title="Status da ação no SIMO"
+        >
+          <option value="">Todos os status da ação</option>
+          {statusAcoes.map((x) => (
             <option key={x} value={x}>
               {x}
             </option>
