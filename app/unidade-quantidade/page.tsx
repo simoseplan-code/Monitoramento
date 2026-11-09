@@ -42,9 +42,11 @@ type LinhaSugestao = {
 export default async function UnidadeQuantidadePage({
   searchParams,
 }: {
-  searchParams: Promise<{ busca?: string; orgao?: string; confianca?: string; status?: string; anoMin?: string; tipologia?: string; eixo?: string; statusAcao?: string; pagina?: string }>;
+  searchParams: Promise<{ busca?: string; orgao?: string; confianca?: string; status?: string; anoMin?: string; tipologia?: string; eixo?: string; statusAcao?: string; classificacao?: string; anoReceb?: string; pagina?: string }>;
 }) {
-  const { busca, orgao, confianca, status, anoMin, tipologia, eixo, statusAcao, pagina } = await searchParams;
+  const { busca, orgao, confianca, status, anoMin, tipologia, eixo, statusAcao, classificacao, anoReceb, pagina } = await searchParams;
+  // Classificação: só OBRA por padrão; "todas" tira o filtro.
+  const classificacaoAtual = classificacao ?? "OBRA";
   const statusAtual = status || "pendentes";
   // anoMin=todos -> sem filtro; ausente -> padrão 2023; qualquer outro valor -> esse ano.
   const anoMinAtual = anoMin ?? ANO_MINIMO_PADRAO;
@@ -68,6 +70,8 @@ export default async function UnidadeQuantidadePage({
     { data: tipologiasRpc },
     { data: eixosRpc },
     { data: statusAcoesRpc },
+    { data: classificacoesRpc },
+    { data: anosReceb },
     { count: totalPendencias },
     { count: totalAplicadas },
   ] = await Promise.all([
@@ -88,6 +92,9 @@ export default async function UnidadeQuantidadePage({
       ...(eixo ? { eixo_filtro: eixo } : {}),
       // Idem para o status da ação (SQL 0096).
       ...(statusAcao ? { status_acao_filtro: statusAcao } : {}),
+      // SQL 0097: classificação (padrão OBRA) e ano de recebimento.
+      ...(classificacaoAtual !== "todas" ? { classificacao_filtro: classificacaoAtual } : {}),
+      ...(anoReceb ? { ano_receb_filtro: anoReceb } : {}),
       pagina: paginaAtual,
       // Na aba Pendências vem tudo de uma vez (agrupado por órgão, sem paginar).
       tamanho: statusAtual === "pendencia" ? 2000 : PAGE_SIZE,
@@ -97,6 +104,8 @@ export default async function UnidadeQuantidadePage({
     supabase.rpc("unidade_sugestao_tipologias"),
     supabase.rpc("unidade_sugestao_eixos"),
     supabase.rpc("unidade_sugestao_status_acao"),
+    supabase.rpc("unidade_sugestao_classificacoes"),
+    supabase.rpc("unidade_sugestao_anos_receb"),
     // Quantas estão em pendência (aba "Pendências"); sem o SQL 0095 a consulta falha e a aba só não mostra o número.
     supabase.from("obras_unidade_sugestao").select("id_acao", { count: "exact", head: true }).not("pendencia_em", "is", null).is("aplicado_em", null),
     supabase.from("obras_unidade_sugestao").select("id_acao", { count: "exact", head: true }).not("aplicado_em", "is", null),
@@ -110,6 +119,8 @@ export default async function UnidadeQuantidadePage({
   const tipologiasDisponiveis = (tipologiasRpc ?? []).map((r: { tipologia: string }) => r.tipologia);
   const eixosDisponiveis = (eixosRpc ?? []).map((r: { eixo: string }) => r.eixo);
   const statusAcoesDisponiveis = (statusAcoesRpc ?? []).map((r: { status_acao: string }) => r.status_acao);
+  const classificacoesDisponiveis = (classificacoesRpc ?? []).map((r: { classificacao: string }) => r.classificacao);
+  const anosRecebDisponiveis = (anosReceb ?? []).map((r: { ano: number }) => r.ano);
   const isAdmin = !!profile?.is_admin;
 
   const cartao = (s: LinhaSugestao) => (
@@ -223,6 +234,10 @@ export default async function UnidadeQuantidadePage({
           eixos={eixosDisponiveis}
           statusAcaoAtual={statusAcao ?? ""}
           statusAcoes={statusAcoesDisponiveis}
+          classificacaoAtual={classificacaoAtual}
+          classificacoes={classificacoesDisponiveis}
+          anoRecebAtual={anoReceb ?? ""}
+          anosReceb={anosRecebDisponiveis}
         />
       </div>
 
@@ -252,6 +267,8 @@ export default async function UnidadeQuantidadePage({
             tipologia,
             eixo,
             statusAcao,
+            classificacao: classificacao,
+            anoReceb,
             status: statusAtual !== "pendentes" ? statusAtual : undefined,
             anoMin: anoMinAtual !== ANO_MINIMO_PADRAO ? anoMinAtual : undefined,
           }}

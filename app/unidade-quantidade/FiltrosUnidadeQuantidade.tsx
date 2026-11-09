@@ -20,6 +20,10 @@ export function FiltrosUnidadeQuantidade({
   eixos,
   statusAcaoAtual,
   statusAcoes,
+  classificacaoAtual,
+  classificacoes,
+  anoRecebAtual,
+  anosReceb,
 }: {
   buscaAtual: string;
   orgaoAtual: string;
@@ -34,6 +38,10 @@ export function FiltrosUnidadeQuantidade({
   eixos: string[];
   statusAcaoAtual: string;
   statusAcoes: string[];
+  classificacaoAtual: string;
+  classificacoes: string[];
+  anoRecebAtual: string;
+  anosReceb: number[];
 }) {
   const router = useRouter();
   const [busca, setBusca] = useState(buscaAtual);
@@ -44,7 +52,7 @@ export function FiltrosUnidadeQuantidade({
   const anoAtualNumero = parseInt(anoMinAtual, 10);
   const opcoesAnos = Number.isNaN(anoAtualNumero) || anos.includes(anoAtualNumero) ? anos : [...anos, anoAtualNumero].sort((a, b) => b - a);
 
-  function aplicar(overrides: { busca?: string; orgao?: string; confianca?: string; status?: string; anoMin?: string; tipologia?: string; eixo?: string; statusAcao?: string }) {
+  function aplicar(overrides: { busca?: string; orgao?: string; confianca?: string; status?: string; anoMin?: string; tipologia?: string; eixo?: string; statusAcao?: string; classificacao?: string; anoReceb?: string }) {
     const params = new URLSearchParams();
     const buscaValor = overrides.busca ?? busca;
     const orgaoValor = overrides.orgao ?? orgaoAtual;
@@ -55,6 +63,11 @@ export function FiltrosUnidadeQuantidade({
     const eixoValor = overrides.eixo ?? eixoAtual;
     const statusAcaoValor = overrides.statusAcao ?? statusAcaoAtual;
     if (statusAcaoValor) params.set("statusAcao", statusAcaoValor);
+    // Classificação: OBRA já vem marcada (padrão, não vai na URL); "todas" mostra tudo.
+    const classificacaoValor = overrides.classificacao ?? classificacaoAtual;
+    if (classificacaoValor !== "OBRA") params.set("classificacao", classificacaoValor);
+    const anoReceb = overrides.anoReceb ?? anoRecebAtual;
+    if (anoReceb) params.set("anoReceb", anoReceb);
     if (buscaValor) params.set("busca", buscaValor);
     if (tipologiaValor) params.set("tipologia", tipologiaValor);
     if (eixoValor) params.set("eixo", eixoValor);
@@ -135,6 +148,36 @@ export function FiltrosUnidadeQuantidade({
           ))}
         </select>
       )}
+
+      <select
+        value={classificacaoAtual}
+        onChange={(e) => aplicar({ classificacao: e.target.value })}
+        className="max-w-[16rem] rounded-lg border border-black/10 bg-plane px-3 py-2 text-sm text-ink-secondary focus:border-series-1 focus:outline-none"
+        title="Classificação da ação no SIMO (já vem só OBRA)"
+      >
+        <option value="todas">Todas as classificações</option>
+        <option value="__sem__">(sem classificação)</option>
+        {(classificacoes.includes("OBRA") ? classificacoes : ["OBRA", ...classificacoes]).map((x) => (
+          <option key={x} value={x}>
+            {x}
+          </option>
+        ))}
+      </select>
+
+      <select
+        value={anoRecebAtual}
+        onChange={(e) => aplicar({ anoReceb: e.target.value })}
+        className="rounded-lg border border-black/10 bg-plane px-3 py-2 text-sm text-ink-secondary focus:border-series-1 focus:outline-none"
+        title="Ano do recebimento (provisório; se não houver, o definitivo)"
+      >
+        <option value="">Qualquer recebimento</option>
+        <option value="__sem__">(sem recebimento)</option>
+        {anosReceb.map((a) => (
+          <option key={a} value={String(a)}>
+            Recebida em {a}
+          </option>
+        ))}
+      </select>
 
       <select
         value={confiancaAtual}
