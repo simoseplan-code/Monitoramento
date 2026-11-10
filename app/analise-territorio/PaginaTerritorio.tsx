@@ -60,6 +60,22 @@ function localizacaoSimo(extra: Record<string, string> | null): { municipio: str
   return { municipio: chM ? limpo(extra[chM]) : null, territorio: chT ? limpo(extra[chT]) : null };
 }
 
+// O SIMO junta vários valores na mesma célula com " - " (ex.: "TERESINA - UNIÃO - ALTOS", "Entre Rios - Entre Rios"): separa e tira os repetidos.
+function separarSimo(v: string | null): string[] {
+  if (!v) return [];
+  const vistos = new Set<string>();
+  const saida: string[] = [];
+  for (const parte of v.split(/\s+-\s+|\s*;\s*/)) {
+    const nome = parte.trim();
+    const chave = normalizarNome(nome);
+    if (nome && nome !== "-" && !vistos.has(chave)) {
+      vistos.add(chave);
+      saida.push(nome);
+    }
+  }
+  return saida;
+}
+
 // Aberta a toda a equipe aprovada. Todas as ações (as desconsideradas em "Todas as análises" já ficam de fora pelo banco).
 // Serve a três páginas: "Análise por território", "Mapa geral" (só o mapa de traçados, com os mesmos filtros) e
 // "Mapa de Recursos Hídricos" (igual ao Mapa geral, só com as tipologias de recursos hídricos; é a única tela da função DIGEPI).
@@ -155,7 +171,8 @@ export async function PaginaTerritorio({ modo }: { modo: "analise" | "mapa" | "h
       extensaoM: t?.extensaoM ?? 0,
       simoMunicipio: loc.municipio,
       simoTerritorio: loc.territorio,
-      territorioDoMunicipioSimo: loc.municipio ? mapaMunicipios.get(normalizarNome(loc.municipio)) ?? null : null,
+      simoMunicipiosLista: separarSimo(loc.municipio).map((nome) => ({ nome, territorio: mapaMunicipios.get(normalizarNome(nome)) ?? null })),
+      simoTerritoriosLista: separarSimo(loc.territorio),
     };
   });
 

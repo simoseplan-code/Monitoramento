@@ -307,12 +307,16 @@ export function AnaliseTerritorio(props: Omit<PropsCorpo, "visao">) {
     return acoes
       .filter((a) => a.origem === "nenhuma")
       .map((a): AcaoT => {
-        const terr = (a.simoTerritorio ? porNome.get(normalizarNome(a.simoTerritorio)) : undefined) ?? a.territorioDoMunicipioSimo;
+        // Territórios: os que o SIMO informou (se são dos 12); sem eles, os dos municípios informados. Dividem a ação em partes iguais.
+        const doSimo = a.simoTerritoriosLista.map((t) => porNome.get(normalizarNome(t))).filter((t): t is string => !!t);
+        const dosMunicipios = a.simoMunicipiosLista.map((m) => m.territorio).filter((t): t is string => !!t);
+        const terrs = Array.from(new Set(doSimo.length ? doSimo : dosMunicipios));
+        const munis = a.simoMunicipiosLista.map((m) => m.nome);
         return {
           ...a,
-          partes: terr ? [{ nome: terr, pct: 1, metros: 0, pontos: 0 }] : [],
-          municipios: a.simoMunicipio ? [{ nome: a.simoMunicipio, pct: 1 }] : [],
-          origem: terr || a.simoMunicipio ? "municipio" : "nenhuma",
+          partes: terrs.map((nome) => ({ nome, pct: 1 / terrs.length, metros: 0, pontos: 0 })),
+          municipios: munis.map((nome) => ({ nome, pct: 1 / munis.length })),
+          origem: terrs.length || munis.length ? "municipio" : "nenhuma",
         };
       });
   }, [acoes, territorios]);

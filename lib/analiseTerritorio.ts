@@ -44,8 +44,10 @@ export type AcaoT = {
   /** Colunas Localização (município) e (território) como vêm do SIMO (null = vazio ou "-"). */
   simoMunicipio: string | null;
   simoTerritorio: string | null;
-  /** Território do município informado no SIMO, segundo a tabela de municípios do app (null = município não reconhecido). */
-  territorioDoMunicipioSimo: string | null;
+  /** O SIMO junta vários com " - " ("TERESINA - UNIÃO - ALTOS"): aqui cada município separado, com o território dele na tabela do app (null = não reconhecido). */
+  simoMunicipiosLista: { nome: string; territorio: string | null }[];
+  /** Idem para a coluna de território do SIMO (sem repetir). */
+  simoTerritoriosLista: string[];
 };
 
 const ou = (v: string | null | undefined) => (v && v.trim() !== "" && v.trim() !== "-" ? v.trim() : VAZIO);
