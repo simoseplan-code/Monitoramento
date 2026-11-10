@@ -7,7 +7,7 @@
 //  - Ano de recebimento: provisório; se não houver, definitivo (igual à Análise de obras concluídas).
 //  - Vinculada = tem número de SIAFE automático.
 
-import { PARTICIPACAO_MINIMA, SEM_TERRITORIO, rotuloTerritorio, type ParteDoTerritorio } from "@/lib/territorios";
+import { PARTICIPACAO_MINIMA, SEM_TERRITORIO, normalizarNome, rotuloTerritorio, type ParteDoTerritorio } from "@/lib/territorios";
 
 export const VAZIO = "(vazio)";
 
@@ -271,6 +271,57 @@ export function resumoPassagem(acoes: AcaoT[], todos: string[]): { linhas: Linha
   }
   const linhas = Array.from(mapa.values()).sort((a, b) => (a.territorio === SEM_TERRITORIO ? 1 : b.territorio === SEM_TERRITORIO ? -1 : b.acoes - a.acoes || a.territorio.localeCompare(b.territorio, "pt-BR")));
   return { linhas, totalAcoes: acoes.length, totalInvestimento, totalComTracado };
+}
+
+// ---------- resumo por município (mesma lógica do resumo por território) ----------
+
+export type LinhaMunicipio = {
+  /** Nome normalizado (junta "JUREMA" do SIMO com "Jurema" do KML). */
+  chave: string;
+  nome: string;
+  territorio: string | null;
+  acoes: number;
+  exclusivas: number;
+  tambem: number;
+  investimento: number;
+  km: number;
+  comTracado: number;
+};
+
+/**
+ * Cada ação conta em TODO município em que aparece. Mesmas fórmulas do resumo por território:
+ * % das ações = ações do município ÷ total de ações distintas; % do investimento = valor contratado rateado (dividido em partes
+ * iguais entre os municípios da ação) ÷ valor contratado total; km = extensão do traçado × parte que cai no município.
+ */
+export function resumoPorMunicipio(acoes: AcaoT[], territorioDe: Record<string, string>): { linhas: LinhaMunicipio[]; totalAcoes: number; totalInvestimento: number } {
+  const mapa = new Map<string, LinhaMunicipio>();
+  let totalInvestimento = 0;
+  for (const a of acoes) {
+    const valor = a.original ?? 0;
+    totalInvestimento += valor;
+    const vistos = new Map<string, { nome: string; pct: number }>();
+    for (const m of a.municipios) {
+      const k = normalizarNome(m.nome);
+      if (!k) continue;
+      const x = vistos.get(k);
+      if (x) x.pct += m.pct;
+      else vistos.set(k, { nome: m.nome, pct: m.pct });
+    }
+    for (const [k, m] of vistos) {
+      let l = mapa.get(k);
+      if (!l) mapa.set(k, (l = { chave: k, nome: rotuloTerritorio(m.nome), territorio: territorioDe[k] ?? null, acoes: 0, exclusivas: 0, tambem: 0, investimento: 0, km: 0, comTracado: 0 }));
+      l.acoes++;
+      if (vistos.size === 1) l.exclusivas++;
+      else l.tambem++;
+      l.investimento += valor / vistos.size;
+      if (a.origem === "tracado") {
+        l.comTracado++;
+        l.km += (a.extensaoM / 1000) * m.pct;
+      }
+    }
+  }
+  const linhas = Array.from(mapa.values()).sort((a, b) => b.acoes - a.acoes || a.nome.localeCompare(b.nome, "pt-BR"));
+  return { linhas, totalAcoes: acoes.length, totalInvestimento };
 }
 
 // ---------- filtro gravado (vai e volta do banco como JSON) ----------

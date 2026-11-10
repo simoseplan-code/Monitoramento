@@ -28,6 +28,7 @@ import {
   filtrar,
   principal,
   resumoPassagem,
+  resumoPorMunicipio,
   resumoPorTerritorio,
   valoresDosFiltros,
   vinculada,
@@ -41,9 +42,10 @@ const dinheiro = (v: number) => v.toLocaleString("pt-BR", { style: "currency", c
 const campo = "rounded-lg border border-black/10 bg-plane px-3 py-2 text-xs text-ink-secondary focus:border-series-1 focus:outline-none";
 const TAMANHO = 50;
 
-type Aba = "resumo" | "mapa" | "tracados" | "lista" | "cruzam";
+type Aba = "resumo" | "municipios" | "mapa" | "tracados" | "lista" | "cruzam";
 const ABAS: { chave: Aba; rotulo: string }[] = [
   { chave: "resumo", rotulo: "Resumo por território" },
+  { chave: "municipios", rotulo: "Resumo por município" },
   { chave: "mapa", rotulo: "Mapa dos territórios" },
   { chave: "tracados", rotulo: "Mapa de KML (traçados)" },
   { chave: "lista", rotulo: "Lista de ações" },
@@ -55,7 +57,7 @@ function csvEscape(v: unknown): string {
   return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-function CorpoAnalise({ visao = "kml", acoes, territorios, filtroGravado, ehAdmin, modo = "analise", tela = "analise_territorio", somenteLeitura = false }: { visao?: "kml" | "simo"; acoes: AcaoT[]; territorios: string[]; ehAdmin: boolean; modo?: "analise" | "mapa" | "hidricos"; tela?: string; somenteLeitura?: boolean; filtroGravado: { estado: unknown; atualizadoEm: string; por?: string | null } | null }) {
+function CorpoAnalise({ visao = "kml", acoes, territorios, territorioDoMunicipio = {}, filtroGravado, ehAdmin, modo = "analise", tela = "analise_territorio", somenteLeitura = false }: { visao?: "kml" | "simo"; territorioDoMunicipio?: Record<string, string>; acoes: AcaoT[]; territorios: string[]; ehAdmin: boolean; modo?: "analise" | "mapa" | "hidricos"; tela?: string; somenteLeitura?: boolean; filtroGravado: { estado: unknown; atualizadoEm: string; por?: string | null } | null }) {
   const valores = useMemo(() => valoresDosFiltros(acoes), [acoes]);
   // Abre no filtro gravado (um só, vale para todos os usuários); sem filtro gravado, abre só com as vinculadas.
   const [estado, setEstado] = useState<EstadoFiltros>(() => (filtroGravado ? estadoDeGravado(filtroGravado.estado, valores) : modo === "hidricos" ? estadoTodos() : estadoPadrao()));
@@ -72,6 +74,7 @@ function CorpoAnalise({ visao = "kml", acoes, territorios, filtroGravado, ehAdmi
   const filtradas = useMemo(() => filtrar(acoes, estado), [acoes, estado]);
   const resumo = useMemo(() => resumoPorTerritorio(filtradas, territorios), [filtradas, territorios]);
   const passagem = useMemo(() => resumoPassagem(filtradas, territorios), [filtradas, territorios]);
+  const porMunicipio = useMemo(() => resumoPorMunicipio(filtradas, territorioDoMunicipio), [filtradas, territorioDoMunicipio]);
   const cruzam = useMemo(() => filtradas.filter(cruza), [filtradas]);
 
   const mudar = (e: EstadoFiltros) => {
@@ -81,6 +84,13 @@ function CorpoAnalise({ visao = "kml", acoes, territorios, filtroGravado, ehAdmi
   const ativos = FILTROS.filter((f) => estado.selecao[f.chave] !== null).length + (estado.pctMinimo != null ? 1 : 0) + (estado.busca ? 1 : 0) + (estado.ids.trim() ? 1 : 0);
   const filtrarTerritorio = (rotulo: string) => {
     mudar({ ...estado, selecao: { ...estado.selecao, passa: new Set([rotulo]) } });
+    setAba("lista");
+  };
+
+  // Clique num município do resumo: filtra a lista por ele (todas as grafias, SIMO e KML).
+  const filtrarMunicipio = (chave: string) => {
+    const nomes = (valores.municipio ?? []).map((v) => v.valor).filter((v) => normalizarNome(v) === chave);
+    mudar({ ...estado, selecao: { ...estado.selecao, municipio: new Set(nomes) } });
     setAba("lista");
   };
 
@@ -275,6 +285,7 @@ function CorpoAnalise({ visao = "kml", acoes, territorios, filtroGravado, ehAdmi
       </nav>
 
       {aba === "resumo" && <ResumoPassagem r={passagem} aoEscolher={filtrarTerritorio} doSimo={visao === "simo"} />}
+      {aba === "municipios" && <ResumoMunicipios r={porMunicipio} aoEscolher={filtrarMunicipio} doSimo={visao === "simo"} />}
       {aba === "mapa" && <MapaTerritorios linhas={resumo.linhas} aoEscolher={filtrarTerritorio} />}
       {aba === "tracados" && <MapaTracados acoes={filtradas} filtros={descreverFiltros(estado, valores)} ehAdmin={ehAdmin} comPct={comPct} detalhes={modo === "hidricos"} />}
       {aba === "lista" && (
@@ -487,6 +498,91 @@ function ResumoPassagem({ r, aoEscolher, doSimo }: { r: ReturnType<typeof resumo
       </table>
       <p className="border-t border-black/5 px-4 py-2 text-[11px] text-ink-muted">
         A ação conta em todo território em que aparece (passe o mouse nos títulos para ver as fórmulas). Por isso a soma da coluna de ações e dos % de ações pode passar do total; o % do investimento divide o valor da ação entre os territórios e fecha em 100%.
+      </p>
+    </section>
+  );
+}
+
+// Mesma lógica do resumo por território, por município.
+function ResumoMunicipios({ r, aoEscolher, doSimo }: { r: ReturnType<typeof resumoPorMunicipio>; aoEscolher: (chave: string) => void; doSimo: boolean }) {
+  const [busca, setBusca] = useState("");
+  const maior = Math.max(1, ...r.linhas.map((l) => l.acoes));
+  const pct = (v: number, t: number) => (t > 0 ? ((v / t) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + "%" : "-");
+  const linhas = busca.trim() ? r.linhas.filter((l) => normalizarNome(l.nome).includes(normalizarNome(busca))) : r.linhas;
+  const dicas = {
+    acoes: "Ações que passam por este município.\n\nA ação conta em TODO município em que aparece. Ex.: uma ação em Jurema e em São Lourenço do Piauí conta 1 em cada.\nPor isso a soma da coluna pode passar do total de ações.",
+    pctAcoes: "% das ações = ações do município ÷ total de ações (distintas) da análise.\n\nEx.: 12 ações no município de um total de 1.314 = 0,9%.\nA soma pode passar de 100%, porque uma ação pode estar em mais de um município.",
+    exclusivas: "Ações que aparecem SÓ neste município.",
+    tambem: "Ações que passam por este município e também por pelo menos outro.",
+    invest: "% do investimento = valor contratado rateado do município ÷ valor contratado total.\n\nO valor contratado de cada ação é dividido em partes iguais entre os municípios em que ela aparece. Ex.: ação de R$ 300 mil em 3 municípios = R$ 100 mil em cada.\nAssim a soma dos municípios dá 100%.\nAção sem valor contratado informado no SIMO não entra no cálculo.",
+    km: "Quilômetros de traçado (KML) dentro do município: extensão do traçado da ação × a parte dele que cai no município.\nAção sem KML não soma km.",
+    comTracado: "Ações do município que têm KML (traçado) anexado.",
+  };
+  return (
+    <section className="overflow-x-auto rounded-xl border border-black/5 bg-surface shadow-card">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 px-4 py-2.5">
+        <p className="text-xs text-ink-muted">
+          <strong className="text-ink-primary">{inteiro(r.linhas.length)}</strong> município(s){doSimo ? " (dado do SIMO)" : ""} com ação.
+        </p>
+        <input value={busca} onChange={(e) => setBusca(e.target.value)} placeholder="Buscar município..." className={campo + " w-56"} />
+      </div>
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-black/5 bg-plane text-left text-[11px] uppercase tracking-wide text-ink-muted">
+            <th className="px-4 py-2.5">Município</th>
+            <th className="px-3 py-2.5">Território</th>
+            <th className="px-3 py-2.5 text-right" title={dicas.acoes}>Ações que passam ⓘ</th>
+            <th className="px-3 py-2.5 text-right" title={dicas.pctAcoes}>% das ações ⓘ</th>
+            <th className="px-3 py-2.5 text-right" title={dicas.exclusivas}>Só neste município ⓘ</th>
+            <th className="px-3 py-2.5 text-right" title={dicas.tambem}>Também em outro ⓘ</th>
+            <th className="px-3 py-2.5 text-right" title={dicas.invest}>% do investimento ⓘ</th>
+            <th className="px-3 py-2.5 text-right" title={dicas.km}>Traçado (km) ⓘ</th>
+            <th className="px-3 py-2.5 text-right" title={dicas.comTracado}>Com traçado ⓘ</th>
+          </tr>
+        </thead>
+        <tbody>
+          {linhas.map((l) => (
+            <tr key={l.chave} className="border-b border-black/5 last:border-0 hover:bg-plane/60">
+              <td className="px-4 py-2">
+                <button onClick={() => aoEscolher(l.chave)} className="font-medium text-ink-primary hover:underline" title="Ver as ações que passam por este município">
+                  {l.nome}
+                </button>
+                <div className="mt-1 h-1 rounded bg-black/5">
+                  <div className="h-1 rounded bg-series-1" style={{ width: `${(l.acoes / maior) * 100}%` }} />
+                </div>
+              </td>
+              <td className="px-3 py-2 text-ink-secondary">{l.territorio ? rotuloTerritorio(l.territorio) : "-"}</td>
+              <td className="tabular px-3 py-2 text-right text-ink-secondary">{inteiro(l.acoes)}</td>
+              <td className="tabular px-3 py-2 text-right text-ink-secondary">{pct(l.acoes, r.totalAcoes)}</td>
+              <td className="tabular px-3 py-2 text-right text-ink-secondary">{inteiro(l.exclusivas)}</td>
+              <td className="tabular px-3 py-2 text-right text-ink-secondary">{inteiro(l.tambem)}</td>
+              <td className="tabular px-3 py-2 text-right text-ink-secondary">{pct(l.investimento, r.totalInvestimento)}</td>
+              <td className="tabular px-3 py-2 text-right text-ink-secondary">{l.km.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</td>
+              <td className="tabular px-3 py-2 text-right text-ink-secondary">{inteiro(l.comTracado)}</td>
+            </tr>
+          ))}
+          {linhas.length === 0 && (
+            <tr>
+              <td colSpan={9} className="px-4 py-6 text-center text-ink-muted">Nenhum município encontrado.</td>
+            </tr>
+          )}
+        </tbody>
+        <tfoot>
+          <tr className="border-t border-black/10 bg-plane font-semibold text-ink-primary">
+            <td className="px-4 py-2.5">Total (ações distintas)</td>
+            <td className="px-3 py-2.5" />
+            <td className="tabular px-3 py-2.5 text-right">{inteiro(r.totalAcoes)}</td>
+            <td className="tabular px-3 py-2.5 text-right">100%</td>
+            <td className="px-3 py-2.5 text-right">-</td>
+            <td className="px-3 py-2.5 text-right">-</td>
+            <td className="tabular px-3 py-2.5 text-right">100%</td>
+            <td className="tabular px-3 py-2.5 text-right">{r.linhas.reduce((t, l) => t + l.km, 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</td>
+            <td className="px-3 py-2.5 text-right">-</td>
+          </tr>
+        </tfoot>
+      </table>
+      <p className="border-t border-black/5 px-4 py-2 text-[11px] text-ink-muted">
+        A ação conta em todo município em que aparece (passe o mouse nos títulos para ver as fórmulas). A soma das ações e dos % de ações pode passar do total; o % do investimento divide o valor da ação entre os municípios e fecha em 100%.
       </p>
     </section>
   );

@@ -189,7 +189,7 @@ export async function PaginaTerritorio({ modo }: { modo: "analise" | "mapa" | "h
       {erro ? (
         <p className="rounded-lg bg-status-critical/10 px-3 py-2 text-xs text-status-critical">Falha ao carregar os dados: {erro}</p>
       ) : (
-        <AnaliseTerritorio acoes={acoes} territorios={territorios} filtroGravado={filtroGravado} ehAdmin={!!profile?.is_admin} modo={modo} tela={tela} somenteLeitura={digepi} />
+        <AnaliseTerritorio acoes={acoes} territorios={territorios} territorioDoMunicipio={Object.fromEntries(mapaMunicipios)} filtroGravado={filtroGravado} ehAdmin={!!profile?.is_admin} modo={modo} tela={tela} somenteLeitura={digepi} />
       )}
     </AppShell>
   );
