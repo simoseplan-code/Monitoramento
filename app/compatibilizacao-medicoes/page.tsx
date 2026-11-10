@@ -4,7 +4,7 @@ import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { dinheiroParaNumero } from "@/lib/simo/parseCsv";
 import { Compatibilizacao, type LinhaMedicao } from "./Compatibilizacao";
 
-const COLUNAS = "id_acao, nome_acao, orgao, status, estagio_atual, tipologia, classificacao, tipo_outros_documentos, acao_conveniada, unidade_medida, numero_automatico, numero_siafe, data_criacao, data_receb_definitivo, data_receb_provisorio, valor_original, valor_total, percentual_execucao, extra, eixo:extra->>EIXO";
+const COLUNAS = "id_acao, nome_acao, orgao, status, estagio_atual, tipologia, classificacao, tipo_outros_documentos, acao_conveniada, unidade_medida, quantidade, numero_automatico, numero_siafe, data_criacao, data_receb_definitivo, data_receb_provisorio, valor_original, valor_total, percentual_execucao, extra, eixo:extra->>EIXO";
 
 type Obra = {
   id_acao: string;
@@ -17,6 +17,7 @@ type Obra = {
   tipo_outros_documentos: string | null;
   acao_conveniada: string | null;
   unidade_medida: string | null;
+  quantidade: number | string | null;
   numero_automatico: string | null;
   numero_siafe: string | null;
   data_criacao: string | null;
@@ -127,6 +128,8 @@ export default async function CompatibilizacaoMedicoesPage() {
       // O valor lido do SIMO junto com os boletins vale mais; sem ele, a coluna do relatório (se houver).
       medidoEstagio: doSimo ?? (bruto != null && String(bruto).trim() !== "" && String(bruto).trim() !== "-" ? dinheiroParaNumero(String(bruto)) : null),
       pct: numero(o.percentual_execucao),
+      unidade: o.unidade_medida && o.unidade_medida.trim() && o.unidade_medida.trim() !== "-" ? o.unidade_medida.trim().toUpperCase() : null,
+      quantidade: numero(o.quantidade),
       campos: {
         eixo: [ou(o.eixo)],
         conveniada: [ou(o.acao_conveniada)],

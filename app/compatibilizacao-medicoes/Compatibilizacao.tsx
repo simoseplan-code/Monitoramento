@@ -16,6 +16,8 @@ export type LinhaMedicao = {
   classificacao: string | null;
   contratado: number | null;
   pct: number | null;
+  unidade: string | null;
+  quantidade: number | null;
   /** Valores de filtro vindos das colunas da ação (cada chave guarda uma lista; vazio = "(vazio)"). */
   campos: Record<string, string[]>;
   /** "Valor medido do estágio": o valor medido da ação, vindo do relatório do SIMO. */
@@ -105,6 +107,8 @@ const vazio = (v: string | null | undefined) => (v && v.trim() ? v.trim() : "(va
 export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas }: { linhas: LinhaMedicao[]; chaveMedido: string | null; ehAdmin: boolean; semTabelas: boolean }) {
   const router = useRouter();
   const [tolerancia, setTolerancia] = useState(10);
+  const [aba, setAba] = useState<"compat" | "estimativa">("compat");
+  const [base, setBase] = useState<"pct" | "total">("pct");
   const [pctMinimo, setPctMinimo] = useState<number | null>(null);
   const [busca, setBusca] = useState("");
   const [ids, setIds] = useState("");
@@ -193,6 +197,39 @@ export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas }: {
     return t;
   }, [filtradas]);
 
+  // Estimativa de execução por ano: a quantidade executada da ação é repartida entre os anos na proporção dos boletins de cada ano.
+  const estimativa = useMemo(() => {
+    const colunas = [...ANOS, OUTROS] as string[];
+    const linhasEst = filtradas.map((l) => {
+      const estimavel = l.lida && l.soma > 0 && (l.quantidade ?? 0) > 0 && !!l.unidade;
+      const fracao = base === "pct" ? Math.max(0, Math.min(1, l.pct ?? 1)) : 1;
+      const executada = estimavel ? (l.quantidade as number) * fracao : 0;
+      const parte: Record<string, number> = {};
+      const qtd: Record<string, number> = {};
+      for (const c of colunas) {
+        parte[c] = estimavel ? l.porAno[c] / l.soma : 0;
+        qtd[c] = executada * parte[c];
+      }
+      return { l, estimavel, executada, parte, qtd };
+    });
+    const porUnidade = new Map<string, { unidade: string; acoes: number; executada: number; qtd: Record<string, number> }>();
+    for (const e of linhasEst) {
+      if (!e.estimavel) continue;
+      const u = e.l.unidade as string;
+      const g = porUnidade.get(u) ?? { unidade: u, acoes: 0, executada: 0, qtd: Object.fromEntries(colunas.map((c) => [c, 0])) };
+      g.acoes++;
+      g.executada += e.executada;
+      for (const c of colunas) g.qtd[c] += e.qtd[c];
+      porUnidade.set(u, g);
+    }
+    return {
+      colunas,
+      linhas: linhasEst,
+      grupos: Array.from(porUnidade.values()).sort((a, b) => b.acoes - a.acoes),
+      semEstimativa: linhasEst.filter((e) => !e.estimavel).length,
+    };
+  }, [filtradas, base]);
+
   const ativos = Object.entries(selecao).filter(([, v]) => v !== null).length + (busca ? 1 : 0) + (ids ? 1 : 0) + (pctMinimo != null ? 1 : 0);
   const totalPaginas = Math.max(1, Math.ceil(filtradas.length / PAGINA));
   const paginaOk = Math.min(pagina, totalPaginas);
@@ -235,7 +272,27 @@ export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas }: {
     }
   }
 
+  function exportarEstimativa() {
+    const cols = estimativa.colunas;
+    const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Unidade de medida", "Quantidade", "% de execução", "Quantidade executada (base)", ...cols.map((c) => `% ${c}`), ...cols.map((c) => `Executado estimado ${c}`), "Soma dos boletins"];
+    const dados = estimativa.linhas
+      .filter((e) => e.estimavel)
+      .map((e) =>
+        [e.l.id, e.l.nome, e.l.orgao, e.l.unidade, num(e.l.quantidade), e.l.pct != null ? (e.l.pct * 100).toFixed(1).replace(".", ",") + "%" : "", num(e.executada), ...cols.map((c) => (e.parte[c] * 100).toFixed(1).replace(".", ",") + "%"), ...cols.map((c) => num(e.qtd[c])), num(e.l.soma)].map(csvEscape).join(";")
+      );
+    const csv = "\uFEFF" + [colunas.join(";"), ...dados].join("\n");
+    const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `estimativa-execucao-por-ano-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
   function exportar() {
+    if (aba === "estimativa") return exportarEstimativa();
     const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Status", "Estágio Atual", "Classificação", "Valor contratado", "Valor medido do estágio", ...ANOS.map((a) => `Boletins ${a}`), `Boletins ${OUTROS}`, "Soma dos boletins", "Diferença (boletins - medido)", "Situação", "Qtd de boletins", "Lida no SIMO em"];
     const dados = filtradas.map((l) =>
       [l.id, l.nome, l.orgao, l.status, l.estagio, l.classificacao, num(l.contratado), num(l.medidoEstagio), ...ANOS.map((a) => num(l.porAno[a])), num(l.porAno[OUTROS]), num(l.soma), num(l.dif), SITUACOES[l.situacao], l.boletins.length, l.lidoEm ? new Date(l.lidoEm).toLocaleString("pt-BR") : ""].map(csvEscape).join(";")
@@ -336,6 +393,16 @@ export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas }: {
         </p>
       </section>
 
+      <nav className="flex flex-wrap gap-2">
+        {([["compat", "Compatibilização"], ["estimativa", "Estimativa de execução por ano"]] as const).map(([k, rotulo]) => (
+          <button key={k} onClick={() => { setAba(k); setPagina(1); }} className={"rounded-full px-4 py-2 text-xs font-semibold " + (aba === k ? "bg-series-3 text-white" : "bg-surface text-ink-secondary hover:bg-plane")}>
+            {rotulo}
+          </button>
+        ))}
+      </nav>
+
+      {aba === "compat" && (
+      <>
       <section className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
         {cartao("Valor medido do estágio", brl(totais.medido), "Soma do valor medido das ações filtradas (relatório do SIMO).")}
         {cartao("Soma dos boletins", brl(totais.soma), "Soma de todos os boletins lidos das ações filtradas.")}
@@ -438,6 +505,112 @@ export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas }: {
           </span>
         </div>
       </section>
+      </>
+      )}
+
+      {aba === "estimativa" && (
+        <>
+          <section className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
+            <p className="text-xs text-ink-secondary">
+              <strong>Como é calculado:</strong> para cada ação, a quantidade executada é repartida entre os anos na proporção dos boletins de medição de cada ano.
+              Ex.: ação de 10.000 m² executada 100%, com boletins de R$ 600 mil em 2023 e R$ 400 mil em 2024 → 6.000 m² em 2023 (60%) e 4.000 m² em 2024 (40%).
+              Só entram ações já lidas no SIMO, com boletins, unidade de medida e quantidade. Unidades diferentes (m², km…) não se somam: ficam em linhas separadas.
+            </p>
+            <label className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink-secondary">
+              Quantidade que é repartida:
+              <select value={base} onChange={(e) => setBase(e.target.value as "pct" | "total")} className={campo}>
+                <option value="pct">Quantidade × % de execução da ação (se a ação não tem %, vale 100%)</option>
+                <option value="total">Quantidade total da ação (ignora o % de execução)</option>
+              </select>
+            </label>
+            <p className="mt-2 text-[11px] text-ink-muted">
+              {inteiro(estimativa.linhas.length - estimativa.semEstimativa)} ação(ões) com estimativa · {inteiro(estimativa.semEstimativa)} sem estimativa (não lida, sem boletim, sem quantidade ou sem unidade).
+            </p>
+          </section>
+
+          <section className="overflow-x-auto rounded-xl border border-black/5 bg-surface shadow-card">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-black/5 bg-plane text-left text-[11px] uppercase tracking-wide text-ink-muted">
+                  <th className="px-4 py-2.5">Unidade de medida</th>
+                  <th className="px-3 py-2.5 text-right">Ações</th>
+                  <th className="px-3 py-2.5 text-right" title="Quantidade executada que foi repartida (soma das ações).">Executado ⓘ</th>
+                  {estimativa.colunas.map((c) => (
+                    <th key={c} className="px-3 py-2.5 text-right">{c}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {estimativa.grupos.map((g) => (
+                  <tr key={g.unidade} className="border-b border-black/5 last:border-0">
+                    <td className="px-4 py-2 font-medium text-ink-primary">{g.unidade}</td>
+                    <td className="tabular px-3 py-2 text-right">{inteiro(g.acoes)}</td>
+                    <td className="tabular px-3 py-2 text-right font-medium">{g.executada.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</td>
+                    {estimativa.colunas.map((c) => (
+                      <td key={c} className="tabular px-3 py-2 text-right text-ink-secondary">
+                        {g.qtd[c] ? g.qtd[c].toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "-"}
+                        {g.executada > 0 && g.qtd[c] > 0 && <span className="ml-1 text-[10px] text-ink-muted">({((g.qtd[c] / g.executada) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}%)</span>}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+                {estimativa.grupos.length === 0 && (
+                  <tr>
+                    <td colSpan={3 + estimativa.colunas.length} className="px-4 py-8 text-center text-ink-muted">Nenhuma ação com estimativa nos filtros atuais. Leia os boletins no SIMO primeiro.</td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </section>
+
+          <section className="overflow-x-auto rounded-xl border border-black/5 bg-surface shadow-card">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-black/5 bg-plane text-left text-[11px] uppercase tracking-wide text-ink-muted">
+                  <th className="px-3 py-2.5">Ação</th>
+                  <th className="px-3 py-2.5">Unidade</th>
+                  <th className="px-3 py-2.5 text-right">Quantidade</th>
+                  <th className="px-3 py-2.5 text-right">% exec.</th>
+                  <th className="px-3 py-2.5 text-right" title="Quantidade que foi repartida entre os anos.">Executado ⓘ</th>
+                  {estimativa.colunas.map((c) => (
+                    <th key={c} className="px-3 py-2.5 text-right">{c}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {estimativa.linhas
+                  .filter((e) => e.estimavel)
+                  .slice((paginaOk - 1) * PAGINA, paginaOk * PAGINA)
+                  .map((e) => (
+                    <tr key={e.l.id} className="border-b border-black/5 hover:bg-plane/60">
+                      <td className="max-w-[320px] px-3 py-2">
+                        <IdAcaoLink id={e.l.id} /> <span className="text-ink-muted">· {e.l.orgao ?? "-"}</span>
+                        <div className="truncate text-ink-secondary" title={e.l.nome}>{e.l.nome}</div>
+                      </td>
+                      <td className="px-3 py-2">{e.l.unidade}</td>
+                      <td className="tabular px-3 py-2 text-right">{(e.l.quantidade as number).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}</td>
+                      <td className="tabular px-3 py-2 text-right text-ink-secondary">{e.l.pct != null ? (e.l.pct * 100).toLocaleString("pt-BR", { maximumFractionDigits: 0 }) + "%" : "-"}</td>
+                      <td className="tabular px-3 py-2 text-right font-medium">{e.executada.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</td>
+                      {estimativa.colunas.map((c) => (
+                        <td key={c} className="tabular px-3 py-2 text-right text-ink-secondary">
+                          {e.qtd[c] ? e.qtd[c].toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : "-"}
+                          {e.qtd[c] > 0 && <span className="ml-1 text-[10px] text-ink-muted">({(e.parte[c] * 100).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}%)</span>}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+            <div className="flex items-center justify-between border-t border-black/5 px-4 py-2 text-xs text-ink-muted">
+              <span>Página {paginaOk} de {Math.max(1, Math.ceil((estimativa.linhas.length - estimativa.semEstimativa) / PAGINA))}</span>
+              <span className="flex gap-2">
+                <button disabled={paginaOk <= 1} onClick={() => setPagina(paginaOk - 1)} className="rounded-full bg-plane px-3 py-1 font-medium disabled:opacity-40">Anterior</button>
+                <button disabled={paginaOk * PAGINA >= estimativa.linhas.length - estimativa.semEstimativa} onClick={() => setPagina(paginaOk + 1)} className="rounded-full bg-plane px-3 py-1 font-medium disabled:opacity-40">Próxima</button>
+              </span>
+            </div>
+          </section>
+        </>
+      )}
     </div>
   );
 }
