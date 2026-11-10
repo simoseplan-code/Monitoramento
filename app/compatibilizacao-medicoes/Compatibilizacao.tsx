@@ -2,7 +2,7 @@
 
 import { Fragment, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { AlertTriangle, ChevronDown, ChevronRight, Download, RefreshCw, Square } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Download, RefreshCw, Save, Square } from "lucide-react";
 import { FiltroCheckbox } from "@/components/FiltroCheckbox";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
 
@@ -106,20 +106,105 @@ const DEFINICOES: { chave: string; rotulo: string }[] = [
 ];
 const vazio = (v: string | null | undefined) => (v && v.trim() ? v.trim() : "(vazio)");
 
-export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas }: { linhas: LinhaMedicao[]; chaveMedido: string | null; ehAdmin: boolean; semTabelas: boolean }) {
+type Gravado = { estado: unknown; atualizadoEm: string; por: string | null };
+type EstadoGravado = { selecao: Record<string, string[] | null>; busca: string; ids: string; tolerancia: number; pctMinimo: number | null };
+
+// Lê o filtro gravado no banco (JSON) de forma segura.
+function lerGravado(g: unknown): EstadoGravado | null {
+  if (!g || typeof g !== "object") return null;
+  const o = g as Partial<EstadoGravado>;
+  const selecao: Record<string, string[] | null> = {};
+  if (o.selecao && typeof o.selecao === "object") {
+    for (const [k, v] of Object.entries(o.selecao)) selecao[k] = Array.isArray(v) ? v.map(String) : null;
+  }
+  return {
+    selecao,
+    busca: typeof o.busca === "string" ? o.busca : "",
+    ids: typeof o.ids === "string" ? o.ids : "",
+    tolerancia: typeof o.tolerancia === "number" && o.tolerancia >= 0 ? o.tolerancia : 10,
+    pctMinimo: typeof o.pctMinimo === "number" ? o.pctMinimo : null,
+  };
+}
+function selecaoDeGravado(s: Record<string, string[] | null>): Selecao {
+  return Object.fromEntries(Object.entries(s).map(([k, v]) => [k, v ? new Set(v) : null]));
+}
+
+export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas, filtroGravado }: { linhas: LinhaMedicao[]; chaveMedido: string | null; ehAdmin: boolean; semTabelas: boolean; filtroGravado: Gravado | null }) {
+  const inicial = useMemo(() => lerGravado(filtroGravado?.estado), [filtroGravado]);
   const router = useRouter();
-  const [tolerancia, setTolerancia] = useState(10);
+  const [tolerancia, setTolerancia] = useState(inicial?.tolerancia ?? 10);
   const [aba, setAba] = useState<"compat" | "estimativa">("compat");
-  const [pctMinimo, setPctMinimo] = useState<number | null>(null);
-  const [busca, setBusca] = useState("");
-  const [ids, setIds] = useState("");
-  const [selecao, setSelecao] = useState<Selecao>(() => ({ classificacao: linhas.some((l) => l.classificacao === "OBRA") ? new Set(["OBRA"]) : null }));
+  const [pctMinimo, setPctMinimo] = useState<number | null>(inicial?.pctMinimo ?? null);
+  const [busca, setBusca] = useState(inicial?.busca ?? "");
+  const [ids, setIds] = useState(inicial?.ids ?? "");
+  const [selecao, setSelecao] = useState<Selecao>(() => (inicial ? selecaoDeGravado(inicial.selecao) : { classificacao: linhas.some((l) => l.classificacao === "OBRA") ? new Set(["OBRA"]) : null }));
   const [pagina, setPagina] = useState(1);
   const [aberta, setAberta] = useState<Set<string>>(new Set());
   const [reler, setReler] = useState(false);
   const [lendo, setLendo] = useState<{ feitas: number; total: number; falhas: number } | null>(null);
   const [aviso, setAviso] = useState<string | null>(null);
   const parar = useRef(false);
+
+  // Filtro gravado: um só, vale para todos os usuários (quem grava por último troca o de todo mundo).
+  const [gravadoEm, setGravadoEm] = useState<string | null>(filtroGravado?.atualizadoEm ?? null);
+  const [gravadoPor, setGravadoPor] = useState<string | null>(filtroGravado?.por ?? null);
+  const [gravando, setGravando] = useState(false);
+  const [avisoFiltro, setAvisoFiltro] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
+  const estadoParaGravar = (): EstadoGravado => ({
+    selecao: Object.fromEntries(Object.entries(selecao).map(([k, v]) => [k, v ? Array.from(v).sort() : null])),
+    busca,
+    ids,
+    tolerancia,
+    pctMinimo,
+  });
+  const jsonAtual = JSON.stringify(estadoParaGravar());
+  const [gravadoJson, setGravadoJson] = useState<string | null>(inicial ? JSON.stringify({ ...inicial, selecao: Object.fromEntries(Object.entries(inicial.selecao).map(([k, v]) => [k, v ? [...v].sort() : null])) }) : null);
+  const alterado = gravadoJson !== null && gravadoJson !== jsonAtual;
+
+  async function gravarFiltro() {
+    setGravando(true);
+    setAvisoFiltro(null);
+    try {
+      const resp = await fetch("/api/filtros", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tela: "compatibilizacao_medicoes", estado: estadoParaGravar() }) });
+      const json = (await resp.json().catch(() => ({}))) as { error?: string; atualizadoEm?: string };
+      if (!resp.ok) setAvisoFiltro({ tipo: "erro", texto: json.error ?? "Não foi possível gravar o filtro." });
+      else {
+        setGravadoEm(json.atualizadoEm ?? new Date().toISOString());
+        setGravadoPor("você");
+        setGravadoJson(jsonAtual);
+        setAvisoFiltro({ tipo: "ok", texto: "Filtro gravado para todos os usuários. Quem abrir esta tela já vê esse filtro." });
+      }
+    } catch {
+      setAvisoFiltro({ tipo: "erro", texto: "Sem conexão com o servidor." });
+    } finally {
+      setGravando(false);
+    }
+  }
+
+  async function apagarFiltroGravado() {
+    setGravando(true);
+    setAvisoFiltro(null);
+    try {
+      const resp = await fetch("/api/filtros?tela=compatibilizacao_medicoes", { method: "DELETE" });
+      if (!resp.ok) setAvisoFiltro({ tipo: "erro", texto: "Não foi possível apagar o filtro gravado." });
+      else {
+        setGravadoEm(null);
+        setGravadoPor(null);
+        setGravadoJson(null);
+        setSelecao({ classificacao: linhas.some((l) => l.classificacao === "OBRA") ? new Set(["OBRA"]) : null });
+        setBusca("");
+        setIds("");
+        setTolerancia(10);
+        setPctMinimo(null);
+        setPagina(1);
+        setAvisoFiltro({ tipo: "ok", texto: "Filtro gravado apagado para todos. A tela volta a abrir só com a classificação OBRA." });
+      }
+    } catch {
+      setAvisoFiltro({ tipo: "erro", texto: "Sem conexão com o servidor." });
+    } finally {
+      setGravando(false);
+    }
+  }
 
   // Cálculo de cada ação: boletins por ano, soma, diferença contra o valor medido do estágio e situação.
   const calc: Calc[] = useMemo(
@@ -358,7 +443,15 @@ export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas }: {
               limpar {ativos} filtro(s)
             </button>
           )}
-          <button onClick={exportar} disabled={filtradas.length === 0} className="ml-auto flex items-center gap-1.5 rounded-full bg-status-good px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">
+          <button
+            onClick={gravarFiltro}
+            disabled={gravando}
+            title="Grava os filtros atuais para TODOS os usuários: ao abrir esta tela, qualquer pessoa já os vê aplicados"
+            className="ml-auto flex items-center gap-1.5 rounded-full bg-series-3 px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+          >
+            <Save size={13} /> {gravando ? "Gravando..." : "Gravar filtro"}
+          </button>
+          <button onClick={exportar} disabled={filtradas.length === 0} className="flex items-center gap-1.5 rounded-full bg-status-good px-3.5 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60">
             <Download size={13} /> Exportar Excel
           </button>
         </div>
@@ -390,6 +483,19 @@ export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas }: {
             {aviso && <span className="text-xs font-medium text-ink-secondary">{aviso}</span>}
           </div>
         )}
+        <p className="mt-3 text-[11px] leading-snug text-ink-muted">
+          {gravadoEm
+            ? alterado
+              ? "Você mudou os filtros depois da última gravação. Clique em Gravar filtro para guardar (vale para todos)."
+              : "Filtro gravado em " + new Date(gravadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) + (gravadoPor ? " por " + gravadoPor : "") + ". Vale para todos os usuários: é ele que abre para todo mundo."
+            : "Nenhum filtro gravado: a tela abre só com a classificação OBRA. Ao gravar, o filtro vale para todos os usuários."}
+          {gravadoEm && (
+            <button onClick={apagarFiltroGravado} disabled={gravando} className="ml-2 font-medium hover:text-ink-primary hover:underline disabled:opacity-50">
+              Apagar filtro gravado (para todos)
+            </button>
+          )}
+          {avisoFiltro && <span className={"ml-2 font-medium " + (avisoFiltro.tipo === "ok" ? "text-status-good" : "text-status-critical")}>{avisoFiltro.texto}</span>}
+        </p>
         <p className="mt-2 text-xs text-ink-muted">
           <strong className="text-ink-primary">{inteiro(filtradas.length)}</strong> de {inteiro(calc.length)} ação(ões) · {inteiro(totais.lidas)} já lida(s) no SIMO
         </p>

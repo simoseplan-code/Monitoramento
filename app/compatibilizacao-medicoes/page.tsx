@@ -1,4 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { AppShell } from "@/components/layout/AppShell";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { dinheiroParaNumero } from "@/lib/simo/parseCsv";
@@ -151,6 +152,16 @@ export default async function CompatibilizacaoMedicoesPage() {
     };
   });
 
+  // Filtro gravado: UM SÓ, vale para todos (quem gravou por último). Lido com o acesso do servidor.
+  const admin = createAdminClient();
+  const { data: gravado } = await admin.from("filtros_salvos").select("usuario_id, estado, atualizado_em").eq("tela", "compatibilizacao_medicoes").order("atualizado_em", { ascending: false }).limit(1).maybeSingle();
+  let gravadoPor: string | null = null;
+  if (gravado?.usuario_id) {
+    const { data: quem } = await admin.from("profiles").select("nome").eq("id", gravado.usuario_id).maybeSingle();
+    gravadoPor = (quem?.nome as string | null) ?? null;
+  }
+  const filtroGravado = gravado ? { estado: gravado.estado as unknown, atualizadoEm: gravado.atualizado_em as string, por: gravadoPor } : null;
+
   return (
     <AppShell
       nome={profile?.nome ?? "Usuário"}
@@ -163,7 +174,7 @@ export default async function CompatibilizacaoMedicoesPage() {
       {erro ? (
         <p className="rounded-lg bg-status-critical/10 px-3 py-2 text-xs text-status-critical">Falha ao carregar os dados: {erro}</p>
       ) : (
-        <Compatibilizacao linhas={linhas} chaveMedido={chaveMedido} ehAdmin={!!profile?.is_admin} semTabelas={semTabelas} />
+        <Compatibilizacao linhas={linhas} chaveMedido={chaveMedido} ehAdmin={!!profile?.is_admin} semTabelas={semTabelas} filtroGravado={filtroGravado} />
       )}
     </AppShell>
   );
