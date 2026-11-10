@@ -5,7 +5,7 @@ import { executarVinculacaoLote } from "@/lib/simo/vinculacao";
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-export async function POST() {
+export async function POST(request: Request) {
   const supabase = await createClient();
   const {
     data: { user },
@@ -22,7 +22,8 @@ export async function POST() {
   }
 
   try {
-    const resultado = await executarVinculacaoLote(user.id);
+    const corpo = (await request.json().catch(() => ({}))) as { tentarTodas?: boolean };
+    const resultado = await executarVinculacaoLote(user.id, corpo.tentarTodas === true);
     return NextResponse.json({ ok: true, ...resultado });
   } catch (e) {
     const mensagem = e instanceof Error ? e.message : "Erro desconhecido.";

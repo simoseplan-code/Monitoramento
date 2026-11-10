@@ -116,13 +116,15 @@ export type ResultadoVinculacao = {
 // MESMO número (mesmo critério de contar_vinculacao_pendentes_validas,
 // 0018), evita reprocessar em massa um erro que só se resolve com
 // correção manual no SIMO.
-export async function executarVinculacaoLote(executadoPor: string): Promise<ResultadoVinculacao> {
+// `tentarTodas`: também tenta de novo as que já falharam com o mesmo número (a pessoa pediu para insistir). Vai das tentadas
+// há mais tempo para as mais recentes, então rodar de novo continua de onde parou em vez de repetir as mesmas.
+export async function executarVinculacaoLote(executadoPor: string, tentarTodas = false): Promise<ResultadoVinculacao> {
   const admin = createAdminClient();
   const inicio = Date.now();
 
   const { data: obras, error } = await admin
     .from("obras")
-    .select("id_acao, nome_acao, numero_siafe, orgao, status, vinculacao_ultimo_erro, vinculacao_numero_tentado")
+    .select("id_acao, nome_acao, numero_siafe, orgao, status, vinculacao_ultimo_erro, vinculacao_numero_tentado, vinculacao_falhou_em")
     .is("numero_automatico", null)
     .not("numero_siafe", "is", null);
   if (error) throw new Error(`Falha ao buscar pendentes: ${error.message}`);
@@ -136,8 +138,9 @@ export async function executarVinculacaoLote(executadoPor: string): Promise<Resu
       (o.status ?? "").trim().toLowerCase() !== "cancelado" &&
       (o.orgao ?? "").trim().toUpperCase() !== "AGESPISA" &&
       /^\d{8}$/.test((o.numero_siafe ?? "").trim()) &&
-      !(o.vinculacao_ultimo_erro && o.vinculacao_numero_tentado === o.numero_siafe)
+      (tentarTodas || !(o.vinculacao_ultimo_erro && o.vinculacao_numero_tentado === o.numero_siafe))
   );
+  if (tentarTodas) candidatos.sort((a, b) => (a.vinculacao_falhou_em ?? "").localeCompare(b.vinculacao_falhou_em ?? ""));
   if (candidatos.length === 0) return { sucesso: 0, falha: 0, restantes: 0, detalhes: [] };
 
   const cookie = await loginSimo();

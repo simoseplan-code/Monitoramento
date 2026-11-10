@@ -11,15 +11,17 @@ export function VincularBotao({ pendentes }: { pendentes: number }) {
   const router = useRouter();
   const [carregando, setCarregando] = useState(false);
   const [confirmando, setConfirmando] = useState(false);
+  // "Tentar vincular todas": insiste também nas que já falharam com o mesmo número.
+  const [modoTodas, setModoTodas] = useState(false);
   const [erro, setErro] = useState<string | null>(null);
   const [ultimoResultado, setUltimoResultado] = useState<{ sucesso: number; falha: number; restantes: number; detalhes: Detalhe[] } | null>(null);
 
-  async function vincular() {
+  async function vincular(tentarTodas = false) {
     setConfirmando(false);
     setCarregando(true);
     setErro(null);
     try {
-      const resp = await fetch("/api/admin/vincular", { method: "POST" });
+      const resp = await fetch("/api/admin/vincular", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tentarTodas }) });
       const data = await resp.json();
       if (!resp.ok) {
         setErro(data.error);
@@ -35,12 +37,13 @@ export function VincularBotao({ pendentes }: { pendentes: number }) {
 
   return (
     <div>
-      {pendentes === 0 && !ultimoResultado && !erro ? (
-        <span className="text-xs text-ink-muted">Nenhuma ação pendente com número válido (8 dígitos) no momento.</span>
-      ) : confirmando ? (
+      {confirmando ? (
         <span className="flex flex-wrap items-center gap-2 text-xs">
-          <span className="text-ink-secondary">Vincular {pendentes} ação(ões) no SIMO agora? Isso grava dado real.</span>
-          <button onClick={vincular} className="rounded-lg bg-status-warning px-3 py-1.5 font-semibold text-white hover:opacity-90">
+          <span className="text-ink-secondary">
+            {modoTodas ? "Tentar vincular TODAS as pendentes com número de 8 dígitos, inclusive as que já falharam? " : `Vincular ${pendentes} ação(ões) no SIMO agora? `}
+            Isso grava dado real.
+          </span>
+          <button onClick={() => vincular(modoTodas)} className="rounded-lg bg-status-warning px-3 py-1.5 font-semibold text-white hover:opacity-90">
             Sim, vincular
           </button>
           <button onClick={() => setConfirmando(false)} className="rounded-lg px-2 py-1.5 text-ink-muted hover:text-ink-primary">
@@ -48,13 +51,23 @@ export function VincularBotao({ pendentes }: { pendentes: number }) {
           </button>
         </span>
       ) : (
-        <button
-          disabled={carregando || pendentes === 0}
-          onClick={() => setConfirmando(true)}
-          className="rounded-lg bg-series-1 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
-        >
-          {carregando ? "Vinculando..." : `Vincular ${pendentes} ação(ões) válida(s) no SIMO`}
-        </button>
+        <span className="flex flex-wrap items-center gap-2">
+          <button
+            disabled={carregando || pendentes === 0}
+            onClick={() => { setModoTodas(false); setConfirmando(true); }}
+            className="rounded-lg bg-series-1 px-3 py-1.5 text-xs font-semibold text-white transition-opacity hover:opacity-90 disabled:opacity-50"
+          >
+            {carregando ? "Vinculando..." : `Vincular ${pendentes} ação(ões) válida(s) no SIMO`}
+          </button>
+          <button
+            disabled={carregando}
+            onClick={() => { setModoTodas(true); setConfirmando(true); }}
+            className="rounded-lg border border-status-warning/50 bg-status-warning-bg px-3 py-1.5 text-xs font-semibold text-status-warning transition-opacity hover:opacity-90 disabled:opacity-50"
+            title="Tenta de novo também as que já falharam com o mesmo número (as de número inválido continuam de fora)"
+          >
+            Tentar vincular todas
+          </button>
+        </span>
       )}
 
       {erro && <p className="mt-2 text-xs text-status-critical">❌ {erro}</p>}
