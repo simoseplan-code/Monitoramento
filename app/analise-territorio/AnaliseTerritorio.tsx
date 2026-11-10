@@ -185,7 +185,7 @@ function CorpoAnalise({ visao = "kml", acoes, territorios, filtroGravado, ehAdmi
           </span>
         </p>
         <p className="text-xs text-ink-muted">
-          Cada ação entra no território onde cai a maior parte do traçado (o mesmo cálculo da Verificação de bairros). Sem traçado, vale o município informado no SIMO. Se o traçado cai em mais de um território, a ação aparece em todos eles (mesmo que seja só uma parte), com a % de cada um.
+          {visao === "simo" ? "Aqui os municípios e territórios são DADOS DO SIMO (colunas Localização município e território do relatório), não do KML: a ação não tem KML anexado. Quando o SIMO traz mais de um (separados por \" - \"), a ação aparece em todos, dividida em partes iguais." : "Cada ação entra no território onde cai a maior parte do traçado (o mesmo cálculo da Verificação de bairros). Sem traçado, vale o município informado no SIMO. Se o traçado cai em mais de um território, a ação aparece em todos eles (mesmo que seja só uma parte), com a % de cada um."}
         </p>
         {!somenteLeitura && (
         <div className="mt-3 flex flex-wrap items-center justify-between gap-3 rounded-lg bg-plane px-3 py-2">
@@ -277,7 +277,7 @@ function CorpoAnalise({ visao = "kml", acoes, territorios, filtroGravado, ehAdmi
       {aba === "lista" && (
         <div className="space-y-3">
           <ResumoSimples acoes={filtradas} />
-          <ListaAcoes acoes={filtradas} pagina={pagina} aoMudarPagina={setPagina} comPct={comPct} />
+          <ListaAcoes acoes={filtradas} pagina={pagina} aoMudarPagina={setPagina} comPct={comPct} doSimo={visao === "simo"} />
         </div>
       )}
       {aba === "cruzam" && (
@@ -490,7 +490,7 @@ function ResumoSimples({ acoes }: { acoes: AcaoT[] }) {
 
 // ---------- lista ----------
 
-function ListaAcoes({ acoes, pagina, aoMudarPagina, comPct }: { acoes: AcaoT[]; pagina: number; aoMudarPagina: (p: number) => void; comPct: boolean }) {
+function ListaAcoes({ acoes, pagina, aoMudarPagina, comPct, doSimo = false }: { acoes: AcaoT[]; pagina: number; aoMudarPagina: (p: number) => void; comPct: boolean; doSimo?: boolean }) {
   const [verMapa, setVerMapa] = useState<{ id: string; nome: string } | null>(null);
   const totalPaginas = Math.max(1, Math.ceil(acoes.length / TAMANHO));
   const atual = Math.min(pagina, totalPaginas);
@@ -506,8 +506,8 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina, comPct }: { acoes: AcaoT[]; 
             <th className="px-3 py-2.5">Tipologia</th>
             <th className="px-3 py-2.5 text-series-1">Unidade</th>
             <th className="px-3 py-2.5 text-right text-series-1">Quantidade</th>
-            <th className="px-3 py-2.5">Município(s)</th>
-            <th className="px-3 py-2.5">Território(s)</th>
+            <th className="px-3 py-2.5">{doSimo ? "Município(s) (dado do SIMO)" : "Município(s)"}</th>
+            <th className="px-3 py-2.5">{doSimo ? "Território(s) (dado do SIMO)" : "Território(s)"}</th>
             <th className="px-3 py-2.5">Status</th>
             <th className="px-3 py-2.5">Vinculação</th>
             <th className="px-3 py-2.5 text-right">Exec.</th>
