@@ -137,8 +137,9 @@ function CorpoAnalise({ visao = "kml", acoes, territorios, filtroGravado, ehAdmi
         a.unidade,
         a.quantidade != null ? a.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "",
         a.municipios.length ? descricaoDosMunicipios(a, comPct) : "",
-        a.simoMunicipio,
-        a.simoTerritorio,
+        // Sem repetição: "PIRACURUCA - PIRACURUCA" vira "PIRACURUCA".
+        a.simoMunicipiosLista.map((m) => m.nome).join(" - "),
+        a.simoTerritoriosLista.join(" - "),
         a.status,
         a.estagio,
         rotuloTerritorio(principal(a)),
