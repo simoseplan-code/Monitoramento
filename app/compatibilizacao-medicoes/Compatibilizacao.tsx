@@ -15,6 +15,9 @@ export type LinhaMedicao = {
   tipologia: string | null;
   classificacao: string | null;
   contratado: number | null;
+  pct: number | null;
+  /** Valores de filtro vindos das colunas da ação (cada chave guarda uma lista; vazio = "(vazio)"). */
+  campos: Record<string, string[]>;
   /** "Valor medido do estágio": o valor medido da ação, vindo do relatório do SIMO. */
   medidoEstagio: number | null;
   lida: boolean;
@@ -54,6 +57,7 @@ type Calc = LinhaMedicao & {
   dif: number | null;
   situacao: Situacao;
   anosComMedicao: string[];
+  filtro: Record<string, string[]>;
 };
 
 function csvEscape(v: unknown): string {
@@ -73,9 +77,35 @@ function contar(valores: (string | null | undefined)[]): { valor: string; qtd: n
 
 type Selecao = Record<string, Set<string> | null>;
 
+// Todos os filtros da tela, na ordem em que aparecem.
+const DEFINICOES: { chave: string; rotulo: string }[] = [
+  { chave: "situacao", rotulo: "Situação" },
+  { chave: "ano", rotulo: "Ano com medição" },
+  { chave: "qtd", rotulo: "Qtd de boletins" },
+  { chave: "classificacao", rotulo: "Classificação" },
+  { chave: "vinculacao", rotulo: "Vinculação SIAFE" },
+  { chave: "status", rotulo: "Status" },
+  { chave: "orgao", rotulo: "Órgão" },
+  { chave: "estagio", rotulo: "Estágio atual" },
+  { chave: "tipologia", rotulo: "Tipologia" },
+  { chave: "eixo", rotulo: "Eixo" },
+  { chave: "anoReceb", rotulo: "Ano de recebimento" },
+  { chave: "anoCriacao", rotulo: "Ano de criação" },
+  { chave: "municipio", rotulo: "Município (SIMO)" },
+  { chave: "territorio", rotulo: "Território (SIMO)" },
+  { chave: "unidade", rotulo: "Unidade de medida" },
+  { chave: "tipoOutros", rotulo: "Tipo de outros documentos" },
+  { chave: "conveniada", rotulo: "Ação conveniada" },
+  { chave: "aditivo", rotulo: "Aditivo" },
+  { chave: "respBoletim", rotulo: "Responsável do boletim" },
+  { chave: "tipoBoletim", rotulo: "Tipo do boletim" },
+];
+const vazio = (v: string | null | undefined) => (v && v.trim() ? v.trim() : "(vazio)");
+
 export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas }: { linhas: LinhaMedicao[]; chaveMedido: string | null; ehAdmin: boolean; semTabelas: boolean }) {
   const router = useRouter();
   const [tolerancia, setTolerancia] = useState(10);
+  const [pctMinimo, setPctMinimo] = useState<number | null>(null);
   const [busca, setBusca] = useState("");
   const [ids, setIds] = useState("");
   const [selecao, setSelecao] = useState<Selecao>(() => ({ classificacao: linhas.some((l) => l.classificacao === "OBRA") ? new Set(["OBRA"]) : null }));
@@ -102,42 +132,53 @@ export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas }: {
         else if (Math.abs(dif) <= tolerancia) situacao = "compativel";
         else situacao = dif > 0 ? "maior" : "menor";
         const anosComMedicao = Array.from(new Set(l.boletins.map((b) => anoDe(b.data))));
-        return { ...l, porAno, soma, dif, situacao, anosComMedicao };
+        const n = l.boletins.length;
+        const filtro: Record<string, string[]> = {
+          ...l.campos,
+          situacao: [SITUACOES[situacao]],
+          ano: anosComMedicao.length ? anosComMedicao : ["(sem boletim)"],
+          qtd: [n === 0 ? "Nenhum" : n === 1 ? "1 boletim" : n === 2 ? "2 boletins" : "3 ou mais"],
+          classificacao: [vazio(l.classificacao)],
+          status: [vazio(l.status)],
+          orgao: [vazio(l.orgao)],
+          estagio: [vazio(l.estagio)],
+          tipologia: [vazio(l.tipologia)],
+          respBoletim: n ? Array.from(new Set(l.boletins.map((b) => vazio(b.responsavel)))) : ["(sem boletim)"],
+          tipoBoletim: n ? Array.from(new Set(l.boletins.map((b) => vazio(b.tipo)))) : ["(sem boletim)"],
+        };
+        return { ...l, porAno, soma, dif, situacao, anosComMedicao, filtro };
       }),
     [linhas, tolerancia]
   );
 
-  const opcoes = useMemo(
-    () => ({
-      orgao: contar(calc.map((l) => l.orgao)),
-      status: contar(calc.map((l) => l.status)),
-      classificacao: contar(calc.map((l) => l.classificacao)),
-      estagio: contar(calc.map((l) => l.estagio)),
-      tipologia: contar(calc.map((l) => l.tipologia)),
-      situacao: (Object.keys(SITUACOES) as Situacao[]).map((s) => ({ valor: SITUACOES[s], qtd: calc.filter((l) => l.situacao === s).length })),
-      ano: [...ANOS, OUTROS].map((a) => ({ valor: a, qtd: calc.filter((l) => l.anosComMedicao.includes(a)).length })),
-    }),
-    [calc]
-  );
+  const opcoes = useMemo(() => {
+    const out: Record<string, { valor: string; qtd: number }[]> = {};
+    for (const d of DEFINICOES) {
+      const m = new Map<string, number>();
+      for (const l of calc) for (const v of l.filtro[d.chave] ?? ["(vazio)"]) m.set(v, (m.get(v) ?? 0) + 1);
+      out[d.chave] = Array.from(m, ([valor, qtd]) => ({ valor, qtd })).sort((a, b) => a.valor.localeCompare(b.valor, "pt-BR", { numeric: true }));
+    }
+    // Situação e ano sempre com todas as opções, mesmo as sem nenhuma ação.
+    out.situacao = (Object.keys(SITUACOES) as Situacao[]).map((x) => ({ valor: SITUACOES[x], qtd: calc.filter((l) => l.situacao === x).length }));
+    out.ano = [...ANOS, OUTROS].map((a) => ({ valor: a, qtd: calc.filter((l) => l.anosComMedicao.includes(a)).length }));
+    return out;
+  }, [calc]);
 
   const idsLista = useMemo(() => new Set(ids.split(/[\s,;]+/).map((x) => x.trim()).filter(Boolean)), [ids]);
 
   const filtradas = useMemo(() => {
     const q = busca.trim().toLowerCase();
-    const ok = (chave: string, v: string | null) => {
-      const s = selecao[chave];
-      return !s || s.has((v ?? "").trim() || "(vazio)");
-    };
     return calc.filter((l) => {
       if (idsLista.size && !idsLista.has(l.id)) return false;
       if (q && !(l.id.includes(q) || l.nome.toLowerCase().includes(q) || (l.orgao ?? "").toLowerCase().includes(q))) return false;
-      if (!ok("orgao", l.orgao) || !ok("status", l.status) || !ok("classificacao", l.classificacao) || !ok("estagio", l.estagio) || !ok("tipologia", l.tipologia)) return false;
-      if (!ok("situacao", SITUACOES[l.situacao])) return false;
-      const sa = selecao.ano;
-      if (sa && !l.anosComMedicao.some((a) => sa.has(a))) return false;
+      if (pctMinimo != null && (l.pct ?? 0) * 100 < pctMinimo) return false;
+      for (const d of DEFINICOES) {
+        const sel = selecao[d.chave];
+        if (sel && !(l.filtro[d.chave] ?? ["(vazio)"]).some((v) => sel.has(v))) return false;
+      }
       return true;
     });
-  }, [calc, busca, idsLista, selecao]);
+  }, [calc, busca, idsLista, selecao, pctMinimo]);
 
   const totais = useMemo(() => {
     const t = { medido: 0, soma: 0, difAbs: 0, porAno: { ...Object.fromEntries(ANOS.map((a) => [a, 0])), [OUTROS]: 0 } as Record<string, number>, lidas: 0, situ: {} as Record<string, number> };
@@ -152,7 +193,7 @@ export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas }: {
     return t;
   }, [filtradas]);
 
-  const ativos = Object.entries(selecao).filter(([, v]) => v !== null).length + (busca ? 1 : 0) + (ids ? 1 : 0);
+  const ativos = Object.entries(selecao).filter(([, v]) => v !== null).length + (busca ? 1 : 0) + (ids ? 1 : 0) + (pctMinimo != null ? 1 : 0);
   const totalPaginas = Math.max(1, Math.ceil(filtradas.length / PAGINA));
   const paginaOk = Math.min(pagina, totalPaginas);
   const visiveis = filtradas.slice((paginaOk - 1) * PAGINA, paginaOk * PAGINA);
@@ -223,14 +264,14 @@ export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas }: {
         <p className="mb-3 flex items-start gap-2 rounded-lg border border-status-warning/30 bg-status-warning-bg px-3 py-2 text-xs font-medium text-status-warning">
           <AlertTriangle size={15} className="mt-px shrink-0" />
           <span>
-            Os boletins vêm da aba <strong>Boletins de medição</strong> de cada ação no SIMO (leitura, nada é alterado lá). O <strong>valor medido do estágio</strong> vem do relatório diário do SIMO
+            Os boletins vêm da aba <strong>Boletins de medição</strong> de cada ação no SIMO (leitura, nada é alterado lá). O <strong>valor medido do estágio</strong> é o “Medido” do topo da ação no SIMO, lido junto com os boletins
             {chaveMedido ? (
               <>
                 {" "}
-                (coluna <strong>{chaveMedido}</strong>)
+                (nas ações ainda não lidas, uso a coluna <strong>{chaveMedido}</strong> do relatório diário)
               </>
             ) : (
-              <> — mas não achei no relatório nenhuma coluna de valor medido, então a diferença não pode ser calculada ainda</>
+              <> (o relatório diário não tem essa coluna, então só aparece nas ações já lidas)</>
             )}
             . Os boletins são somados por ano da data do boletim (2023 a 2026; o resto vai em “{OUTROS}”). Diferença até a tolerância abaixo conta como compatível.
           </span>
@@ -238,23 +279,23 @@ export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas }: {
         {semTabelas && <p className="mb-3 rounded-lg bg-status-critical/10 px-3 py-2 text-xs text-status-critical">As tabelas de medições ainda não existem no banco: rode o SQL 0098 no Supabase.</p>}
 
         <div className="flex flex-wrap items-center gap-2">
-          <FiltroCheckbox rotulo="Situação" opcoes={opcoes.situacao} selecionados={selecao.situacao ?? null} aoMudar={mudarSel("situacao")} />
-          <FiltroCheckbox rotulo="Ano com medição" opcoes={opcoes.ano} selecionados={selecao.ano ?? null} aoMudar={mudarSel("ano")} />
-          <FiltroCheckbox rotulo="Classificação" opcoes={opcoes.classificacao} selecionados={selecao.classificacao ?? null} aoMudar={mudarSel("classificacao")} />
-          <FiltroCheckbox rotulo="Status" opcoes={opcoes.status} selecionados={selecao.status ?? null} aoMudar={mudarSel("status")} />
-          <FiltroCheckbox rotulo="Órgão" opcoes={opcoes.orgao} selecionados={selecao.orgao ?? null} aoMudar={mudarSel("orgao")} />
-          <FiltroCheckbox rotulo="Estágio atual" opcoes={opcoes.estagio} selecionados={selecao.estagio ?? null} aoMudar={mudarSel("estagio")} />
-          <FiltroCheckbox rotulo="Tipologia" opcoes={opcoes.tipologia} selecionados={selecao.tipologia ?? null} aoMudar={mudarSel("tipologia")} />
+          {DEFINICOES.map((d) => (
+            <FiltroCheckbox key={d.chave} rotulo={d.rotulo} opcoes={opcoes[d.chave] ?? []} selecionados={selecao[d.chave] ?? null} aoMudar={mudarSel(d.chave)} />
+          ))}
         </div>
         <div className="mt-3 flex flex-wrap items-center gap-3">
           <input value={busca} onChange={(e) => { setBusca(e.target.value); setPagina(1); }} placeholder="Buscar ID, nome ou órgão..." className={campo + " w-64"} />
           <input value={ids} onChange={(e) => { setIds(e.target.value); setPagina(1); }} placeholder="Só estes IDs (cole vários)..." className={campo + " w-64"} />
+          <label className="flex items-center gap-2 text-xs text-ink-secondary" title="Só ações com execução física igual ou maior que este percentual.">
+            Execução mínima (%)
+            <input type="number" min={0} max={100} value={pctMinimo ?? ""} onChange={(e) => { setPctMinimo(e.target.value === "" ? null : Math.max(0, Math.min(100, Number(e.target.value)))); setPagina(1); }} className={campo + " w-20"} />
+          </label>
           <label className="flex items-center gap-2 text-xs text-ink-secondary" title="Diferença aceita entre a soma dos boletins e o valor medido do estágio (arredondamento do SIMO).">
             Tolerância (R$)
             <input type="number" min={0} step={1} value={tolerancia} onChange={(e) => setTolerancia(Math.max(0, Number(e.target.value) || 0))} className={campo + " w-20"} />
           </label>
           {ativos > 0 && (
-            <button onClick={() => { setSelecao({}); setBusca(""); setIds(""); setPagina(1); }} className="text-xs font-medium text-series-3 hover:underline">
+            <button onClick={() => { setSelecao({}); setBusca(""); setIds(""); setPctMinimo(null); setPagina(1); }} className="text-xs font-medium text-series-3 hover:underline">
               limpar {ativos} filtro(s)
             </button>
           )}

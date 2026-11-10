@@ -4,7 +4,7 @@ import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { dinheiroParaNumero } from "@/lib/simo/parseCsv";
 import { Compatibilizacao, type LinhaMedicao } from "./Compatibilizacao";
 
-const COLUNAS = "id_acao, nome_acao, orgao, status, estagio_atual, tipologia, classificacao, numero_automatico, valor_original, valor_total, percentual_execucao, extra";
+const COLUNAS = "id_acao, nome_acao, orgao, status, estagio_atual, tipologia, classificacao, tipo_outros_documentos, acao_conveniada, unidade_medida, numero_automatico, numero_siafe, data_criacao, data_receb_definitivo, data_receb_provisorio, valor_original, valor_total, percentual_execucao, extra, eixo:extra->>EIXO";
 
 type Obra = {
   id_acao: string;
@@ -14,7 +14,15 @@ type Obra = {
   estagio_atual: string | null;
   tipologia: string | null;
   classificacao: string | null;
+  tipo_outros_documentos: string | null;
+  acao_conveniada: string | null;
+  unidade_medida: string | null;
   numero_automatico: string | null;
+  numero_siafe: string | null;
+  data_criacao: string | null;
+  data_receb_definitivo: string | null;
+  data_receb_provisorio: string | null;
+  eixo: string | null;
   valor_original: number | string | null;
   valor_total: number | string | null;
   percentual_execucao: number | string | null;
@@ -22,6 +30,28 @@ type Obra = {
 };
 
 const numero = (v: number | string | null): number | null => (v == null || v === "" ? null : Number.isFinite(Number(v)) ? Number(v) : null);
+
+const VAZIO = "(vazio)";
+const ou = (v: string | null | undefined) => (v && v.trim() !== "" && v.trim() !== "-" ? v.trim() : VAZIO);
+
+// Colunas "Localização (município)" e "Localização (território)" do relatório do SIMO; o SIMO junta vários valores com " - " (ou ";").
+function listaSimo(extra: Record<string, string> | null, tipo: RegExp): string[] {
+  if (!extra) return [];
+  const chaves = Object.keys(extra);
+  const chave = chaves.find((k) => /localiza/i.test(k) && tipo.test(k)) ?? chaves.find((k) => tipo.test(k) && !/bairro/i.test(k));
+  if (!chave) return [];
+  const vistos = new Set<string>();
+  const saida: string[] = [];
+  for (const parte of extra[chave].split(/s+-s+|s*;s*/)) {
+    const nome = parte.trim();
+    const k = nome.toLowerCase();
+    if (nome && nome !== "-" && !vistos.has(k)) {
+      vistos.add(k);
+      saida.push(nome);
+    }
+  }
+  return saida;
+}
 
 // "Valor medido do estágio": coluna do relatório do SIMO com o valor medido da ação (o "Medido" do topo da ação).
 // Fica em "extra" (cabeçalho como no SIMO). Procura a coluna de valor cujo nome tem "medid", sem as de percentual.
@@ -56,12 +86,12 @@ export default async function CompatibilizacaoMedicoesPage() {
 
   const obras = await lerTudo<Obra>((de) => supabase.from("obras").select(COLUNAS).order("id_acao").range(de, de + 999) as unknown as PromiseLike<{ data: Obra[] | null; error: { message: string } | null }>);
   type Boletim = { id_acao: string; id_simo: string; numero: string | null; data: string | null; tipo: string | null; responsavel: string | null; valor: number | string };
-  type Leitura = { id_acao: string; lido_em: string; qtd_boletins: number; erro: string | null };
+  type Leitura = { id_acao: string; lido_em: string; qtd_boletins: number; erro: string | null; valor_medido: number | string | null };
   const boletins = await lerTudo<Boletim>((de) => supabase.from("medicoes_simo").select("id_acao, id_simo, numero, data, tipo, responsavel, valor").order("id_acao").order("id_simo").range(de, de + 999) as unknown as PromiseLike<{ data: Boletim[] | null; error: { message: string } | null }>);
-  const leituras = await lerTudo<Leitura>((de) => supabase.from("medicoes_leitura").select("id_acao, lido_em, qtd_boletins, erro").order("id_acao").range(de, de + 999) as unknown as PromiseLike<{ data: Leitura[] | null; error: { message: string } | null }>);
+  const leituras = await lerTudo<Leitura>((de) => supabase.from("medicoes_leitura").select("id_acao, lido_em, qtd_boletins, erro, valor_medido").order("id_acao").range(de, de + 999) as unknown as PromiseLike<{ data: Leitura[] | null; error: { message: string } | null }>);
 
   // Tabelas ainda não criadas (SQL 0098 não rodado): avisa em vez de quebrar a tela.
-  const semTabelas = /medicoes_(simo|leitura)/i.test((boletins.erro ?? "") + (leituras.erro ?? ""));
+  const semTabelas = /medicoes_(simo|leitura)|valor_medido/i.test((boletins.erro ?? "") + (leituras.erro ?? ""));
   const erro = obras.erro ?? (semTabelas ? null : (boletins.erro ?? leituras.erro));
 
   const porAcao = new Map<string, LinhaMedicao["boletins"]>();
@@ -79,6 +109,12 @@ export default async function CompatibilizacaoMedicoesPage() {
   const linhas: LinhaMedicao[] = obras.linhas.map((o) => {
     const l = leituraDe.get(o.id_acao);
     const bruto = chaveMedido && o.extra ? o.extra[chaveMedido] : null;
+    const doSimo = numero(l?.valor_medido ?? null);
+    const original = numero(o.valor_original);
+    const final = numero(o.valor_total) ?? original;
+    const recebimento = (o.data_receb_provisorio || o.data_receb_definitivo || "").slice(0, 4);
+    const municipios = listaSimo(o.extra, /munic/i);
+    const territorios = listaSimo(o.extra, /territ/i);
     return {
       id: o.id_acao,
       nome: o.nome_acao ?? "",
@@ -88,7 +124,21 @@ export default async function CompatibilizacaoMedicoesPage() {
       tipologia: o.tipologia,
       classificacao: o.classificacao,
       contratado: numero(o.valor_original),
-      medidoEstagio: bruto != null && String(bruto).trim() !== "" && String(bruto).trim() !== "-" ? dinheiroParaNumero(String(bruto)) : null,
+      // O valor lido do SIMO junto com os boletins vale mais; sem ele, a coluna do relatório (se houver).
+      medidoEstagio: doSimo ?? (bruto != null && String(bruto).trim() !== "" && String(bruto).trim() !== "-" ? dinheiroParaNumero(String(bruto)) : null),
+      pct: numero(o.percentual_execucao),
+      campos: {
+        eixo: [ou(o.eixo)],
+        conveniada: [ou(o.acao_conveniada)],
+        tipoOutros: [ou(o.tipo_outros_documentos)],
+        unidade: [ou(o.unidade_medida?.toUpperCase())],
+        anoCriacao: [(o.data_criacao ?? "").slice(0, 4) || VAZIO],
+        anoReceb: [recebimento || VAZIO],
+        vinculacao: [o.numero_automatico ? "Vinculada" : o.numero_siafe ? "Pendente" : "Sem número"],
+        aditivo: [original == null ? "Sem valor informado" : final! - original > 0.005 ? "Com aditivo" : final! - original < -0.005 ? "Com supressão" : "Sem aditivo"],
+        municipio: municipios.length ? municipios : [VAZIO],
+        territorio: territorios.length ? territorios : [VAZIO],
+      },
       lida: !!l,
       lidoEm: l?.lido_em ?? null,
       erroLeitura: l?.erro ?? null,

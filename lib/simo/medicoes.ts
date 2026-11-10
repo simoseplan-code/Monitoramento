@@ -59,14 +59,26 @@ export function lerBoletins(html: string): BoletimMedicao[] {
   return saida;
 }
 
-/** Abre a ação na sessão e lista os boletins de medição dela. `cookie` vem de loginSimo(). */
-export async function buscarBoletins(cookie: string, idAcao: string, timeoutMs = 30_000): Promise<BoletimMedicao[]> {
+export type ValoresAcao = { total: number | null; medido: number | null; pago: number | null };
+
+/** Lê o "Valor Total: R$ x | Medido: R$ y (100%) | Pago: R$ z (100%)" do topo da página da ação. */
+export function lerValoresDaAcao(html: string): ValoresAcao {
+  const t = texto(html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " "));
+  const pega = (rotulo: string): number | null => {
+    const m = t.match(new RegExp(rotulo + "\\s*:\\s*R\\$\\s*([\\d.]+,\\d{2})", "i"));
+    return m ? dinheiro(m[1]) : null;
+  };
+  return { total: pega("Valor Total"), medido: pega("Medido"), pago: pega("Pago") };
+}
+
+/** Abre a ação na sessão e lista os boletins de medição dela (e o valor medido do topo da ação). `cookie` vem de loginSimo(). */
+export async function buscarBoletins(cookie: string, idAcao: string, timeoutMs = 30_000): Promise<{ boletins: BoletimMedicao[]; valores: ValoresAcao }> {
   if (!/^\d{1,12}$/.test(idAcao)) throw new Error("ID da ação inválido.");
   let c = cookie;
   const abertura = await fetch(`${SIMO}/cahier/action/projects/show/id/${idAcao}`, { headers: { Cookie: c }, redirect: "manual", signal: AbortSignal.timeout(timeoutMs) });
   const novos = abertura.headers.getSetCookie?.() ?? [];
   if (novos.length) c = [c, ...novos.map((x) => x.split(";")[0])].join("; ");
-  await abertura.arrayBuffer();
+  const valores = lerValoresDaAcao(Buffer.from(await abertura.arrayBuffer()).toString("utf8"));
 
   const resp = await fetch(`${SIMO}/cahier/action/projects/measurement/index/`, {
     method: "POST",
@@ -82,7 +94,7 @@ export async function buscarBoletins(cookie: string, idAcao: string, timeoutMs =
   if (!resp.ok) throw new Error(`SIMO: falha ao listar medições da ação ${idAcao} (HTTP ${resp.status}).`);
   const html = await resp.text();
   if (/<html/i.test(html.slice(0, 300))) throw new Error("SIMO devolveu uma página inteira (sessão expirada?).");
-  return lerBoletins(html);
+  return { boletins: lerBoletins(html), valores };
 }
 
 // ---------- leitura em lote, gravando no banco ----------
@@ -117,7 +129,7 @@ export async function lerMedicoesLote(ids: string[]): Promise<ResultadoLoteMedic
     }
     const idAcao = unicos[i];
     try {
-      const boletins = await buscarBoletins(cookie, idAcao);
+      const { boletins, valores } = await buscarBoletins(cookie, idAcao);
       // Troca tudo da ação: boletim apagado no SIMO some daqui também.
       const { error: e1 } = await admin.from("medicoes_simo").delete().eq("id_acao", idAcao);
       if (e1) throw new Error(e1.message);
@@ -127,7 +139,7 @@ export async function lerMedicoesLote(ids: string[]): Promise<ResultadoLoteMedic
         );
         if (e2) throw new Error(e2.message);
       }
-      await admin.from("medicoes_leitura").upsert({ id_acao: idAcao, lido_em: new Date().toISOString(), qtd_boletins: boletins.length, erro: null });
+      await admin.from("medicoes_leitura").upsert({ id_acao: idAcao, lido_em: new Date().toISOString(), qtd_boletins: boletins.length, erro: null, valor_medido: valores.medido, valor_pago: valores.pago, valor_total: valores.total });
       resultado.lidas++;
       if (boletins.length) resultado.comBoletim++;
     } catch (e) {
