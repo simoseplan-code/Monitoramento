@@ -219,6 +219,60 @@ export function resumoPorTerritorio(acoes: AcaoT[], todos: string[]): { linhas: 
   return { linhas, geral };
 }
 
+// ---------- resumo por território, contando TODA passagem (visão pelo SIMO) ----------
+
+export type LinhaPassagem = {
+  territorio: string;
+  /** Ações que passam pelo território (conta a ação em cada território em que ela aparece). */
+  acoes: number;
+  /** Dessas, as que estão só neste território. */
+  exclusivas: number;
+  /** Dessas, as que também aparecem em outro território. */
+  tambem: number;
+  /** Valor contratado rateado: o valor da ação dividido pelos territórios em que ela aparece. */
+  investimento: number;
+  /** Quilômetros de traçado (KML) dentro do território, somando todas as ações que passam por ele. */
+  km: number;
+  /** Ações que passam por este território e têm traçado (KML). */
+  comTracado: number;
+};
+
+/**
+ * Cada ação conta em TODOS os territórios em que aparece (não só no principal).
+ * % das ações = ações do território / total de ações (distintas). Soma passa de 100% quando há ação em mais de um território.
+ * % do investimento = valor contratado rateado do território / valor contratado total. O valor da ação é dividido em partes
+ * iguais entre os territórios dela, então a soma dos territórios dá 100%.
+ */
+export function resumoPassagem(acoes: AcaoT[], todos: string[]): { linhas: LinhaPassagem[]; totalAcoes: number; totalInvestimento: number; totalComTracado: number } {
+  const mapa = new Map<string, LinhaPassagem>();
+  const nova = (territorio: string): LinhaPassagem => ({ territorio, acoes: 0, exclusivas: 0, tambem: 0, investimento: 0, km: 0, comTracado: 0 });
+  for (const t of todos) mapa.set(t, nova(t));
+  mapa.set(SEM_TERRITORIO, nova(SEM_TERRITORIO));
+  let totalInvestimento = 0;
+  let totalComTracado = 0;
+  for (const a of acoes) {
+    const lista = Array.from(new Set(passaPor(a)));
+    const valor = a.original ?? 0;
+    totalInvestimento += valor;
+    if (a.origem === "tracado") totalComTracado++;
+    for (const nome of lista) {
+      const l = mapa.get(nome) ?? nova(nome);
+      mapa.set(nome, l);
+      l.acoes++;
+      if (lista.length === 1) l.exclusivas++;
+      else l.tambem++;
+      l.investimento += valor / lista.length;
+      if (a.origem === "tracado") l.comTracado++;
+    }
+    for (const parte of a.partes) {
+      const alvo = mapa.get(parte.nome);
+      if (alvo) alvo.km += parte.metros / 1000;
+    }
+  }
+  const linhas = Array.from(mapa.values()).sort((a, b) => (a.territorio === SEM_TERRITORIO ? 1 : b.territorio === SEM_TERRITORIO ? -1 : b.acoes - a.acoes || a.territorio.localeCompare(b.territorio, "pt-BR")));
+  return { linhas, totalAcoes: acoes.length, totalInvestimento, totalComTracado };
+}
+
 // ---------- filtro gravado (vai e volta do banco como JSON) ----------
 
 export type EstadoGravado = { selecao: Record<string, string[] | null>; pctMinimo: number | null; busca: string; ids: string };

@@ -27,6 +27,7 @@ import {
   estadoTodos,
   filtrar,
   principal,
+  resumoPassagem,
   resumoPorTerritorio,
   valoresDosFiltros,
   vinculada,
@@ -70,6 +71,7 @@ function CorpoAnalise({ visao = "kml", acoes, territorios, filtroGravado, ehAdmi
 
   const filtradas = useMemo(() => filtrar(acoes, estado), [acoes, estado]);
   const resumo = useMemo(() => resumoPorTerritorio(filtradas, territorios), [filtradas, territorios]);
+  const passagem = useMemo(() => resumoPassagem(filtradas, territorios), [filtradas, territorios]);
   const cruzam = useMemo(() => filtradas.filter(cruza), [filtradas]);
 
   const mudar = (e: EstadoFiltros) => {
@@ -272,7 +274,7 @@ function CorpoAnalise({ visao = "kml", acoes, territorios, filtroGravado, ehAdmi
         ))}
       </nav>
 
-      {aba === "resumo" && <Resumo linhas={resumo.linhas} geral={resumo.geral} aoEscolher={filtrarTerritorio} />}
+      {aba === "resumo" && <ResumoPassagem r={passagem} aoEscolher={filtrarTerritorio} doSimo={visao === "simo"} />}
       {aba === "mapa" && <MapaTerritorios linhas={resumo.linhas} aoEscolher={filtrarTerritorio} />}
       {aba === "tracados" && <MapaTracados acoes={filtradas} filtros={descreverFiltros(estado, valores)} ehAdmin={ehAdmin} comPct={comPct} detalhes={modo === "hidricos"} />}
       {aba === "lista" && (
@@ -402,6 +404,90 @@ function Resumo({ linhas, geral, aoEscolher }: { linhas: LinhaTerritorio[]; gera
           </tr>
         </tfoot>
       </table>
+    </section>
+  );
+}
+
+// Visão pelo SIMO: só quantidade de ações e percentuais, contando a ação em TODO território em que ela aparece.
+function ResumoPassagem({ r, aoEscolher, doSimo }: { r: ReturnType<typeof resumoPassagem>; aoEscolher: (rotulo: string) => void; doSimo: boolean }) {
+  const maior = Math.max(1, ...r.linhas.map((l) => l.acoes));
+  const pct = (v: number, t: number) => (t > 0 ? ((v / t) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + "%" : "-");
+  const dicas = {
+    acoes: "Ações que passam por este território.\n\nA ação conta em TODO território em que aparece, não só no principal. Ex.: uma ação com municípios em Cocais e em Carnaubais conta 1 em Cocais e 1 em Carnaubais.\nPor isso a soma da coluna pode passar do total de ações.",
+    pctAcoes: "% das ações = ações do território ÷ total de ações (distintas) da análise.\n\nEx.: 12 ações no território de um total de 109 = 11%.\nComo uma ação pode estar em mais de um território, a soma dos percentuais pode passar de 100%.",
+    exclusivas: "Ações que aparecem SÓ neste território (todos os municípios dela estão nele).",
+    tambem: "Ações que passam por este território e também por pelo menos outro.",
+    km: "Quilômetros de traçado (KML) que ficam dentro do território, somando todas as ações que passam por ele.\n\nO traçado de uma ação que cruza territórios é dividido: cada território recebe só os km que caem nele. Ação sem KML não soma km.",
+    comTracado: "Ações que passam por este território e têm KML (traçado) anexado.",
+    invest: "% do investimento = valor contratado rateado do território ÷ valor contratado total.\n\nO valor contratado de cada ação é dividido em partes iguais entre os territórios em que ela aparece. Ex.: ação de R$ 300 mil em 3 territórios = R$ 100 mil em cada.\nAssim a soma dos territórios dá 100%.\nAção sem valor contratado informado no SIMO não entra no cálculo.",
+  };
+  return (
+    <section className="overflow-x-auto rounded-xl border border-black/5 bg-surface shadow-card">
+      <table className="w-full text-xs">
+        <thead>
+          <tr className="border-b border-black/5 bg-plane text-left text-[11px] uppercase tracking-wide text-ink-muted">
+            <th className="px-4 py-2.5">{doSimo ? "Território (dado do SIMO)" : "Território"}</th>
+            <th className="px-3 py-2.5 text-right" title={dicas.acoes}>
+              Ações que passam ⓘ
+            </th>
+            <th className="px-3 py-2.5 text-right" title={dicas.pctAcoes}>
+              % das ações ⓘ
+            </th>
+            <th className="px-3 py-2.5 text-right" title={dicas.exclusivas}>
+              Só neste território ⓘ
+            </th>
+            <th className="px-3 py-2.5 text-right" title={dicas.tambem}>
+              Também em outro ⓘ
+            </th>
+            <th className="px-3 py-2.5 text-right" title={dicas.invest}>
+              % do investimento ⓘ
+            </th>
+            <th className="px-3 py-2.5 text-right" title={dicas.km}>
+              Traçado (km) ⓘ
+            </th>
+            <th className="px-3 py-2.5 text-right" title={dicas.comTracado}>
+              Com traçado ⓘ
+            </th>
+          </tr>
+        </thead>
+        <tbody>
+          {r.linhas.map((l) => (
+            <tr key={l.territorio} className="border-b border-black/5 last:border-0 hover:bg-plane/60">
+              <td className="px-4 py-2">
+                <button onClick={() => aoEscolher(rotuloTerritorio(l.territorio))} className="flex items-center gap-2 font-medium text-ink-primary hover:underline" title="Ver as ações que passam por este território">
+                  <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: COR_TERRITORIO[l.territorio] ?? "#6b7280" }} />
+                  {rotuloTerritorio(l.territorio)}
+                </button>
+                <div className="mt-1 h-1 rounded bg-black/5">
+                  <div className="h-1 rounded" style={{ width: `${(l.acoes / maior) * 100}%`, background: COR_TERRITORIO[l.territorio] ?? "#6b7280" }} />
+                </div>
+              </td>
+              <td className="tabular px-3 py-2 text-right text-ink-secondary">{inteiro(l.acoes)}</td>
+              <td className="tabular px-3 py-2 text-right text-ink-secondary">{pct(l.acoes, r.totalAcoes)}</td>
+              <td className="tabular px-3 py-2 text-right text-ink-secondary">{inteiro(l.exclusivas)}</td>
+              <td className="tabular px-3 py-2 text-right text-ink-secondary">{inteiro(l.tambem)}</td>
+              <td className="tabular px-3 py-2 text-right text-ink-secondary">{pct(l.investimento, r.totalInvestimento)}</td>
+              <td className="tabular px-3 py-2 text-right text-ink-secondary">{l.km.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</td>
+              <td className="tabular px-3 py-2 text-right text-ink-secondary">{inteiro(l.comTracado)}</td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot>
+          <tr className="border-t border-black/10 bg-plane font-semibold text-ink-primary">
+            <td className="px-4 py-2.5">Total (ações distintas)</td>
+            <td className="tabular px-3 py-2.5 text-right">{inteiro(r.totalAcoes)}</td>
+            <td className="tabular px-3 py-2.5 text-right">100%</td>
+            <td className="px-3 py-2.5 text-right">-</td>
+            <td className="px-3 py-2.5 text-right">-</td>
+            <td className="tabular px-3 py-2.5 text-right">100%</td>
+            <td className="tabular px-3 py-2.5 text-right">{r.linhas.reduce((t, l) => t + l.km, 0).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</td>
+            <td className="tabular px-3 py-2.5 text-right">{inteiro(r.linhas.reduce((t, l) => t + l.comTracado, 0) ? r.totalComTracado : 0)}</td>
+          </tr>
+        </tfoot>
+      </table>
+      <p className="border-t border-black/5 px-4 py-2 text-[11px] text-ink-muted">
+        A ação conta em todo território em que aparece (passe o mouse nos títulos para ver as fórmulas). Por isso a soma da coluna de ações e dos % de ações pode passar do total; o % do investimento divide o valor da ação entre os territórios e fecha em 100%.
+      </p>
     </section>
   );
 }
