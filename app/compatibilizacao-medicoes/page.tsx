@@ -87,9 +87,9 @@ export default async function CompatibilizacaoMedicoesPage() {
 
   const obras = await lerTudo<Obra>((de) => supabase.from("obras").select(COLUNAS).order("id_acao").range(de, de + 999) as unknown as PromiseLike<{ data: Obra[] | null; error: { message: string } | null }>);
   type Boletim = { id_acao: string; id_simo: string; numero: string | null; data: string | null; tipo: string | null; responsavel: string | null; valor: number | string };
-  type Leitura = { id_acao: string; lido_em: string; qtd_boletins: number; erro: string | null; valor_medido: number | string | null };
+  type Leitura = { id_acao: string; lido_em: string; qtd_boletins: number; erro: string | null; valor_medido: number | string | null; valor_total: number | string | null };
   const boletins = await lerTudo<Boletim>((de) => supabase.from("medicoes_simo").select("id_acao, id_simo, numero, data, tipo, responsavel, valor").order("id_acao").order("id_simo").range(de, de + 999) as unknown as PromiseLike<{ data: Boletim[] | null; error: { message: string } | null }>);
-  const leituras = await lerTudo<Leitura>((de) => supabase.from("medicoes_leitura").select("id_acao, lido_em, qtd_boletins, erro, valor_medido").order("id_acao").range(de, de + 999) as unknown as PromiseLike<{ data: Leitura[] | null; error: { message: string } | null }>);
+  const leituras = await lerTudo<Leitura>((de) => supabase.from("medicoes_leitura").select("id_acao, lido_em, qtd_boletins, erro, valor_medido, valor_total").order("id_acao").range(de, de + 999) as unknown as PromiseLike<{ data: Leitura[] | null; error: { message: string } | null }>);
 
   // Tabelas ainda não criadas (SQL 0098 não rodado): avisa em vez de quebrar a tela.
   const semTabelas = /medicoes_(simo|leitura)|valor_medido/i.test((boletins.erro ?? "") + (leituras.erro ?? ""));
@@ -128,6 +128,8 @@ export default async function CompatibilizacaoMedicoesPage() {
       // O valor lido do SIMO junto com os boletins vale mais; sem ele, a coluna do relatório (se houver).
       medidoEstagio: doSimo ?? (bruto != null && String(bruto).trim() !== "" && String(bruto).trim() !== "-" ? dinheiroParaNumero(String(bruto)) : null),
       pct: numero(o.percentual_execucao),
+      // Valor total da ação (com aditivos): o do relatório; sem ele, o valor original; sem os dois, o "Valor Total" lido do SIMO.
+      valorBase: [numero(o.valor_total), original, numero(l?.valor_total ?? null)].find((v) => v != null && v > 0) ?? null,
       unidade: o.unidade_medida && o.unidade_medida.trim() && o.unidade_medida.trim() !== "-" ? o.unidade_medida.trim().toUpperCase() : null,
       quantidade: numero(o.quantidade),
       campos: {

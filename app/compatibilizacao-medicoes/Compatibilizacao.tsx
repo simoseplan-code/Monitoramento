@@ -16,6 +16,8 @@ export type LinhaMedicao = {
   classificacao: string | null;
   contratado: number | null;
   pct: number | null;
+  /** Valor total da ação (base da estimativa de execução por ano). */
+  valorBase: number | null;
   unidade: string | null;
   quantidade: number | null;
   /** Valores de filtro vindos das colunas da ação (cada chave guarda uma lista; vazio = "(vazio)"). */
@@ -108,7 +110,6 @@ export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas }: {
   const router = useRouter();
   const [tolerancia, setTolerancia] = useState(10);
   const [aba, setAba] = useState<"compat" | "estimativa">("compat");
-  const [base, setBase] = useState<"pct" | "total">("pct");
   const [pctMinimo, setPctMinimo] = useState<number | null>(null);
   const [busca, setBusca] = useState("");
   const [ids, setIds] = useState("");
@@ -197,18 +198,19 @@ export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas }: {
     return t;
   }, [filtradas]);
 
-  // Estimativa de execução por ano: a quantidade executada da ação é repartida entre os anos na proporção dos boletins de cada ano.
+  // Estimativa de execução por ano: quantidade da ação × (boletins do ano ÷ valor total da ação).
+  // Ex.: valor total 1.000, 250 m², boletim de 500 em 2025 → 125 m² em 2025.
   const estimativa = useMemo(() => {
     const colunas = [...ANOS, OUTROS] as string[];
     const linhasEst = filtradas.map((l) => {
-      const estimavel = l.lida && l.soma > 0 && (l.quantidade ?? 0) > 0 && !!l.unidade;
-      const fracao = base === "pct" ? Math.max(0, Math.min(1, l.pct ?? 1)) : 1;
-      const executada = estimavel ? (l.quantidade as number) * fracao : 0;
+      const estimavel = l.lida && l.soma > 0 && (l.quantidade ?? 0) > 0 && !!l.unidade && (l.valorBase ?? 0) > 0;
       const parte: Record<string, number> = {};
       const qtd: Record<string, number> = {};
+      let executada = 0;
       for (const c of colunas) {
-        parte[c] = estimavel ? l.porAno[c] / l.soma : 0;
-        qtd[c] = executada * parte[c];
+        parte[c] = estimavel ? l.porAno[c] / (l.valorBase as number) : 0;
+        qtd[c] = estimavel ? (l.quantidade as number) * parte[c] : 0;
+        executada += qtd[c];
       }
       return { l, estimavel, executada, parte, qtd };
     });
@@ -228,7 +230,7 @@ export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas }: {
       grupos: Array.from(porUnidade.values()).sort((a, b) => b.acoes - a.acoes),
       semEstimativa: linhasEst.filter((e) => !e.estimavel).length,
     };
-  }, [filtradas, base]);
+  }, [filtradas]);
 
   const ativos = Object.entries(selecao).filter(([, v]) => v !== null).length + (busca ? 1 : 0) + (ids ? 1 : 0) + (pctMinimo != null ? 1 : 0);
   const totalPaginas = Math.max(1, Math.ceil(filtradas.length / PAGINA));
@@ -274,11 +276,11 @@ export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas }: {
 
   function exportarEstimativa() {
     const cols = estimativa.colunas;
-    const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Unidade de medida", "Quantidade", "% de execução", "Quantidade executada (base)", ...cols.map((c) => `% ${c}`), ...cols.map((c) => `Executado estimado ${c}`), "Soma dos boletins"];
+    const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Unidade de medida", "Quantidade", "Valor total da ação", "Executado estimado (total)", ...cols.map((c) => `% do valor total ${c}`), ...cols.map((c) => `Executado estimado ${c}`), "Soma dos boletins"];
     const dados = estimativa.linhas
       .filter((e) => e.estimavel)
       .map((e) =>
-        [e.l.id, e.l.nome, e.l.orgao, e.l.unidade, num(e.l.quantidade), e.l.pct != null ? (e.l.pct * 100).toFixed(1).replace(".", ",") + "%" : "", num(e.executada), ...cols.map((c) => (e.parte[c] * 100).toFixed(1).replace(".", ",") + "%"), ...cols.map((c) => num(e.qtd[c])), num(e.l.soma)].map(csvEscape).join(";")
+        [e.l.id, e.l.nome, e.l.orgao, e.l.unidade, num(e.l.quantidade), num(e.l.valorBase), num(e.executada), ...cols.map((c) => (e.parte[c] * 100).toFixed(1).replace(".", ",") + "%"), ...cols.map((c) => num(e.qtd[c])), num(e.l.soma)].map(csvEscape).join(";")
       );
     const csv = "\uFEFF" + [colunas.join(";"), ...dados].join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
@@ -512,17 +514,9 @@ export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas }: {
         <>
           <section className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
             <p className="text-xs text-ink-secondary">
-              <strong>Como é calculado:</strong> para cada ação, a quantidade executada é repartida entre os anos na proporção dos boletins de medição de cada ano.
-              Ex.: ação de 10.000 m² executada 100%, com boletins de R$ 600 mil em 2023 e R$ 400 mil em 2024 → 6.000 m² em 2023 (60%) e 4.000 m² em 2024 (40%).
-              Só entram ações já lidas no SIMO, com boletins, unidade de medida e quantidade. Unidades diferentes (m², km…) não se somam: ficam em linhas separadas.
+              <strong>Como é calculado:</strong> quantidade da ação × (boletins do ano ÷ valor total da ação). Ex.: valor total R$ 1.000, 250 m² e boletim de R$ 500 em 2025 → 125 m² em 2025 (50% do valor total).
+              O valor total é o da ação com aditivos (coluna Valor Total do relatório); se estiver vazio, uso o valor original e, por último, o Valor Total lido do SIMO. Só entram ações já lidas no SIMO, com boletins, unidade de medida e quantidade. Unidades diferentes (m², km…) não se somam: ficam em linhas separadas.
             </p>
-            <label className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink-secondary">
-              Quantidade que é repartida:
-              <select value={base} onChange={(e) => setBase(e.target.value as "pct" | "total")} className={campo}>
-                <option value="pct">Quantidade × % de execução da ação (se a ação não tem %, vale 100%)</option>
-                <option value="total">Quantidade total da ação (ignora o % de execução)</option>
-              </select>
-            </label>
             <p className="mt-2 text-[11px] text-ink-muted">
               {inteiro(estimativa.linhas.length - estimativa.semEstimativa)} ação(ões) com estimativa · {inteiro(estimativa.semEstimativa)} sem estimativa (não lida, sem boletim, sem quantidade ou sem unidade).
             </p>
@@ -570,7 +564,7 @@ export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas }: {
                   <th className="px-3 py-2.5">Ação</th>
                   <th className="px-3 py-2.5">Unidade</th>
                   <th className="px-3 py-2.5 text-right">Quantidade</th>
-                  <th className="px-3 py-2.5 text-right">% exec.</th>
+                  <th className="px-3 py-2.5 text-right" title="Valor total da ação (base da conta).">Valor total ⓘ</th>
                   <th className="px-3 py-2.5 text-right" title="Quantidade que foi repartida entre os anos.">Executado ⓘ</th>
                   {estimativa.colunas.map((c) => (
                     <th key={c} className="px-3 py-2.5 text-right">{c}</th>
@@ -589,7 +583,7 @@ export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas }: {
                       </td>
                       <td className="px-3 py-2">{e.l.unidade}</td>
                       <td className="tabular px-3 py-2 text-right">{(e.l.quantidade as number).toLocaleString("pt-BR", { maximumFractionDigits: 2 })}</td>
-                      <td className="tabular px-3 py-2 text-right text-ink-secondary">{e.l.pct != null ? (e.l.pct * 100).toLocaleString("pt-BR", { maximumFractionDigits: 0 }) + "%" : "-"}</td>
+                      <td className="tabular px-3 py-2 text-right text-ink-secondary">{brl(e.l.valorBase as number)}</td>
                       <td className="tabular px-3 py-2 text-right font-medium">{e.executada.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</td>
                       {estimativa.colunas.map((c) => (
                         <td key={c} className="tabular px-3 py-2 text-right text-ink-secondary">
