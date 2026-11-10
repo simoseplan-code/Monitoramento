@@ -30,6 +30,7 @@ import {
   Map as MapaIcon,
   Route,
   Droplets,
+  Scale,
   type LucideIcon,
 } from "lucide-react";
 import { SobrePainel } from "./SobrePainel";
@@ -44,7 +45,7 @@ type NavItem = {
   grupo?: GrupoMenu;
 };
 
-type GrupoMenu = "gestao" | "retiradas" | "diarias" | "siafe" | "georef";
+type GrupoMenu = "gestao" | "retiradas" | "diarias" | "siafe" | "georef" | "medicoes";
 
 // Classes escritas por extenso para o Tailwind encontrá-las.
 const GRUPOS: Record<GrupoMenu, { titulo: string; faixa: string; texto: string }> = {
@@ -53,6 +54,7 @@ const GRUPOS: Record<GrupoMenu, { titulo: string; faixa: string; texto: string }
   siafe: { titulo: "Verificação SIAFE", faixa: "border-l-series-7", texto: "text-series-7" },
   diarias: { titulo: "Verificações diárias", faixa: "border-l-series-6", texto: "text-series-6" },
   georef: { titulo: "Georreferenciamento", faixa: "border-l-series-4", texto: "text-status-warning" },
+  medicoes: { titulo: "Medições", faixa: "border-l-series-3", texto: "text-series-3" },
 };
 
 export function Sidebar({
@@ -110,6 +112,8 @@ export function Sidebar({
     { href: "/analise-territorio", label: "Análise por território", icon: MapaIcon, grupo: "georef" },
     { href: "/mapa-geral", label: "Mapa geral", icon: Route, adminOnly: true, grupo: "georef" },
     { href: "/recursos-hidricos", label: "Recursos Hídricos", icon: Droplets, grupo: "georef" },
+    // Medições
+    { href: "/compatibilizacao-medicoes", label: "Compatibilização de medições", icon: Scale, grupo: "medicoes" },
   ];
 
   const iniciais = nome
