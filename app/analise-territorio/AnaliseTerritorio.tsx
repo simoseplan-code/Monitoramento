@@ -10,6 +10,7 @@ import { adicionarBases } from "@/lib/mapaBase";
 import { FiltroCheckbox } from "@/components/FiltroCheckbox";
 import { AtualizarBairros } from "@/components/AtualizarBairros";
 import { JanelaMapa } from "@/app/verificacao-bairros/VerificacaoBairros";
+import { AnaliseSimo } from "./AnaliseSimo";
 import { COR_TERRITORIO, SEM_TERRITORIO, corDoStatus, rotuloTerritorio } from "@/lib/territorios";
 import { grupoDaTipologia, htmlMarcador, svgSimbolo, type GrupoTipologia } from "@/lib/tipologiaMapa";
 import {
@@ -67,6 +68,8 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
   const [aviso, setAviso] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
   const [aba, setAba] = useState<Aba>(modo === "analise" ? "resumo" : "tracados");
   const [pagina, setPagina] = useState(1);
+  // Duas visões: por KML (a de sempre) e pelos dados do SIMO (só as ações sem KML).
+  const [visao, setVisao] = useState<"kml" | "simo">("kml");
 
   const filtradas = useMemo(() => filtrar(acoes, estado), [acoes, estado]);
   const resumo = useMemo(() => resumoPorTerritorio(filtradas, territorios), [filtradas, territorios]);
@@ -127,7 +130,7 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
 
   function exportar() {
     const lista = aba === "cruzam" ? cruzam : filtradas;
-    const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Tipologia", "Unidade de medida", "Quantidade", "Município(s)", "Status", "Estágio Atual", "Território principal", (comPct ? "Territórios (% do traçado)" : "Territórios"), "Localizada por", "Extensão (km)", "Vinculação SIAFE", "SIAFE automático", "% Execução", "Ano de criação", "Ano de recebimento", "Valor contratado", "Valor pago total"];
+    const colunas = ["ID da Ação", "Nome da Ação", "Órgão", "Tipologia", "Unidade de medida", "Quantidade", "Município(s)", "Município SIMO", "Território SIMO", "Status", "Estágio Atual", "Território principal", (comPct ? "Territórios (% do traçado)" : "Territórios"), "Localizada por", "Extensão (km)", "Vinculação SIAFE", "SIAFE automático", "% Execução", "Ano de criação", "Ano de recebimento", "Valor contratado", "Valor pago total"];
     const linhas = lista.map((a) =>
       [
         a.id,
@@ -137,6 +140,8 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
         a.unidade,
         a.quantidade != null ? a.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "",
         a.municipios.length ? descricaoDosMunicipios(a, comPct) : "",
+        a.simoMunicipio,
+        a.simoTerritorio,
         a.status,
         a.estagio,
         rotuloTerritorio(principal(a)),
@@ -167,6 +172,23 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
 
   return (
     <div className="space-y-4">
+      {modo === "analise" && (
+        <nav className="flex flex-wrap gap-2">
+          {([["kml", "Análise por KML"], ["simo", "Análise pelo SIMO (sem KML)"]] as const).map(([chave, rotulo]) => (
+            <button
+              key={chave}
+              onClick={() => setVisao(chave)}
+              className={"rounded-full px-4 py-2 text-xs font-semibold " + (visao === chave ? "bg-series-1 text-white" : "border border-black/10 bg-surface text-ink-secondary hover:bg-plane")}
+            >
+              {rotulo}
+            </button>
+          ))}
+        </nav>
+      )}
+      {modo === "analise" && visao === "simo" ? (
+        <AnaliseSimo acoes={acoes} />
+      ) : (
+      <>
       <section className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
         <p className="mb-3 flex items-start gap-2 rounded-lg border border-status-warning/30 bg-status-warning-bg px-3 py-2 text-xs font-medium text-status-warning">
           <AlertTriangle size={15} className="mt-px shrink-0" />
@@ -276,6 +298,8 @@ export function AnaliseTerritorio({ acoes, territorios, filtroGravado, ehAdmin, 
           <ResumoSimples acoes={cruzam} />
           <ListaAcoes acoes={cruzam} pagina={pagina} aoMudarPagina={setPagina} comPct={comPct} />
         </div>
+      )}
+      </>
       )}
     </div>
   );

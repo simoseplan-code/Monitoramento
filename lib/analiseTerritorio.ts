@@ -41,6 +41,11 @@ export type AcaoT = {
   extensaoM: number;
   /** Municípios em que cai o traçado, do maior para o menor. */
   municipios: { nome: string; pct: number }[];
+  /** Colunas Localização (município) e (território) como vêm do SIMO (null = vazio ou "-"). */
+  simoMunicipio: string | null;
+  simoTerritorio: string | null;
+  /** Território do município informado no SIMO, segundo a tabela de municípios do app (null = município não reconhecido). */
+  territorioDoMunicipioSimo: string | null;
 };
 
 const ou = (v: string | null | undefined) => (v && v.trim() !== "" && v.trim() !== "-" ? v.trim() : VAZIO);

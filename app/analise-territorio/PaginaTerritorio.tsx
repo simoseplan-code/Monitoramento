@@ -4,6 +4,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { AppShell } from "@/components/layout/AppShell";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { territoriosDasAcoes, territorioPorMunicipio } from "@/lib/territoriosDados";
+import { normalizarNome } from "@/lib/territorios";
 import type { AcaoT } from "@/lib/analiseTerritorio";
 import { dinheiroParaNumero } from "@/lib/simo/parseCsv";
 import { ehRecursoHidrico } from "@/lib/hidricos";
@@ -49,6 +50,15 @@ const limpo = (v: string | null) => {
   const s = (v ?? "").trim();
   return s && s !== "-" ? s : null;
 };
+
+// Colunas "Localização (município)" e "Localização (território)" do relatório do SIMO (ficam em "extra", cabeçalho como no SIMO).
+function localizacaoSimo(extra: Record<string, string> | null): { municipio: string | null; territorio: string | null } {
+  if (!extra) return { municipio: null, territorio: null };
+  const chaves = Object.keys(extra);
+  const chM = chaves.find((k) => /localiza/i.test(k) && /munic/i.test(k)) ?? chaves.find((k) => /munic/i.test(k) && !/bairro/i.test(k));
+  const chT = chaves.find((k) => /localiza/i.test(k) && /territ/i.test(k)) ?? chaves.find((k) => /territ/i.test(k));
+  return { municipio: chM ? limpo(extra[chM]) : null, territorio: chT ? limpo(extra[chT]) : null };
+}
 
 // Aberta a toda a equipe aprovada. Todas as ações (as desconsideradas em "Todas as análises" já ficam de fora pelo banco).
 // Serve a três páginas: "Análise por território", "Mapa geral" (só o mapa de traçados, com os mesmos filtros) e
@@ -101,7 +111,8 @@ export async function PaginaTerritorio({ modo }: { modo: "analise" | "mapa" | "h
   const extras = new Map<string, Record<string, string> | null>(linhas.map((l) => [l.id_acao, l.extra]));
   const { porAcao, erro: erroTerr } = await territoriosDasAcoes(dados, extras);
   erro = erro ?? erroTerr;
-  const territorios = Array.from(new Set((await territorioPorMunicipio()).values())).sort((a, b) => a.localeCompare(b, "pt-BR"));
+  const mapaMunicipios = await territorioPorMunicipio();
+  const territorios = Array.from(new Set(mapaMunicipios.values())).sort((a, b) => a.localeCompare(b, "pt-BR"));
 
   // Filtro gravado: UM SÓ, vale para todos (quem gravou por último). Lido com o acesso do servidor.
   const admin = createAdminClient();
@@ -115,6 +126,7 @@ export async function PaginaTerritorio({ modo }: { modo: "analise" | "mapa" | "h
 
   const acoes: AcaoT[] = linhas.map((l) => {
     const t = porAcao.get(l.id_acao);
+    const loc = localizacaoSimo(l.extra);
     return {
       id: l.id_acao,
       nome: l.nome_acao ?? "",
@@ -141,6 +153,9 @@ export async function PaginaTerritorio({ modo }: { modo: "analise" | "mapa" | "h
       municipios: t?.municipios ?? [],
       origem: t?.origem ?? "nenhuma",
       extensaoM: t?.extensaoM ?? 0,
+      simoMunicipio: loc.municipio,
+      simoTerritorio: loc.territorio,
+      territorioDoMunicipioSimo: loc.municipio ? mapaMunicipios.get(normalizarNome(loc.municipio)) ?? null : null,
     };
   });
 
