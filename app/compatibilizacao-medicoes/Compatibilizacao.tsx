@@ -299,18 +299,27 @@ export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas, fil
       }
       return { l, estimavel, executada, parte, qtd };
     });
-    const porUnidade = new Map<string, { unidade: string; acoes: number; executada: number; qtd: Record<string, number> }>();
+    const porUnidade = new Map<string, { unidade: string; acoes: number; executada: number; qtd: Record<string, number>; maior: { id: string; valor: number } | null }>();
     for (const e of linhasEst) {
       if (!e.estimavel) continue;
       const u = e.l.unidade as string;
-      const g = porUnidade.get(u) ?? { unidade: u, acoes: 0, executada: 0, qtd: Object.fromEntries(colunas.map((c) => [c, 0])) };
+      const g = porUnidade.get(u) ?? { unidade: u, acoes: 0, executada: 0, qtd: Object.fromEntries(colunas.map((c) => [c, 0])), maior: null };
       g.acoes++;
+      if (!g.maior || e.executada > g.maior.valor) g.maior = { id: e.l.id, valor: e.executada };
       g.executada += e.executada;
       for (const c of colunas) g.qtd[c] += e.qtd[c];
       porUnidade.set(u, g);
     }
+    // Totais em reais das ações com estimativa (mesma base da conta): valor total, boletins e boletins por ano.
+    const comEst = linhasEst.filter((e) => e.estimavel);
+    const reais = {
+      valorTotal: comEst.reduce((t, e) => t + (e.l.valorBase ?? 0), 0),
+      boletins: comEst.reduce((t, e) => t + e.l.soma, 0),
+      porAno: Object.fromEntries(colunas.map((c) => [c, comEst.reduce((t, e) => t + e.l.porAno[c], 0)])) as Record<string, number>,
+    };
     return {
       colunas,
+      reais,
       linhas: linhasEst,
       grupos: Array.from(porUnidade.values()).sort((a, b) => b.acoes - a.acoes),
       semEstimativa: linhasEst.filter((e) => !e.estimavel).length,
@@ -627,6 +636,45 @@ export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas, fil
               {inteiro(estimativa.linhas.length - estimativa.semEstimativa)} ação(ões) com estimativa · {inteiro(estimativa.semEstimativa)} sem estimativa (não lida, sem boletim, sem quantidade ou sem unidade).
             </p>
           </section>
+
+          <section className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-6">
+            {cartao("Ações com estimativa", inteiro(estimativa.linhas.length - estimativa.semEstimativa), "Ações lidas no SIMO, com boletim, quantidade, unidade e valor total.")}
+            {cartao("Sem estimativa", inteiro(estimativa.semEstimativa), "Não lida, sem boletim, sem quantidade, sem unidade ou sem valor total.", estimativa.semEstimativa ? "text-status-warning" : undefined)}
+            {cartao("Valor total das ações", brl(estimativa.reais.valorTotal), "Soma do valor total (com aditivos) das ações com estimativa.")}
+            {cartao("Soma dos boletins", brl(estimativa.reais.boletins), "Soma de todos os boletins das ações com estimativa.")}
+            {cartao("% medido do valor total", estimativa.reais.valorTotal > 0 ? ((estimativa.reais.boletins / estimativa.reais.valorTotal) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + "%" : "-", "Soma dos boletins ÷ valor total das ações com estimativa.")}
+            {estimativa.colunas.map((c) => cartao(`Boletins ${c}`, brl(estimativa.reais.porAno[c]), `Soma dos boletins de ${c} das ações com estimativa.`))}
+          </section>
+
+          {estimativa.grupos.length > 0 && (
+            <section className="grid grid-cols-1 gap-3 md:grid-cols-2 xl:grid-cols-3">
+              {estimativa.grupos.slice(0, 6).map((g) => (
+                <div key={g.unidade} className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
+                  <div className="flex items-baseline justify-between">
+                    <p className="text-sm font-semibold text-ink-primary">{g.unidade}</p>
+                    <p className="text-[11px] text-ink-muted">{inteiro(g.acoes)} ação(ões)</p>
+                  </div>
+                  <p className="tabular mt-1 text-xl font-semibold text-series-3">
+                    {g.executada.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} <span className="text-xs font-medium text-ink-muted">{g.unidade} executados (estimado)</span>
+                  </p>
+                  <div className="mt-2 grid grid-cols-5 gap-1 text-center">
+                    {estimativa.colunas.map((c) => (
+                      <div key={c} className="rounded-lg bg-plane px-1 py-1.5" title={c + ": " + g.qtd[c].toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " " + g.unidade}>
+                        <p className="text-[10px] text-ink-muted">{c === OUTROS ? "Outros" : c}</p>
+                        <p className="tabular text-[11px] font-semibold text-ink-primary">{g.executada > 0 ? ((g.qtd[c] / g.executada) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 0 }) + "%" : "-"}</p>
+                      </div>
+                    ))}
+                  </div>
+                  {g.maior && (
+                    <p className="mt-2 text-[11px] text-ink-muted" title="Útil para achar quantidade digitada errada no SIMO.">
+                      Maior ação: <IdAcaoLink id={g.maior.id} /> com {g.maior.valor.toLocaleString("pt-BR", { maximumFractionDigits: 1 })} {g.unidade}
+                      {g.executada > 0 && g.maior.valor / g.executada > 0.5 && g.acoes > 2 ? <strong className="text-status-critical"> ({((g.maior.valor / g.executada) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}% do total: confira)</strong> : null}
+                    </p>
+                  )}
+                </div>
+              ))}
+            </section>
+          )}
 
           <section className="overflow-x-auto rounded-xl border border-black/5 bg-surface shadow-card">
             <table className="w-full text-xs">
