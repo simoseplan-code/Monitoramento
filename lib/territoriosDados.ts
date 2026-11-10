@@ -82,12 +82,31 @@ export async function territoriosDasAcoes(supabase: SupabaseClient, extras: Map<
     porAcao.set(id, { partes, origem: "tracado", extensaoM: extensoes.get(id) ?? 0, municipios });
   }
 
-  // Sem traçado: o município que o SIMO informou (se a coluna existir), contando a ação inteira nele.
+  // Sem traçado: o município que o SIMO informou (se a coluna existir). O SIMO pode juntar vários na mesma célula com " - "
+  // (ex.: "PIRACURUCA - PIRACURUCA", "TERESINA - UNIÃO"): separa, tira repetidos e divide a ação em partes iguais entre os territórios.
   for (const [id, extra] of extras) {
     if (porAcao.has(id) || !extra) continue;
-    const chave = Object.keys(extra).find((k) => /munic/i.test(k) && !/bairro/i.test(k));
-    const t = chave ? mapa.get(normalizarNome(extra[chave] ?? "")) : undefined;
-    if (t) porAcao.set(id, { partes: [{ nome: t, pct: 1, metros: 0, pontos: 0 }], origem: "municipio", extensaoM: 0, municipios: [{ nome: (extra[chave as string] ?? "").trim(), pct: 1 }] });
+    const chaves = Object.keys(extra);
+    const chave = chaves.find((k) => /localiza/i.test(k) && /munic/i.test(k)) ?? chaves.find((k) => /munic/i.test(k) && !/bairro/i.test(k));
+    if (!chave) continue;
+    const nomes: string[] = [];
+    const vistos = new Set<string>();
+    for (const p of (extra[chave] ?? "").split(/s+-s+|s*;s*/)) {
+      const nome = p.trim();
+      const n = normalizarNome(nome);
+      if (nome && !vistos.has(n)) {
+        vistos.add(n);
+        nomes.push(nome);
+      }
+    }
+    const territorios = Array.from(new Set(nomes.map((n) => mapa.get(normalizarNome(n))).filter((t): t is string => !!t)));
+    if (territorios.length === 0) continue;
+    porAcao.set(id, {
+      partes: territorios.map((nome) => ({ nome, pct: 1 / territorios.length, metros: 0, pontos: 0 })),
+      origem: "municipio",
+      extensaoM: 0,
+      municipios: nomes.map((nome) => ({ nome, pct: 1 / nomes.length })),
+    });
   }
   return { porAcao, erro };
 }

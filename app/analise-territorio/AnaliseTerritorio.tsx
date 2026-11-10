@@ -175,7 +175,7 @@ function CorpoAnalise({ visao = "kml", acoes, territorios, filtroGravado, ehAdmi
           <span>
             {visao === "simo" ? (
               <>
-                <strong>Atenção:</strong> esta visão analisa só as ações SEM LOCALIZAÇÃO (sem KML anexado), pelos dados de município e território informados no SIMO. Quando o KML é anexado, a ação sai daqui e passa para a análise por KML.
+                <strong>Atenção:</strong> esta visão analisa só as ações SEM KML anexado (sem localização por traçado), pelos dados de município e território informados no SIMO. Quando o KML é anexado, a ação sai daqui e passa para a análise por KML.
               </>
             ) : (
               <>
@@ -305,7 +305,7 @@ export function AnaliseTerritorio(props: Omit<PropsCorpo, "visao">) {
       porNome.set(normalizarNome(rotuloTerritorio(t)), t);
     }
     return acoes
-      .filter((a) => a.origem === "nenhuma")
+      .filter((a) => a.origem !== "tracado")
       .map((a): AcaoT => {
         // Territórios: os que o SIMO informou (se são dos 12); sem eles, os dos municípios informados. Dividem a ação em partes iguais.
         const doSimo = a.simoTerritoriosLista.map((t) => porNome.get(normalizarNome(t))).filter((t): t is string => !!t);
