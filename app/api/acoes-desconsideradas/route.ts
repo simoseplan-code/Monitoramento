@@ -5,7 +5,7 @@ import { TELAS_DESCONSIDERADAS, listarDesconsideradas } from "@/lib/desconsidera
 export const runtime = "nodejs";
 
 // Listas compartilhadas de IDs desconsiderados das análises (uma por análise, mais a "todas").
-// Qualquer pessoa aprovada mexe nas listas abertas; "todas" e "obras concluídas" são só de admin e chefe.
+// Qualquer pessoa aprovada mexe nas listas abertas.
 const LIMITE_IDS = 5000;
 
 export async function POST(request: NextRequest) {

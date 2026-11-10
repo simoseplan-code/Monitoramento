@@ -2,9 +2,9 @@
 // pode ser usado também nas telas (navegador).
 
 export const TELAS_DESCONSIDERADAS = [
-  { chave: "todas", rotulo: "Todas as análises", restrita: true, ajuda: "Os IDs daqui saem de TODAS as análises abaixo." },
+  { chave: "todas", rotulo: "Todas as análises", restrita: false, ajuda: "Os IDs daqui saem de TODAS as análises abaixo." },
   { chave: "nao_vinculadas", rotulo: "Não vinculadas SIAFE", restrita: false, ajuda: "Saem só da aba Não vinculadas SIAFE." },
-  { chave: "concluidas", rotulo: "Obras concluídas", restrita: true, ajuda: "Saem só da Análise de obras concluídas." },
+  { chave: "concluidas", rotulo: "Obras concluídas", restrita: false, ajuda: "Saem só da Análise de obras concluídas." },
   { chave: "bairros", rotulo: "Verificação de bairros", restrita: false, ajuda: "Saem só da Verificação de bairros." },
 ] as const;
 
