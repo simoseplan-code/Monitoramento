@@ -91,7 +91,7 @@ export async function territoriosDasAcoes(supabase: SupabaseClient, extras: Map<
     if (!chave) continue;
     const nomes: string[] = [];
     const vistos = new Set<string>();
-    for (const p of (extra[chave] ?? "").split(/s+-s+|s*;s*/)) {
+    for (const p of (extra[chave] ?? "").split(/\s+-\s+|\s*;\s*/)) {
       const nome = p.trim();
       const n = normalizarNome(nome);
       if (nome && !vistos.has(n)) {
