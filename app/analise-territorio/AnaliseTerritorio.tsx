@@ -785,6 +785,11 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina, comPct, doSimo = false }: { 
             <th className="px-3 py-2.5">Tipologia</th>
             <th className="px-3 py-2.5 text-series-1">Unidade</th>
             <th className="px-3 py-2.5 text-right text-series-1">Quantidade</th>
+            {!doSimo && (
+              <th className="px-3 py-2.5 text-right" style={{ color: "#8b5a2b" }} title="Extensão do traçado (KML) calculada pelo painel, em km.">
+                Extensão do traçado (km)
+              </th>
+            )}
             <th className="px-3 py-2.5">{doSimo ? "Município(s) (dado do SIMO)" : "Município(s)"}</th>
             <th className="px-3 py-2.5">{doSimo ? "Território(s) (dado do SIMO)" : "Território(s)"}</th>
             <th className="px-3 py-2.5">Status</th>
@@ -799,7 +804,7 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina, comPct, doSimo = false }: { 
         <tbody>
           {visiveis.length === 0 && (
             <tr>
-              <td colSpan={15} className="px-4 py-8 text-center text-ink-muted">
+              <td colSpan={doSimo ? 15 : 16} className="px-4 py-8 text-center text-ink-muted">
                 Nenhuma ação com os filtros atuais.
               </td>
             </tr>
@@ -817,6 +822,11 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina, comPct, doSimo = false }: { 
               <td className="px-3 py-2 text-ink-secondary">{a.tipologia ?? "-"}</td>
               <td className="whitespace-nowrap px-3 py-2 font-medium text-series-1">{a.unidade ?? "-"}</td>
               <td className="tabular whitespace-nowrap px-3 py-2 text-right font-medium text-series-1">{(a.quantidade != null ? a.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "-")}</td>
+              {!doSimo && (
+                <td className="tabular whitespace-nowrap px-3 py-2 text-right font-medium" style={{ color: "#8b5a2b" }}>
+                  {a.extensaoM > 0 ? (a.extensaoM / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "-"}
+                </td>
+              )}
               <td className="px-3 py-2 text-ink-secondary">{descricaoDosMunicipios(a, comPct)}</td>
               <td className="px-3 py-2 text-ink-secondary">
                 {a.partes.length === 0 ? (
