@@ -80,6 +80,9 @@ export function AnaliseCustos({ obras, anoHoje, filtroGravado }: { obras: ObraCu
   const [correcao, setCorrecao] = useState(inicial?.correcao ?? 0);
   const [incluirSuspeitas, setIncluirSuspeitas] = useState(inicial?.incluirSuspeitas ?? false);
   const [grupoSel, setGrupoSel] = useState<string | null>(null);
+  // Suspeitas que a pessoa escolheu incluir na conta, uma a uma (vale só nesta visita).
+  const [incluidas, setIncluidas] = useState<Set<string>>(new Set());
+  const [paginaSusp, setPaginaSusp] = useState(1);
   const [pagina, setPagina] = useState(1);
 
   const [gravadoEm, setGravadoEm] = useState<string | null>(filtroGravado?.atualizadoEm ?? null);
@@ -117,9 +120,19 @@ export function AnaliseCustos({ obras, anoHoje, filtroGravado }: { obras: ObraCu
     });
   }, [obras, busca, idsLista, selecao]);
 
-  const considerados = useMemo(() => universo.filter((o) => incluirSuspeitas || !o.suspeita), [universo, incluirSuspeitas]);
+  const considerados = useMemo(() => universo.filter((o) => !o.suspeita || incluirSuspeitas || incluidas.has(o.id)), [universo, incluirSuspeitas, incluidas]);
+  // As suspeitas dos filtros atuais, com o custo que teriam (para a lista do fim da página).
+  const suspeitasLista = useMemo(
+    () =>
+      universo
+        .filter((o) => o.suspeita)
+        .map((o) => ({ o, custo: custoUnitario(o, op), valor: valorDaObra(o, op), dentro: incluirSuspeitas || incluidas.has(o.id) }))
+        .sort((a, b) => (b.custo ?? -1) - (a.custo ?? -1)),
+    [universo, op, incluirSuspeitas, incluidas]
+  );
   const grupos = useMemo(() => agrupar(considerados, op), [considerados, op]);
   const suspeitasFora = universo.length - considerados.length;
+  const totalSuspeitas = suspeitasLista.length;
   const comCusto = grupos.reduce((s, g) => s + g.acoes, 0);
   const valorTotal = grupos.reduce((s, g) => s + g.valor, 0);
   const semValor = considerados.length - comCusto;
@@ -236,7 +249,7 @@ export function AnaliseCustos({ obras, anoHoje, filtroGravado }: { obras: ObraCu
         <p className="mb-3 flex items-start gap-2 rounded-lg border border-status-warning/30 bg-status-warning-bg px-3 py-2 text-xs font-medium text-status-warning">
           <Info size={15} className="mt-px shrink-0" />
           <span>
-            <strong>Como ler:</strong> o custo por unidade é o valor da ação dividido pela quantidade cadastrada (R$ por m², por km, por unidade...), comparado entre obras da <strong>mesma tipologia e unidade</strong>. Usamos <strong>mediana e quartis</strong> (25% a 75% das obras), que não se deixam enganar por um erro de digitação. O custo muda muito com o <strong>tipo de pavimento</strong> (lido do nome da ação) e com o ano, por isso há filtros para isso e uma correção anual opcional. Ações que a auditoria marcou como suspeitas ficam de fora da estatística, a menos que você as inclua.
+            <strong>Como ler:</strong> o custo por unidade é o valor da ação dividido pela quantidade cadastrada (R$ por m², por km, por unidade...), comparado entre obras da <strong>mesma tipologia e unidade</strong>. Usamos <strong>mediana e quartis</strong> (25% a 75% das obras), que não se deixam enganar por um erro de digitação. O custo muda muito com o <strong>tipo de pavimento</strong> (lido do nome da ação) e com o ano, por isso há filtros para isso e uma correção anual opcional. Ações que a auditoria marcou como <strong>suspeitas</strong> (quantidade ou unidade provavelmente errada) ficam <strong>fora da conta</strong>: a lista delas, com o motivo, está no <strong>fim da página</strong>, e lá você inclui todas ou só as que quiser.
           </span>
         </p>
 
@@ -259,9 +272,9 @@ export function AnaliseCustos({ obras, anoHoje, filtroGravado }: { obras: ObraCu
             Correção ao ano (%)
             <input type="number" min={0} max={50} step={0.5} value={correcao} onChange={(e) => setCorrecao(Math.max(0, Number(e.target.value) || 0))} className={campo + " w-20"} />
           </label>
-          <label className="flex items-center gap-1.5 text-xs text-ink-secondary" title="Inclui as ações em que a auditoria desconfia da quantidade ou da unidade (por padrão ficam de fora da estatística).">
+          <label className="flex items-center gap-1.5 rounded-lg border border-black/10 bg-plane px-3 py-2 text-xs text-ink-secondary" title="Por padrão as ações suspeitas ficam fora da conta. Marque para incluir todas. A lista delas está no fim da página.">
             <input type="checkbox" checked={incluirSuspeitas} onChange={(e) => setIncluirSuspeitas(e.target.checked)} className="h-3.5 w-3.5" />
-            incluir ações suspeitas
+            Incluir na conta as {inteiro(totalSuspeitas)} ações suspeitas
           </label>
           {ativos > 0 && (
             <button onClick={() => { setSelecao({}); setBusca(""); setIds(""); setPagina(1); }} className="text-xs font-medium text-series-1 hover:underline">
@@ -293,7 +306,7 @@ export function AnaliseCustos({ obras, anoHoje, filtroGravado }: { obras: ObraCu
       <section className="grid grid-cols-2 gap-3 md:grid-cols-4">
         {cartao("Ações com custo calculado", inteiro(comCusto), "Têm unidade, quantidade e valor.")}
         {cartao("Valor total das ações", brlCurto(valorTotal), base === "final" ? "Valor final (com aditivos)" : "Valor contratado")}
-        {cartao("Suspeitas fora da conta", inteiro(suspeitasFora), incluirSuspeitas ? "Incluídas: a opção está marcada." : "Quantidade ou unidade duvidosa (veja a Nova análise em teste).", suspeitasFora ? "text-status-warning" : undefined)}
+        {cartao("Suspeitas fora da conta", inteiro(suspeitasFora), incluirSuspeitas ? "Incluídas: a opção está marcada." : "Quantidade ou unidade duvidosa. A lista está no fim da página.", suspeitasFora ? "text-status-warning" : undefined)}
         {cartao("Sem valor para calcular", inteiro(semValor), "Têm quantidade, mas falta o valor da ação.", semValor ? "text-status-warning" : undefined)}
       </section>
 
@@ -431,6 +444,76 @@ export function AnaliseCustos({ obras, anoHoje, filtroGravado }: { obras: ObraCu
           </section>
         </>
       )}
+      <section id="suspeitas" className="overflow-x-auto rounded-xl border border-black/5 bg-surface shadow-card">
+        <div className="border-b border-black/5 px-4 py-3">
+          <h2 className="text-sm font-semibold text-ink-primary">Ações suspeitas ({inteiro(totalSuspeitas)})</h2>
+          <p className="mt-0.5 text-xs text-ink-muted">
+            A auditoria desconfia da quantidade ou da unidade destas ações, então o custo por unidade delas pode estar errado. Por padrão ficam <strong>fora da conta</strong>. Use “Incluir na conta” para as que você achar certas, ou a caixa lá em cima para incluir todas. Para tirar de vez do alerta, marque como <strong>Ignorar</strong> na Nova análise em teste: aí ela passa a valer sempre.
+          </p>
+        </div>
+        <table className="w-full text-xs">
+          <thead>
+            <tr className="border-b border-black/5 bg-plane text-left text-[11px] uppercase tracking-wide text-ink-muted">
+              <th className="px-4 py-2.5">ID</th>
+              <th className="px-3 py-2.5">Ação</th>
+              <th className="px-3 py-2.5">Tipologia</th>
+              <th className="px-3 py-2.5">Unidade</th>
+              <th className="px-3 py-2.5 text-right">Quantidade</th>
+              <th className="px-3 py-2.5 text-right">Valor</th>
+              <th className="px-3 py-2.5 text-right">R$ por unidade</th>
+              <th className="px-3 py-2.5">Por que é suspeita</th>
+              <th className="px-3 py-2.5"></th>
+            </tr>
+          </thead>
+          <tbody>
+            {suspeitasLista.slice((Math.min(paginaSusp, Math.max(1, Math.ceil(totalSuspeitas / PAGINA))) - 1) * PAGINA, Math.min(paginaSusp, Math.max(1, Math.ceil(totalSuspeitas / PAGINA))) * PAGINA).map(({ o, custo, valor, dentro }) => (
+              <tr key={o.id} className="border-b border-black/5 align-top hover:bg-plane/40">
+                <td className="whitespace-nowrap px-4 py-2.5"><IdAcaoLink id={o.id} /></td>
+                <td className="max-w-[280px] px-3 py-2.5">
+                  <div className="line-clamp-2 text-ink-primary" title={o.nome}>{o.nome}</div>
+                  <div className="text-[11px] text-ink-muted">{o.orgao ?? "-"}</div>
+                </td>
+                <td className="px-3 py-2.5 text-ink-secondary">{o.tipologia ?? "-"}</td>
+                <td className="px-3 py-2.5 text-series-1">{o.unidade}</td>
+                <td className="tabular px-3 py-2.5 text-right text-series-1">{o.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}</td>
+                <td className="tabular px-3 py-2.5 text-right text-ink-secondary">{brl(valor)}</td>
+                <td className="tabular px-3 py-2.5 text-right font-semibold">{brl(custo)}</td>
+                <td className="min-w-[320px] px-3 py-2.5 text-ink-secondary">
+                  <ul className="space-y-1">
+                    {o.motivos.map((m, i) => (
+                      <li key={i}>{m}</li>
+                    ))}
+                  </ul>
+                </td>
+                <td className="whitespace-nowrap px-3 py-2.5">
+                  {incluirSuspeitas ? (
+                    <span className="text-[11px] text-ink-muted">incluída (caixa do topo)</span>
+                  ) : dentro ? (
+                    <button onClick={() => setIncluidas((s) => { const n = new Set(s); n.delete(o.id); return n; })} className="rounded-full border border-series-1 px-2.5 py-1 text-[11px] font-medium text-series-1 hover:bg-series-1/10">Na conta · tirar</button>
+                  ) : (
+                    <button onClick={() => setIncluidas((s) => new Set(s).add(o.id))} className="rounded-full border border-black/10 px-2.5 py-1 text-[11px] font-medium text-ink-secondary hover:bg-plane">Incluir na conta</button>
+                  )}
+                </td>
+              </tr>
+            ))}
+            {totalSuspeitas === 0 && (
+              <tr>
+                <td colSpan={9} className="px-4 py-8 text-center text-ink-muted">Nenhuma ação suspeita com esses filtros.</td>
+              </tr>
+            )}
+          </tbody>
+        </table>
+        {totalSuspeitas > PAGINA && (
+          <div className="flex items-center justify-between border-t border-black/5 px-4 py-2 text-xs text-ink-muted">
+            <span>Página {Math.min(paginaSusp, Math.ceil(totalSuspeitas / PAGINA))} de {Math.ceil(totalSuspeitas / PAGINA)} · do maior para o menor custo por unidade</span>
+            <span className="flex gap-2">
+              <button disabled={paginaSusp <= 1} onClick={() => setPaginaSusp(paginaSusp - 1)} className="rounded-full bg-plane px-3 py-1 font-medium disabled:opacity-40">Anterior</button>
+              <button disabled={paginaSusp >= Math.ceil(totalSuspeitas / PAGINA)} onClick={() => setPaginaSusp(paginaSusp + 1)} className="rounded-full bg-plane px-3 py-1 font-medium disabled:opacity-40">Próxima</button>
+            </span>
+          </div>
+        )}
+      </section>
+
       <p className="flex items-start gap-1.5 text-[11px] text-ink-muted">
         <AlertTriangle size={12} className="mt-px shrink-0" />
         Valores correntes (o que está cadastrado), sem tabela de referência externa (SINAPI/SICRO): a comparação é entre as obras do próprio Piauí. A faixa “Muito acima/abaixo” usa a regra dos quartis (fora de 1,5× a distância entre 25% e 75%).

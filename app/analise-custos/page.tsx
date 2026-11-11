@@ -95,7 +95,12 @@ export default async function AnaliseCustosPage() {
     kmKml: kml.get(o.id_acao) ?? null,
   }));
   const { linhas } = auditar(entrada);
-  const suspeitas = new Set(linhas.filter((l) => !ignoradas.has(l.id) && l.achados.some((a) => CODIGOS_SUSPEITOS.has(a.codigo))).map((l) => l.id));
+  const suspeitas = new Map<string, string[]>();
+  for (const l of linhas) {
+    if (ignoradas.has(l.id)) continue;
+    const achados = l.achados.filter((a) => CODIGOS_SUSPEITOS.has(a.codigo));
+    if (achados.length) suspeitas.set(l.id, achados.map((a) => `${a.titulo}: ${a.detalhe}`));
+  }
 
   const lista: ObraCusto[] = [];
   for (const o of obras.linhas) {
@@ -120,6 +125,7 @@ export default async function AnaliseCustosPage() {
       revestimento: revestimentoDoNome(`${nome} ${o.descricao_acao ?? ""}`),
       servico: servicoDoNome(nome),
       suspeita: suspeitas.has(o.id_acao),
+      motivos: suspeitas.get(o.id_acao) ?? [],
     });
   }
 

@@ -25,6 +25,8 @@ export type ObraCusto = {
   servico: string;
   /** A auditoria desconfia da quantidade/unidade desta ação (e ninguém marcou como certa). */
   suspeita: boolean;
+  /** Por que a auditoria desconfia (título e detalhe de cada problema). */
+  motivos: string[];
 };
 
 // ---------- tipo de pavimento e de serviço, lidos do nome da ação ----------
