@@ -661,7 +661,8 @@ export function Compatibilizacao({ linhas, chaveMedido, ehAdmin, semTabelas, fil
                     {estimativa.colunas.map((c) => (
                       <div key={c} className="rounded-lg bg-plane px-1 py-1.5" title={c + ": " + g.qtd[c].toLocaleString("pt-BR", { maximumFractionDigits: 1 }) + " " + g.unidade}>
                         <p className="text-[10px] text-ink-muted">{c === OUTROS ? "Outros" : c}</p>
-                        <p className="tabular text-[11px] font-semibold text-ink-primary">{g.executada > 0 ? ((g.qtd[c] / g.executada) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 0 }) + "%" : "-"}</p>
+                        <p className="tabular text-[11px] font-semibold text-ink-primary">{g.qtd[c].toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</p>
+                        <p className="tabular text-[9px] text-ink-muted">({g.executada > 0 ? ((g.qtd[c] / g.executada) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 0 }) + "%" : "-"})</p>
                       </div>
                     ))}
                   </div>
