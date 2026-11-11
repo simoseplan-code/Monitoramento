@@ -91,6 +91,20 @@ export default async function NovaAnaliseTestePage() {
   }
   const filtroGravado = gravado ? { estado: gravado.estado as unknown, atualizadoEm: gravado.atualizado_em as string, por: gravadoPor } : null;
 
+  // Ações que a equipe conferiu e ignorou nesta análise (SQL 0100). Sem a tabela, a lista vem vazia.
+  const ignoradas: Record<string, { motivo: string | null; por: string | null; em: string }> = {};
+  {
+    type Ign = { id_acao: string; motivo: string | null; ignorado_por: string | null; ignorado_em: string };
+    const ign = await lerTudo<Ign>((de) => admin.from("auditoria_ignoradas").select("id_acao, motivo, ignorado_por, ignorado_em").order("id_acao").range(de, de + 999) as unknown as PromiseLike<{ data: Ign[] | null; error: { message: string } | null }>);
+    const quemIds = Array.from(new Set(ign.linhas.map((i) => i.ignorado_por).filter((x): x is string => !!x)));
+    const nomes = new Map<string, string>();
+    if (quemIds.length) {
+      const { data: perfis } = await admin.from("profiles").select("id, nome").in("id", quemIds);
+      for (const p of perfis ?? []) nomes.set(p.id as string, (p.nome as string | null) ?? "");
+    }
+    for (const i of ign.linhas) ignoradas[i.id_acao] = { motivo: i.motivo, por: i.ignorado_por ? (nomes.get(i.ignorado_por) ?? null) : null, em: i.ignorado_em };
+  }
+
   // Quando os dados das ações vieram do SIMO pela última vez (a sincronização diária, ou o botão Sincronizar).
   const { data: ultimoSync } = await admin.from("sync_log").select("executado_em").eq("sucesso", true).gt("linhas_processadas", 0).not("mensagem", "ilike", "Sobreposições%").order("executado_em", { ascending: false }).limit(1).maybeSingle();
 
@@ -109,7 +123,7 @@ export default async function NovaAnaliseTestePage() {
       {obras.erro ? (
         <p className="rounded-lg bg-status-critical/10 px-3 py-2 text-xs text-status-critical">Falha ao carregar os dados: {obras.erro}</p>
       ) : (
-        <NovaAnaliseTeste linhas={enxutas} tipologias={tipologias} filtroGravado={filtroGravado} ehAdmin={!!profile?.is_admin} atualizadoEm={(ultimoSync?.executado_em as string | null) ?? null} />
+        <NovaAnaliseTeste linhas={enxutas} tipologias={tipologias} filtroGravado={filtroGravado} ignoradas={ignoradas} ehAdmin={!!profile?.is_admin} atualizadoEm={(ultimoSync?.executado_em as string | null) ?? null} />
       )}
     </AppShell>
   );

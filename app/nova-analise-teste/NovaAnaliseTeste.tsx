@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { AlertTriangle, ChevronDown, ChevronRight, Download, ExternalLink, Save } from "lucide-react";
+import { AlertTriangle, ChevronDown, ChevronRight, Download, ExternalLink, EyeOff, RotateCcw, Save } from "lucide-react";
 import { FiltroCheckbox } from "@/components/FiltroCheckbox";
 import { IdAcaoLink, urlAcaoSimo } from "@/components/IdAcaoLink";
 import { SincronizarBotao } from "@/components/admin/SincronizarBotao";
@@ -9,7 +9,8 @@ import { PESO_GRAVIDADE, TITULOS_PROBLEMA, type Gravidade, type LinhaAuditoria, 
 
 type Gravado = { estado: unknown; atualizadoEm: string; por: string | null };
 type Selecao = Record<string, Set<string> | null>;
-type EstadoGravado = { selecao: Record<string, string[] | null>; busca: string; ids: string; mostrar: "problemas" | "todas" };
+type EstadoGravado = { selecao: Record<string, string[] | null>; busca: string; ids: string; mostrar: "problemas" | "todas" | "ignoradas" };
+type Ignorada = { motivo: string | null; por: string | null; em: string };
 
 const TELA = "nova_analise_teste";
 const PAGINA = 25;
@@ -29,7 +30,7 @@ const csvEscape = (v: unknown) => {
   return /[;"\n]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 };
 
-type Linha = LinhaAuditoria & { grav: Gravidade | null; score: number };
+type Linha = LinhaAuditoria & { grav: Gravidade | null; score: number; ignorada: boolean; problema: boolean };
 
 const DEFINICOES: { chave: string; rotulo: string }[] = [
   { chave: "problema", rotulo: "Tipo de problema" },
@@ -49,16 +50,19 @@ function lerGravado(g: unknown): EstadoGravado | null {
   const o = g as Partial<EstadoGravado>;
   const selecao: Record<string, string[] | null> = {};
   if (o.selecao && typeof o.selecao === "object") for (const [k, v] of Object.entries(o.selecao)) selecao[k] = Array.isArray(v) ? v.map(String) : null;
-  return { selecao, busca: typeof o.busca === "string" ? o.busca : "", ids: typeof o.ids === "string" ? o.ids : "", mostrar: o.mostrar === "todas" ? "todas" : "problemas" };
+  return { selecao, busca: typeof o.busca === "string" ? o.busca : "", ids: typeof o.ids === "string" ? o.ids : "", mostrar: o.mostrar === "todas" ? "todas" : o.mostrar === "ignoradas" ? "ignoradas" : "problemas" };
 }
 
-export function NovaAnaliseTeste({ linhas, tipologias, filtroGravado, ehAdmin, atualizadoEm }: { linhas: LinhaAuditoria[]; tipologias: ResumoTipologia[]; filtroGravado: Gravado | null; ehAdmin: boolean; atualizadoEm: string | null }) {
+export function NovaAnaliseTeste({ linhas, tipologias, filtroGravado, ehAdmin, atualizadoEm, ignoradas }: { linhas: LinhaAuditoria[]; tipologias: ResumoTipologia[]; filtroGravado: Gravado | null; ignoradas: Record<string, Ignorada>; ehAdmin: boolean; atualizadoEm: string | null }) {
   const inicial = useMemo(() => lerGravado(filtroGravado?.estado), [filtroGravado]);
   const padrao = (): Selecao => ({ classificacao: linhas.some((l) => l.classificacao === "OBRA") ? new Set(["OBRA"]) : null });
   const [selecao, setSelecao] = useState<Selecao>(() => (inicial ? Object.fromEntries(Object.entries(inicial.selecao).map(([k, v]) => [k, v ? new Set(v) : null])) : padrao()));
   const [busca, setBusca] = useState(inicial?.busca ?? "");
   const [ids, setIds] = useState(inicial?.ids ?? "");
-  const [mostrar, setMostrar] = useState<"problemas" | "todas">(inicial?.mostrar ?? "problemas");
+  const [mostrar, setMostrar] = useState<"problemas" | "todas" | "ignoradas">(inicial?.mostrar ?? "problemas");
+  const [ign, setIgn] = useState<Record<string, Ignorada>>(ignoradas);
+  const [ocupada, setOcupada] = useState<string | null>(null);
+  const [erroIgn, setErroIgn] = useState<string | null>(null);
   const [pagina, setPagina] = useState(1);
   const [abertoTip, setAbertoTip] = useState(false);
 
@@ -75,18 +79,20 @@ export function NovaAnaliseTeste({ linhas, tipologias, filtroGravado, ehAdmin, a
   const todas: Linha[] = useMemo(
     () =>
       linhas.map((l) => {
-        const grav = l.achados.length ? (l.achados.reduce((m, a) => (PESO_GRAVIDADE[a.gravidade] > PESO_GRAVIDADE[m] ? a.gravidade : m), "baixa" as Gravidade)) : null;
-        return { ...l, grav, score: l.achados.reduce((s, a) => s + PESO_GRAVIDADE[a.gravidade], 0) };
+        const ignorada = !!ign[l.id];
+        const problema = l.achados.length > 0 && !ignorada;
+        const grav = problema ? l.achados.reduce((m, a) => (PESO_GRAVIDADE[a.gravidade] > PESO_GRAVIDADE[m] ? a.gravidade : m), "baixa" as Gravidade) : null;
+        return { ...l, grav, ignorada, problema, score: problema ? l.achados.reduce((s, a) => s + PESO_GRAVIDADE[a.gravidade], 0) : 0 };
       }),
-    [linhas]
+    [linhas, ign]
   );
 
   const valoresDe = (l: Linha, chave: string): string[] => {
     switch (chave) {
       case "problema":
-        return l.achados.length ? Array.from(new Set(l.achados.map((a) => a.titulo))) : ["(sem problema)"];
+        return l.problema ? Array.from(new Set(l.achados.map((a) => a.titulo))) : ["(sem problema)"];
       case "gravidade":
-        return [l.grav ? ROTULO_GRAV[l.grav] : "Sem problema"];
+        return [l.ignorada ? "Ignorada" : l.grav ? ROTULO_GRAV[l.grav] : "Sem problema"];
       case "tipologia":
         return [vazio(l.tipologia)];
       case "unidade":
@@ -127,7 +133,7 @@ export function NovaAnaliseTeste({ linhas, tipologias, filtroGravado, ehAdmin, a
 
   const filtradas = useMemo(() => {
     const sel = selecao.problema;
-    const lista = universo.filter((l) => (mostrar === "todas" ? true : l.achados.length > 0) && (!sel || valoresDe(l, "problema").some((v) => sel.has(v))));
+    const lista = universo.filter((l) => (mostrar === "todas" ? true : mostrar === "ignoradas" ? l.ignorada : l.problema) && (!sel || valoresDe(l, "problema").some((v) => sel.has(v))));
     return [...lista].sort((a, b) => b.score - a.score || Number(a.id) - Number(b.id));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [universo, selecao.problema, mostrar]);
@@ -144,7 +150,7 @@ export function NovaAnaliseTeste({ linhas, tipologias, filtroGravado, ehAdmin, a
   }, [todas]);
 
   const numeros = useMemo(() => {
-    const comProblema = universo.filter((l) => l.achados.length > 0);
+    const comProblema = universo.filter((l) => l.problema);
     const porGrav = { alta: 0, media: 0, baixa: 0 };
     for (const l of comProblema) if (l.grav) porGrav[l.grav]++;
     const porTipo = new Map<string, { qtd: number; grav: Gravidade }>();
@@ -156,7 +162,7 @@ export function NovaAnaliseTeste({ linhas, tipologias, filtroGravado, ehAdmin, a
         porTipo.set(a.titulo, x);
       }
     }
-    return { total: universo.length, comProblema: comProblema.length, porGrav, tipos: Array.from(porTipo, ([titulo, v]) => ({ titulo, ...v })).sort((a, b) => b.qtd - a.qtd) };
+    return { total: universo.length, ignoradas: universo.filter((l) => l.ignorada).length, comProblema: comProblema.length, porGrav, tipos: Array.from(porTipo, ([titulo, v]) => ({ titulo, ...v })).sort((a, b) => b.qtd - a.qtd) };
   }, [universo]);
 
   const resumoTip = useMemo(() => {
@@ -167,7 +173,7 @@ export function NovaAnaliseTeste({ linhas, tipologias, filtroGravado, ehAdmin, a
       const k = nome.toUpperCase();
       const x = m.get(k) ?? { nome, acoes: 0, comProblema: 0 };
       x.acoes++;
-      if (l.achados.length) x.comProblema++;
+      if (l.problema) x.comProblema++;
       m.set(k, x);
     }
     return Array.from(m.entries())
@@ -187,6 +193,42 @@ export function NovaAnaliseTeste({ linhas, tipologias, filtroGravado, ehAdmin, a
     const atual = selecao.problema;
     mudarSel("problema")(atual && atual.size === 1 && atual.has(titulo) ? null : new Set([titulo]));
   };
+
+  // Ignorar (a ação foi conferida e está certa) ou restaurar.
+  async function ignorar(id: string) {
+    const motivo = window.prompt("Por que ignorar esta ação? (opcional: ex.: conferido no SIMO, quantidade está certa)", "") ;
+    if (motivo === null) return;
+    setOcupada(id);
+    setErroIgn(null);
+    try {
+      const resp = await fetch("/api/auditoria/ignorar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id, motivo }) });
+      const json = (await resp.json().catch(() => ({}))) as { error?: string; por?: string | null; em?: string; motivo?: string | null };
+      if (!resp.ok) setErroIgn(json.error ?? "Não foi possível ignorar a ação.");
+      else setIgn((s) => ({ ...s, [id]: { motivo: json.motivo ?? null, por: json.por ?? null, em: json.em ?? new Date().toISOString() } }));
+    } catch {
+      setErroIgn("Sem conexão com o servidor.");
+    } finally {
+      setOcupada(null);
+    }
+  }
+  async function restaurar(id: string) {
+    setOcupada(id);
+    setErroIgn(null);
+    try {
+      const resp = await fetch(`/api/auditoria/ignorar?id=${id}`, { method: "DELETE" });
+      if (!resp.ok) setErroIgn("Não foi possível restaurar a ação.");
+      else
+        setIgn((s) => {
+          const n = { ...s };
+          delete n[id];
+          return n;
+        });
+    } catch {
+      setErroIgn("Sem conexão com o servidor.");
+    } finally {
+      setOcupada(null);
+    }
+  }
 
   async function gravarFiltro() {
     setGravando(true);
@@ -296,9 +338,10 @@ export function NovaAnaliseTeste({ linhas, tipologias, filtroGravado, ehAdmin, a
           <input value={ids} onChange={(e) => { setIds(e.target.value); setPagina(1); }} placeholder="Só estes IDs (cole vários)..." className={campo + " w-64"} />
           <label className="flex items-center gap-2 text-xs text-ink-secondary">
             Mostrar
-            <select value={mostrar} onChange={(e) => { setMostrar(e.target.value as "problemas" | "todas"); setPagina(1); }} className={campo}>
+            <select value={mostrar} onChange={(e) => { setMostrar(e.target.value as "problemas" | "todas" | "ignoradas"); setPagina(1); }} className={campo}>
               <option value="problemas">Só as com problema</option>
               <option value="todas">Todas as ações</option>
+              <option value="ignoradas">Só as ignoradas</option>
             </select>
           </label>
           {ativos > 0 && (
@@ -334,13 +377,14 @@ export function NovaAnaliseTeste({ linhas, tipologias, filtroGravado, ehAdmin, a
         </p>
       </section>
 
-      <section className="grid grid-cols-2 gap-3 md:grid-cols-3 xl:grid-cols-6">
+      <section className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-7">
         {cartao("Ações analisadas", inteiro(numeros.total), "Dentro dos filtros (menos o de tipo de problema).")}
         {cartao("Com algum problema", inteiro(numeros.comProblema), pctProb + " das analisadas", numeros.comProblema ? "text-status-critical" : "text-status-good")}
         {cartao("Gravidade alta", inteiro(numeros.porGrav.alta), "Quase certamente erro: comece por aqui.", "text-status-critical")}
         {cartao("Gravidade média", inteiro(numeros.porGrav.media), "Vale conferir no SIMO.", "text-status-warning")}
         {cartao("Gravidade baixa", inteiro(numeros.porGrav.baixa), "Detalhe de cadastro.")}
-        {cartao("Sem problema", inteiro(numeros.total - numeros.comProblema), "Nenhuma regra encontrou indício.", "text-status-good")}
+        {cartao("Sem problema", inteiro(numeros.total - numeros.comProblema - numeros.ignoradas), "Nenhuma regra encontrou indício.", "text-status-good")}
+        {cartao("Ignoradas", inteiro(numeros.ignoradas), "Conferidas pela equipe e marcadas como certas.")}
       </section>
 
       {numeros.tipos.length > 0 && (
@@ -416,6 +460,7 @@ export function NovaAnaliseTeste({ linhas, tipologias, filtroGravado, ehAdmin, a
               <th className="px-3 py-2.5 text-right">Valor</th>
               <th className="px-3 py-2.5 text-right" title="Valor ÷ quantidade">R$/un.</th>
               <th className="px-3 py-2.5">O que encontramos</th>
+              <th className="px-3 py-2.5"></th>
             </tr>
           </thead>
           <tbody>
@@ -439,6 +484,12 @@ export function NovaAnaliseTeste({ linhas, tipologias, filtroGravado, ehAdmin, a
                 <td className="tabular whitespace-nowrap px-3 py-2.5 text-right text-ink-secondary">{l.valor != null ? brl(l.valor) : "-"}</td>
                 <td className="tabular whitespace-nowrap px-3 py-2.5 text-right text-ink-secondary">{l.custoUnit != null ? brl(l.custoUnit) : "-"}</td>
                 <td className="min-w-[340px] px-3 py-2.5">
+                  {l.ignorada && (
+                    <p className="mb-1.5 rounded bg-black/5 px-2 py-1 text-[11px] text-ink-secondary">
+                      <strong>Ignorada</strong> {ign[l.id]?.por ? `por ${ign[l.id].por}` : ""} em {new Date(ign[l.id].em).toLocaleDateString("pt-BR")}
+                      {ign[l.id]?.motivo ? `: ${ign[l.id].motivo}` : ""}
+                    </p>
+                  )}
                   {l.achados.length === 0 ? (
                     <span className="text-status-good">Sem problema</span>
                   ) : (
@@ -454,15 +505,27 @@ export function NovaAnaliseTeste({ linhas, tipologias, filtroGravado, ehAdmin, a
                     </ul>
                   )}
                 </td>
+                <td className="whitespace-nowrap px-3 py-2.5">
+                  {l.ignorada ? (
+                    <button onClick={() => restaurar(l.id)} disabled={ocupada === l.id} className="flex items-center gap-1 rounded-full border border-black/10 px-2.5 py-1 text-[11px] font-medium text-ink-secondary hover:bg-plane disabled:opacity-50" title="Volta a considerar os problemas desta ação">
+                      <RotateCcw size={11} /> Restaurar
+                    </button>
+                  ) : l.achados.length > 0 ? (
+                    <button onClick={() => ignorar(l.id)} disabled={ocupada === l.id} className="flex items-center gap-1 rounded-full border border-black/10 px-2.5 py-1 text-[11px] font-medium text-ink-secondary hover:bg-plane disabled:opacity-50" title="Conferi no SIMO e está certo: tirar das listas e dos cards">
+                      <EyeOff size={11} /> Ignorar
+                    </button>
+                  ) : null}
+                </td>
               </tr>
             ))}
             {visiveis.length === 0 && (
               <tr>
-                <td colSpan={10} className="px-4 py-10 text-center text-ink-muted">Nenhuma ação com esses filtros.</td>
+                <td colSpan={11} className="px-4 py-10 text-center text-ink-muted">Nenhuma ação com esses filtros.</td>
               </tr>
             )}
           </tbody>
         </table>
+        {erroIgn && <p className="border-t border-black/5 px-4 py-2 text-xs font-medium text-status-critical">{erroIgn}</p>}
         <div className="flex items-center justify-between border-t border-black/5 px-4 py-2 text-xs text-ink-muted">
           <span>
             {inteiro(filtradas.length)} ação(ões) · página {paginaOk} de {totalPaginas} · ordenadas das mais graves para as menos graves

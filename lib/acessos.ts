@@ -22,6 +22,7 @@ export const TELAS_E_ACESSOS: { grupo: string; tela: string; regra: Regra }[] = 
   { grupo: "Gestão", tela: "Equipe (ver a lista)", regra: supervisores },
   { grupo: "Gestão", tela: "Administração", regra: supervisores },
   { grupo: "Gestão", tela: "Análise de obras concluídas", regra: supervisores },
+  { grupo: "Gestão", tela: "Análise de custos", regra: supervisores },
   { grupo: "Retiradas", tela: "Ações desconsideradas", regra: todosAprovados },
   { grupo: "Verificações diárias", tela: "Novas Ações", regra: todosAprovados },
   { grupo: "Verificações diárias", tela: "Novas em Execução", regra: todosAprovados },

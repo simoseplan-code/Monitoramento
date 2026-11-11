@@ -32,6 +32,7 @@ import {
   Droplets,
   Scale,
   FlaskConical,
+  TrendingUp,
   type LucideIcon,
 } from "lucide-react";
 import { SobrePainel } from "./SobrePainel";
@@ -94,6 +95,7 @@ export function Sidebar({
     { href: "/equipe", label: "Equipe", icon: Users, count: counts.pendentesAprovacao || undefined, adminOnly: true, grupo: "gestao" },
     { href: "/admin", label: "Administração", icon: ShieldCheck, adminOnly: true, grupo: "gestao" },
     { href: "/analise-concluidas", label: "Análise de obras concluídas", icon: Banknote, adminOnly: true, grupo: "gestao" },
+    { href: "/analise-custos", label: "Análise de custos", icon: TrendingUp, adminOnly: true, grupo: "gestao" },
     // Retiradas
     { href: "/acoes-desconsideradas", label: "Ações desconsideradas", icon: EyeOff, grupo: "retiradas" },
     // Verificações diárias

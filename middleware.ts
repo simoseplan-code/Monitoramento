@@ -120,7 +120,7 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  if ((pathname.startsWith("/admin") || pathname.startsWith("/desempenho") || pathname.startsWith("/equipe") || pathname.startsWith("/sobreposicoes") || pathname.startsWith("/analise-concluidas") || pathname.startsWith("/mapa-geral")) && !profile.is_admin) {
+  if ((pathname.startsWith("/admin") || pathname.startsWith("/desempenho") || pathname.startsWith("/equipe") || pathname.startsWith("/sobreposicoes") || pathname.startsWith("/analise-concluidas") || pathname.startsWith("/analise-custos") || pathname.startsWith("/mapa-geral")) && !profile.is_admin) {
     const url = request.nextUrl.clone();
     url.pathname = "/";
     return NextResponse.redirect(url);
