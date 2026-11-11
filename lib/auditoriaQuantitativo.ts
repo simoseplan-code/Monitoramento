@@ -36,6 +36,9 @@ export type ObraAuditoria = {
   valor: number | null;
   /** Extensão (km) das linhas do KML guardado da ação, se houver. */
   kmKml: number | null;
+  /** Ano de criação e de recebimento (AAAA), se houver. */
+  anoCriacao?: string | null;
+  anoReceb?: string | null;
 };
 
 export type LinhaAuditoria = {
@@ -50,6 +53,8 @@ export type LinhaAuditoria = {
   quantidade: number | null;
   valor: number | null;
   custoUnit: number | null;
+  anoCriacao: string | null;
+  anoReceb: string | null;
   achados: Achado[];
 };
 
@@ -326,7 +331,7 @@ export function auditar(obras: ObraAuditoria[]): { linhas: LinhaAuditoria[]; tip
       }
     }
 
-    return { id: o.id, nome: o.nome, orgao: o.orgao, status: o.status, estagio: o.estagio, tipologia: o.tipologia, classificacao: o.classificacao, unidade: o.unidade, quantidade: o.quantidade, valor: o.valor, custoUnit, achados };
+    return { id: o.id, nome: o.nome, orgao: o.orgao, status: o.status, estagio: o.estagio, tipologia: o.tipologia, classificacao: o.classificacao, unidade: o.unidade, quantidade: o.quantidade, valor: o.valor, custoUnit, anoCriacao: o.anoCriacao ?? null, anoReceb: o.anoReceb ?? null, achados };
   });
 
   // 3) Resumo por tipologia.

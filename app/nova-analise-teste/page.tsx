@@ -5,7 +5,7 @@ import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
 import { auditar, type ObraAuditoria } from "@/lib/auditoriaQuantitativo";
 import { NovaAnaliseTeste } from "./NovaAnaliseTeste";
 
-const COLUNAS = "id_acao, nome_acao, descricao_acao, orgao, status, estagio_atual, tipologia, classificacao, unidade_medida, quantidade, valor_original, valor_total";
+const COLUNAS = "id_acao, nome_acao, descricao_acao, orgao, status, estagio_atual, tipologia, classificacao, unidade_medida, quantidade, valor_original, valor_total, data_criacao, data_receb_definitivo, data_receb_provisorio";
 
 type Obra = {
   id_acao: string;
@@ -20,6 +20,9 @@ type Obra = {
   quantidade: number | string | null;
   valor_original: number | string | null;
   valor_total: number | string | null;
+  data_criacao: string | null;
+  data_receb_definitivo: string | null;
+  data_receb_provisorio: string | null;
 };
 
 const numero = (v: number | string | null): number | null => (v == null || v === "" ? null : Number.isFinite(Number(v)) ? Number(v) : null);
@@ -74,6 +77,8 @@ export default async function NovaAnaliseTestePage() {
     quantidade: numero(o.quantidade),
     valor: numero(o.valor_total) ?? numero(o.valor_original),
     kmKml: kml.get(o.id_acao) ?? null,
+    anoCriacao: (o.data_criacao ?? "").slice(0, 4) || null,
+    anoReceb: ((o.data_receb_provisorio || o.data_receb_definitivo) ?? "").slice(0, 4) || null,
   }));
   const { linhas, tipologias } = auditar(entrada);
 

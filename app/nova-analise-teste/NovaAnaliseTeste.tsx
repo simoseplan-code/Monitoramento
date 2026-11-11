@@ -39,6 +39,8 @@ const DEFINICOES: { chave: string; rotulo: string }[] = [
   { chave: "orgao", rotulo: "Órgão" },
   { chave: "status", rotulo: "Status" },
   { chave: "estagio", rotulo: "Estágio atual" },
+  { chave: "anoReceb", rotulo: "Ano de recebimento" },
+  { chave: "anoCriacao", rotulo: "Ano de criação" },
 ];
 
 function lerGravado(g: unknown): EstadoGravado | null {
@@ -94,6 +96,10 @@ export function NovaAnaliseTeste({ linhas, tipologias, filtroGravado }: { linhas
         return [vazio(l.orgao)];
       case "status":
         return [vazio(l.status)];
+      case "anoReceb":
+        return [vazio(l.anoReceb)];
+      case "anoCriacao":
+        return [vazio(l.anoCriacao)];
       default:
         return [vazio(l.estagio)];
     }
@@ -226,13 +232,15 @@ export function NovaAnaliseTeste({ linhas, tipologias, filtroGravado }: { linhas
   }
 
   function exportar() {
-    const colunas = ["ID da Ação", "Link no SIMO", "Nome da Ação", "Órgão", "Tipologia", "Unidade", "Quantidade", "Valor (total do contrato)", "Custo por unidade", "Gravidade", "Problemas", "Detalhes", "Sugestões"];
+    const colunas = ["ID da Ação", "Link no SIMO", "Nome da Ação", "Órgão", "Ano de criação", "Ano de recebimento", "Tipologia", "Unidade", "Quantidade", "Valor (total do contrato)", "Custo por unidade", "Gravidade", "Problemas", "Detalhes", "Sugestões"];
     const dados = filtradas.map((l) =>
       [
         l.id,
         urlAcaoSimo(l.id),
         l.nome,
         l.orgao,
+        l.anoCriacao,
+        l.anoReceb,
         l.tipologia,
         l.unidade,
         l.quantidade != null ? String(l.quantidade).replace(".", ",") : "",
@@ -412,7 +420,7 @@ export function NovaAnaliseTeste({ linhas, tipologias, filtroGravado }: { linhas
                 </td>
                 <td className="max-w-[300px] px-3 py-2.5">
                   <div className="line-clamp-3 text-ink-primary" title={l.nome}>{l.nome}</div>
-                  <div className="text-[11px] text-ink-muted">{l.orgao ?? "-"} · {l.status ?? "-"}</div>
+                  <div className="text-[11px] text-ink-muted">{l.orgao ?? "-"} · {l.status ?? "-"} · criada {l.anoCriacao ?? "-"} · recebida {l.anoReceb ?? "-"}</div>
                 </td>
                 <td className="px-3 py-2.5 text-ink-secondary">{l.tipologia ?? "-"}</td>
                 <td className="whitespace-nowrap px-3 py-2.5 font-medium text-series-1">{l.unidade?.trim() || "-"}</td>
