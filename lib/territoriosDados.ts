@@ -15,6 +15,14 @@ export async function territorioPorMunicipio(): Promise<Map<string, string>> {
   return cacheMapa;
 }
 
+/** Município (nome normalizado) -> nome como está na base (com acentos e maiúsculas certas). Para listar até os municípios sem ação. */
+export async function nomesDosMunicipios(): Promise<Record<string, string>> {
+  const munis = (await import("@/data/geo/municipios_pi.json")).default as unknown as Muni[];
+  const nomes: Record<string, string> = {};
+  for (const m of munis) if (m.t) nomes[normalizarNome(m.n)] = m.n;
+  return nomes;
+}
+
 export type TerritoriosDaAcao = {
   partes: ParteDoTerritorio[];
   origem: "tracado" | "municipio" | "nenhuma";

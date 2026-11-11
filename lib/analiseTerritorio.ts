@@ -293,8 +293,10 @@ export type LinhaMunicipio = {
  * % das ações = ações do município ÷ total de ações distintas; % do investimento = valor contratado rateado (dividido em partes
  * iguais entre os municípios da ação) ÷ valor contratado total; km = extensão do traçado × parte que cai no município.
  */
-export function resumoPorMunicipio(acoes: AcaoT[], territorioDe: Record<string, string>): { linhas: LinhaMunicipio[]; totalAcoes: number; totalInvestimento: number } {
+export function resumoPorMunicipio(acoes: AcaoT[], territorioDe: Record<string, string>, nomes: Record<string, string> = {}): { linhas: LinhaMunicipio[]; totalAcoes: number; totalInvestimento: number } {
   const mapa = new Map<string, LinhaMunicipio>();
+  // Todos os municípios entram, mesmo sem ação nos filtros (linha zerada no fim da lista).
+  for (const [k, nome] of Object.entries(nomes)) mapa.set(k, { chave: k, nome, territorio: territorioDe[k] ?? null, acoes: 0, exclusivas: 0, tambem: 0, investimento: 0, km: 0, comTracado: 0 });
   let totalInvestimento = 0;
   for (const a of acoes) {
     const valor = a.original ?? 0;

@@ -3,7 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { AppShell } from "@/components/layout/AppShell";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
-import { territoriosDasAcoes, territorioPorMunicipio } from "@/lib/territoriosDados";
+import { nomesDosMunicipios, territoriosDasAcoes, territorioPorMunicipio } from "@/lib/territoriosDados";
 import { normalizarNome } from "@/lib/territorios";
 import type { AcaoT } from "@/lib/analiseTerritorio";
 import { dinheiroParaNumero } from "@/lib/simo/parseCsv";
@@ -128,6 +128,7 @@ export async function PaginaTerritorio({ modo }: { modo: "analise" | "mapa" | "h
   const { porAcao, erro: erroTerr } = await territoriosDasAcoes(dados, extras);
   erro = erro ?? erroTerr;
   const mapaMunicipios = await territorioPorMunicipio();
+  const nomesMunicipios = await nomesDosMunicipios();
   const territorios = Array.from(new Set(mapaMunicipios.values())).sort((a, b) => a.localeCompare(b, "pt-BR"));
 
   // Filtro gravado: UM SÓ, vale para todos (quem gravou por último). Lido com o acesso do servidor.
@@ -189,7 +190,7 @@ export async function PaginaTerritorio({ modo }: { modo: "analise" | "mapa" | "h
       {erro ? (
         <p className="rounded-lg bg-status-critical/10 px-3 py-2 text-xs text-status-critical">Falha ao carregar os dados: {erro}</p>
       ) : (
-        <AnaliseTerritorio acoes={acoes} territorios={territorios} territorioDoMunicipio={Object.fromEntries(mapaMunicipios)} filtroGravado={filtroGravado} ehAdmin={!!profile?.is_admin} modo={modo} tela={tela} somenteLeitura={digepi} />
+        <AnaliseTerritorio acoes={acoes} territorios={territorios} territorioDoMunicipio={Object.fromEntries(mapaMunicipios)} nomesMunicipios={nomesMunicipios} filtroGravado={filtroGravado} ehAdmin={!!profile?.is_admin} modo={modo} tela={tela} somenteLeitura={digepi} />
       )}
     </AppShell>
   );

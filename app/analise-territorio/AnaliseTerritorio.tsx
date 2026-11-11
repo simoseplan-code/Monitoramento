@@ -59,7 +59,7 @@ function csvEscape(v: unknown): string {
   return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 
-function CorpoAnalise({ visao = "kml", acoes, territorios, territorioDoMunicipio = {}, filtroGravado, ehAdmin, modo = "analise", tela = "analise_territorio", somenteLeitura = false }: { visao?: "kml" | "simo"; territorioDoMunicipio?: Record<string, string>; acoes: AcaoT[]; territorios: string[]; ehAdmin: boolean; modo?: "analise" | "mapa" | "hidricos"; tela?: string; somenteLeitura?: boolean; filtroGravado: { estado: unknown; atualizadoEm: string; por?: string | null } | null }) {
+function CorpoAnalise({ visao = "kml", acoes, territorios, territorioDoMunicipio = {}, nomesMunicipios = {}, filtroGravado, ehAdmin, modo = "analise", tela = "analise_territorio", somenteLeitura = false }: { visao?: "kml" | "simo"; territorioDoMunicipio?: Record<string, string>; nomesMunicipios?: Record<string, string>; acoes: AcaoT[]; territorios: string[]; ehAdmin: boolean; modo?: "analise" | "mapa" | "hidricos"; tela?: string; somenteLeitura?: boolean; filtroGravado: { estado: unknown; atualizadoEm: string; por?: string | null } | null }) {
   const valores = useMemo(() => valoresDosFiltros(acoes), [acoes]);
   // Abre no filtro gravado (um só, vale para todos os usuários); sem filtro gravado, abre só com as vinculadas.
   const [estado, setEstado] = useState<EstadoFiltros>(() => (filtroGravado ? estadoDeGravado(filtroGravado.estado, valores) : modo === "hidricos" ? estadoTodos() : estadoPadrao()));
@@ -76,7 +76,7 @@ function CorpoAnalise({ visao = "kml", acoes, territorios, territorioDoMunicipio
   const filtradas = useMemo(() => filtrar(acoes, estado), [acoes, estado]);
   const resumo = useMemo(() => resumoPorTerritorio(filtradas, territorios), [filtradas, territorios]);
   const passagem = useMemo(() => resumoPassagem(filtradas, territorios), [filtradas, territorios]);
-  const porMunicipio = useMemo(() => resumoPorMunicipio(filtradas, territorioDoMunicipio), [filtradas, territorioDoMunicipio]);
+  const porMunicipio = useMemo(() => resumoPorMunicipio(filtradas, territorioDoMunicipio, nomesMunicipios), [filtradas, territorioDoMunicipio, nomesMunicipios]);
   const cruzam = useMemo(() => filtradas.filter(cruza), [filtradas]);
 
   const mudar = (e: EstadoFiltros) => {
@@ -403,7 +403,7 @@ function Resumo({ linhas, geral, aoEscolher }: { linhas: LinhaTerritorio[]; gera
         </thead>
         <tbody>
           {linhas.map((l) => (
-            <tr key={l.territorio} className="border-b border-black/5 last:border-0 hover:bg-plane/60">
+            <tr key={l.territorio} className={"border-b border-black/5 last:border-0 hover:bg-plane/60" + (l.acoes === 0 ? " opacity-50" : "")}>
               <td className="px-4 py-2">
                 <button onClick={() => aoEscolher(rotuloTerritorio(l.territorio))} className="flex items-center gap-2 font-medium text-ink-primary hover:underline" title="Ver as ações que passam por este território (inclui as que só passam em parte)">
                   <span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: COR_TERRITORIO[l.territorio] ?? "#6b7280" }} />
@@ -551,7 +551,7 @@ function ResumoMunicipios({ r, aoEscolher, doSimo }: { r: ReturnType<typeof resu
         </thead>
         <tbody>
           {linhas.map((l) => (
-            <tr key={l.chave} className="border-b border-black/5 last:border-0 hover:bg-plane/60">
+            <tr key={l.chave} className={"border-b border-black/5 last:border-0 hover:bg-plane/60" + (l.acoes === 0 ? " opacity-50" : "")}>
               <td className="px-4 py-2">
                 <button onClick={() => aoEscolher(l.chave)} className="font-medium text-ink-primary hover:underline" title="Ver as ações que passam por este município">
                   {l.nome}
