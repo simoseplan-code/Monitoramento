@@ -65,7 +65,8 @@ export async function fontesDoTracado(admin: SupabaseClient, ids: string[]): Pro
   await Promise.all(
     emLotes(ids, 200).map(async (lote) => {
       const [a, b, c] = await Promise.all([
-        admin.from("kml_arquivos").select("id_acao").in("id_acao", lote).not("wkt", "is", null),
+        // KML guardado com alguma geometria: linhas, ou só pontos/polígonos (também é georreferenciada).
+        admin.from("kml_arquivos").select("id_acao").in("id_acao", lote).or("wkt.not.is.null,qtd_pontos.gt.0,qtd_poligonos.gt.0"),
         admin.from("obras_tracado").select("id_acao").in("id_acao", lote),
         admin.from("obras_geom_extra").select("id_acao").in("id_acao", lote).or("pontos.not.is.null,poligonos.not.is.null"),
       ]);
