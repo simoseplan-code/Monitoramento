@@ -28,6 +28,7 @@ export const TELAS_E_ACESSOS: { grupo: string; tela: string; regra: Regra }[] = 
   { grupo: "Verificações diárias", tela: "Termos (Outros Docs)", regra: todosAprovados },
   { grupo: "Verificações diárias", tela: "Unidade/Quantidade", regra: todosAprovados },
   { grupo: "Verificações diárias", tela: "Análise geral", regra: todosAprovados },
+  { grupo: "Verificações diárias", tela: "Nova análise em teste", regra: todosAprovados },
   { grupo: "Verificação SIAFE", tela: "SIAFE duplicado", regra: todosAprovados },
   { grupo: "Verificação SIAFE", tela: "Não vinculadas SIAFE", regra: todosAprovados },
   { grupo: "Verificação SIAFE", tela: "Vinculação SIAFE", regra: todosAprovados },

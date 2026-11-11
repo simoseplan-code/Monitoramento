@@ -31,6 +31,7 @@ import {
   Route,
   Droplets,
   Scale,
+  FlaskConical,
   type LucideIcon,
 } from "lucide-react";
 import { SobrePainel } from "./SobrePainel";
@@ -101,6 +102,7 @@ export function Sidebar({
     { href: "/termos", label: "Termos (Outros Docs)", icon: FileCheck2, count: counts.termosPendentes || undefined, grupo: "diarias" },
     { href: "/unidade-quantidade", label: "Unidade/Quantidade", icon: Ruler, count: counts.sugestoesUnidadePendentes || undefined, grupo: "diarias" },
     { href: "/analise-territorio", label: "Análise geral", icon: MapaIcon, grupo: "diarias" },
+    { href: "/nova-analise-teste", label: "Nova análise em teste", icon: FlaskConical, grupo: "diarias" },
     // Verificação SIAFE
     { href: "/siafe-duplicado", label: "SIAFE duplicado", icon: Copy, grupo: "siafe" },
     { href: "/acoes-nao-vinculadas", label: "Não vinculadas SIAFE", icon: Unlink, grupo: "siafe" },
