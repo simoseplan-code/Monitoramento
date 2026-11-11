@@ -15,6 +15,7 @@ import { grupoDaTipologia, htmlMarcador, svgSimbolo, type GrupoTipologia } from 
 import {
   FILTROS,
   aditivada,
+  valorFinal,
   anoDeCriacao,
   anoDeRecebimento,
   cruza,
@@ -284,6 +285,13 @@ function CorpoAnalise({ visao = "kml", acoes, territorios, territorioDoMunicipio
         ))}
       </nav>
 
+      {(aba === "resumo" || aba === "municipios") && (
+        <CartoesResumo
+          acoes={filtradas}
+          doSimo={visao === "simo"}
+          divisao={aba === "resumo" ? { rotulo: "Territórios com ação", qtd: passagem.linhas.filter((l) => l.acoes > 0 && l.territorio !== SEM_TERRITORIO).length } : { rotulo: "Municípios com ação", qtd: porMunicipio.linhas.filter((l) => l.acoes > 0).length }}
+        />
+      )}
       {aba === "resumo" && <ResumoPassagem r={passagem} aoEscolher={filtrarTerritorio} doSimo={visao === "simo"} />}
       {aba === "municipios" && <ResumoMunicipios r={porMunicipio} aoEscolher={filtrarMunicipio} doSimo={visao === "simo"} />}
       {aba === "mapa" && <MapaTerritorios linhas={resumo.linhas} aoEscolher={filtrarTerritorio} />}
@@ -608,6 +616,94 @@ function Numeros({ l, total }: { l: LinhaTerritorio; total?: boolean }) {
 }
 
 // ---------- resumo simples (acompanha os filtros) ----------
+
+// Cards de totais das abas "Resumo por território" e "Resumo por município": as ações filtradas, sem repetir nenhuma.
+function CartoesResumo({ acoes, doSimo, divisao }: { acoes: AcaoT[]; doSimo: boolean; divisao: { rotulo: string; qtd: number } }) {
+  const r = useMemo(() => {
+    const contratado = acoes.reduce((t, a) => t + (a.original ?? 0), 0);
+    const comAditivos = acoes.reduce((t, a) => t + valorFinal(a), 0);
+    const pago = acoes.reduce((t, a) => t + (a.pago ?? 0), 0);
+    // Quantidade que vem do SIMO, somada POR UNIDADE (km, m², unidade...: somar unidades diferentes não faz sentido).
+    const porUnidade = new Map<string, number>();
+    for (const a of acoes) {
+      if (a.quantidade == null) continue;
+      const u = (a.unidade ?? "").trim().toUpperCase() || "SEM UNIDADE";
+      porUnidade.set(u, (porUnidade.get(u) ?? 0) + a.quantidade);
+    }
+    // Quantidade automática = extensão do traçado (KML) calculada pelo painel, em km.
+    const kmAuto = acoes.reduce((t, a) => t + a.extensaoM, 0) / 1000;
+    // Comparação justa em km: só as ações cuja unidade no SIMO é KM, e o traçado delas.
+    const emKm = acoes.filter((a) => (a.unidade ?? "").trim().toUpperCase() === "KM" && a.quantidade != null);
+    const kmSimoEmKm = emKm.reduce((t, a) => t + (a.quantidade ?? 0), 0);
+    const kmAutoEmKm = emKm.reduce((t, a) => t + a.extensaoM, 0) / 1000;
+    return {
+      qtd: acoes.length,
+      vinculadas: acoes.filter(vinculada).length,
+      comTracado: acoes.filter((a) => a.origem === "tracado").length,
+      cruzam: acoes.filter(cruza).length,
+      contratado,
+      comAditivos,
+      pago,
+      kmAuto,
+      kmSimoEmKm,
+      kmAutoEmKm,
+      qtdEmKm: emKm.length,
+      porUnidade: Array.from(porUnidade).sort((x, y) => y[1] - x[1]),
+    };
+  }, [acoes]);
+  const km = (v: number) => v.toLocaleString("pt-BR", { maximumFractionDigits: 1 });
+  const cartoes: { rotulo: string; valor: string; dica?: string; azul?: string[]; ajuda?: string }[] = [
+    { rotulo: "Total de ações", valor: inteiro(r.qtd), dica: `${inteiro(r.vinculadas)} vinculada(s)`, ajuda: "Ações distintas dos filtros atuais. Cada ação conta uma vez aqui, mesmo que apareça em mais de um território/município nas linhas abaixo." },
+    { rotulo: "Valor investido (contratado)", valor: dinheiro(r.contratado), dica: Math.abs(r.comAditivos - r.contratado) > 0.5 ? `com aditivos: ${dinheiro(r.comAditivos)}` : undefined, ajuda: "Soma do valor contratado (Valor original) das ações. Embaixo, o valor final com aditivos e supressões." },
+    { rotulo: "Valor pago", valor: dinheiro(r.pago), dica: r.contratado > 0 ? `${((r.pago / r.contratado) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}% do contratado` : undefined, ajuda: "Soma do Valor pago total do SIMO." },
+    ...(doSimo
+      ? []
+      : [
+          {
+            rotulo: "Quantidade automática",
+            valor: `${km(r.kmAuto)} km`,
+            dica: `traçado (KML) de ${inteiro(r.comTracado)} ação(ões) · ${inteiro(r.qtd - r.comTracado)} sem traçado`,
+            ajuda: "Extensão do traçado (KML) calculada pelo painel, a mesma soma da aba Mapa de KML (traçados).",
+          },
+        ]),
+    { rotulo: "Quantidade SIMO", valor: "", azul: r.porUnidade.map(([u, v]) => `${v.toLocaleString("pt-BR", { maximumFractionDigits: 2 })} ${u}`), dica: r.porUnidade.length === 0 ? "sem quantidade" : "somada por unidade, como cadastrada no SIMO", ajuda: "Soma da Quantidade cadastrada no SIMO, separada por unidade de medida (km, m², unidade...)." },
+    ...(doSimo || r.qtdEmKm === 0
+      ? []
+      : [
+          {
+            rotulo: "Automática × SIMO (km)",
+            valor: r.kmSimoEmKm > 0 ? `${((r.kmAutoEmKm / r.kmSimoEmKm) * 100).toLocaleString("pt-BR", { maximumFractionDigits: 0 })}%` : "-",
+            dica: `SIMO ${km(r.kmSimoEmKm)} km · automática ${km(r.kmAutoEmKm)} km`,
+            ajuda: "Só as ações cuja unidade no SIMO é KM: traçado calculado pelo painel ÷ quantidade cadastrada no SIMO. Perto de 100% = o traçado confere com o cadastro.",
+          },
+        ]),
+    { rotulo: divisao.rotulo, valor: inteiro(divisao.qtd) },
+    ...(doSimo ? [] : [{ rotulo: "Cruzam territórios", valor: inteiro(r.cruzam), dica: "ações em mais de um território" }]),
+  ];
+  return (
+    <section className="rounded-xl border border-black/5 bg-surface p-4 shadow-card">
+      <ul className="grid grid-cols-2 gap-3 sm:grid-cols-4 xl:grid-cols-8">
+        {cartoes.map((c) => (
+          <li key={c.rotulo} className="rounded-lg bg-plane px-3 py-2.5" title={c.ajuda}>
+            <p className="text-[11px] uppercase tracking-wide text-ink-muted">{c.rotulo}</p>
+            {c.azul ? (
+              <ul className="mt-0.5 max-h-24 space-y-0.5 overflow-y-auto pr-1">
+                {c.azul.map((l) => (
+                  <li key={l} className="tabular text-sm font-semibold text-series-1">
+                    {l}
+                  </li>
+                ))}
+              </ul>
+            ) : (
+              <p className="tabular mt-0.5 text-sm font-semibold text-ink-primary">{c.valor}</p>
+            )}
+            {c.dica && <p className="text-[11px] leading-snug text-ink-muted">{c.dica}</p>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  );
+}
 
 function ResumoSimples({ acoes }: { acoes: AcaoT[] }) {
   const r = useMemo(() => {
