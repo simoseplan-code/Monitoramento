@@ -31,7 +31,7 @@ export const TELAS_E_ACESSOS: { grupo: string; tela: string; regra: Regra }[] = 
   { grupo: "Verificação SIAFE", tela: "Não vinculadas SIAFE", regra: todosAprovados },
   { grupo: "Verificação SIAFE", tela: "Vinculação SIAFE", regra: todosAprovados },
   { grupo: "Verificação SIAFE", tela: "Configuração de TD", regra: todosAprovados },
-  { grupo: "Georreferenciamento", tela: "Arquivos KML", regra: todosAprovados },
+  { grupo: "Georreferenciamento", tela: "Buscador de KML SIMO", regra: todosAprovados },
   { grupo: "Georreferenciamento", tela: "Sobreposições", regra: supervisores },
   { grupo: "Georreferenciamento", tela: "Verificação de bairros", regra: todosAprovados },
   { grupo: "Georreferenciamento", tela: "Análise por território", regra: todosAprovados },

@@ -145,7 +145,7 @@ async function motivoSemVerificacao(id: string): Promise<string> {
     return "Esta ação tem traçado guardado, mas a Verificação de bairros ainda não calculou os bairros e o território dela. Abra Verificação de bairros e clique em Atualizar.";
   }
   if (kml?.situacao === "sem_kml") return `Esta ação não tem KML no SIMO (conferido em ${dataBR(kml.verificado_em)}) e também não tem traçado no mapa de obras.`;
-  if (kml?.situacao === "erro") return `Não foi possível baixar o KML desta ação do SIMO${kml.mensagem ? ` (${kml.mensagem})` : ""}. Tente de novo em Arquivos KML.`;
+  if (kml?.situacao === "erro") return `Não foi possível baixar o KML desta ação do SIMO${kml.mensagem ? ` (${kml.mensagem})` : ""}. Tente de novo em Buscador de KML SIMO.`;
   if (kml?.situacao === "baixado") return "O KML desta ação foi baixado, mas está vazio (sem linhas, pontos nem polígonos), e ela não tem traçado no mapa de obras.";
-  return "Esta ação não tem traçado no mapa de obras e o KML dela ainda não foi baixado do SIMO (veja em Arquivos KML).";
+  return "Esta ação não tem traçado no mapa de obras e o KML dela ainda não foi baixado do SIMO (veja em Buscador de KML SIMO).";
 }

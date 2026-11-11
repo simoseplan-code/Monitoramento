@@ -133,7 +133,7 @@ export default async function ArquivosKmlPage({
       cargo={profile?.cargo}
       isAdmin={ehAdmin}
       counts={{ acoes: totalAcoes ?? 0, pendentesAprovacao: pendentesAprovacao ?? 0, novasAcoesPendentes }}
-      titulo="Arquivos KML"
+      titulo="Buscador de KML SIMO"
       subtitulo={`${baixados.toLocaleString("pt-BR")} guardado(s) · ${importadosIds.length.toLocaleString("pt-BR")} importado(s) do mapa · ${semKml.toLocaleString("pt-BR")} sem KML no SIMO`}
     >
       <div className="space-y-4">

@@ -943,7 +943,7 @@ function MapaTracados({ acoes, filtros, ehAdmin, comPct, detalhes = false }: { a
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [assinatura]);
 
-  // Aplica o resultado de uma conferência no SIMO: se achou o KML, ele já fica guardado (Arquivos KML, Sobreposições e Verificação de bairros usam o mesmo).
+  // Aplica o resultado de uma conferência no SIMO: se achou o KML, ele já fica guardado (Buscador de KML SIMO, Sobreposições e Verificação de bairros usam o mesmo).
   function aplicarResultado(r: ResultadoLote) {
     if (r.situacao === "baixado" || r.situacao === "ja_tinha") {
       setFontes((f) => ({ ...(f ?? {}), [r.id]: f?.[r.id] === "mapa" ? "ambos" : (f?.[r.id] ?? "kml") }));
@@ -1259,7 +1259,7 @@ function MapaTracados({ acoes, filtros, ehAdmin, comPct, detalhes = false }: { a
                 onClick={conferirTodas}
                 disabled={alvos.length === 0 || fontes === null}
                 className="flex items-center gap-1.5 rounded-full border border-black/10 bg-surface px-4 py-2 text-xs font-semibold text-ink-secondary hover:bg-plane disabled:opacity-50"
-                title="Vai ao SIMO ver, uma por uma, só as obras do filtro que ainda não têm traçado (as que já têm Ver no mapa não entram). Se achar, já baixa e guarda (vale para Arquivos KML, Sobreposições e Verificação de bairros)."
+                title="Vai ao SIMO ver, uma por uma, só as obras do filtro que ainda não têm traçado (as que já têm Ver no mapa não entram). Se achar, já baixa e guarda (vale para Buscador de KML SIMO, Sobreposições e Verificação de bairros)."
               >
                 <RefreshCw size={13} /> Conferir {fontes === null ? "" : inteiro(alvos.length) + " "}no SIMO
               </button>
@@ -1477,7 +1477,7 @@ function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr, comPct, detalhes
         </div>
         <div className="ml-auto flex flex-wrap items-center gap-2">
           {semGeo.length > 0 && (
-            <button onClick={copiarSemGeo} className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-medium text-ink-secondary hover:bg-plane" title="Copia os IDs das obras sem georreferenciamento, para colar em Arquivos KML e baixar em lote">
+            <button onClick={copiarSemGeo} className="rounded-full border border-black/10 px-3 py-1.5 text-xs font-medium text-ink-secondary hover:bg-plane" title="Copia os IDs das obras sem georreferenciamento, para colar em Buscador de KML SIMO e baixar em lote">
               {copiou ? "IDs copiados" : `Copiar ${inteiro(semGeo.length)} ID(s) sem KML`}
             </button>
           )}

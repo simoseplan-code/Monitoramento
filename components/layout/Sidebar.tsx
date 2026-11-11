@@ -106,7 +106,7 @@ export function Sidebar({
     { href: "/vinculacao", label: "Vinculação SIAFE", icon: Link2, count: counts.vinculacaoPendentes || undefined, grupo: "siafe" },
     { href: "/configuracao-td", label: "Configuração de TD", icon: ListTree, grupo: "siafe" },
     // Georreferenciamento
-    { href: "/arquivos-kml", label: "Arquivos KML", icon: MapPinned, grupo: "georef" },
+    { href: "/arquivos-kml", label: "Buscador de KML SIMO", icon: MapPinned, grupo: "georef" },
     { href: "/sobreposicoes", label: "Sobreposições", icon: Layers, count: counts.sobreposicoesPendentes || undefined, adminOnly: true, grupo: "georef" },
     { href: "/verificacao-bairros", label: "Verificação de bairros", icon: MapPin, grupo: "georef" },
     { href: "/analise-territorio", label: "Análise por território", icon: MapaIcon, grupo: "georef" },
