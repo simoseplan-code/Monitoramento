@@ -4,6 +4,7 @@ import { useMemo, useState } from "react";
 import { AlertTriangle, ChevronDown, ChevronRight, Download, ExternalLink, Save } from "lucide-react";
 import { FiltroCheckbox } from "@/components/FiltroCheckbox";
 import { IdAcaoLink, urlAcaoSimo } from "@/components/IdAcaoLink";
+import { SincronizarBotao } from "@/components/admin/SincronizarBotao";
 import { PESO_GRAVIDADE, TITULOS_PROBLEMA, type Gravidade, type LinhaAuditoria, type ResumoTipologia } from "@/lib/auditoriaQuantitativo";
 
 type Gravado = { estado: unknown; atualizadoEm: string; por: string | null };
@@ -51,7 +52,7 @@ function lerGravado(g: unknown): EstadoGravado | null {
   return { selecao, busca: typeof o.busca === "string" ? o.busca : "", ids: typeof o.ids === "string" ? o.ids : "", mostrar: o.mostrar === "todas" ? "todas" : "problemas" };
 }
 
-export function NovaAnaliseTeste({ linhas, tipologias, filtroGravado }: { linhas: LinhaAuditoria[]; tipologias: ResumoTipologia[]; filtroGravado: Gravado | null }) {
+export function NovaAnaliseTeste({ linhas, tipologias, filtroGravado, ehAdmin, atualizadoEm }: { linhas: LinhaAuditoria[]; tipologias: ResumoTipologia[]; filtroGravado: Gravado | null; ehAdmin: boolean; atualizadoEm: string | null }) {
   const inicial = useMemo(() => lerGravado(filtroGravado?.estado), [filtroGravado]);
   const padrao = (): Selecao => ({ classificacao: linhas.some((l) => l.classificacao === "OBRA") ? new Set(["OBRA"]) : null });
   const [selecao, setSelecao] = useState<Selecao>(() => (inicial ? Object.fromEntries(Object.entries(inicial.selecao).map(([k, v]) => [k, v ? new Set(v) : null])) : padrao()));
@@ -312,6 +313,12 @@ export function NovaAnaliseTeste({ linhas, tipologias, filtroGravado }: { linhas
             <Download size={13} /> Exportar Excel
           </button>
         </div>
+        <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg bg-plane px-3 py-2">
+          <p className="text-xs text-ink-secondary">
+            Dados das ações do SIMO atualizados em <strong className="text-ink-primary">{atualizadoEm ? new Date(atualizadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" }) : "data desconhecida"}</strong>. A análise é refeita toda vez que a página abre, em cima desses dados; o que você corrigir no SIMO sai da lista depois da próxima atualização (diária, de madrugada) ou ao sincronizar agora.
+          </p>
+          {ehAdmin && <SincronizarBotao />}
+        </div>
         <p className="mt-3 text-[11px] leading-snug text-ink-muted">
           {gravadoEm
             ? alterado
@@ -401,6 +408,8 @@ export function NovaAnaliseTeste({ linhas, tipologias, filtroGravado }: { linhas
             <tr className="border-b border-black/5 bg-plane text-left text-[11px] uppercase tracking-wide text-ink-muted">
               <th className="px-4 py-2.5">ID</th>
               <th className="px-3 py-2.5">Ação</th>
+              <th className="px-3 py-2.5">Criada</th>
+              <th className="px-3 py-2.5">Recebida</th>
               <th className="px-3 py-2.5">Tipologia</th>
               <th className="px-3 py-2.5">Unidade</th>
               <th className="px-3 py-2.5 text-right">Quantidade</th>
@@ -420,8 +429,10 @@ export function NovaAnaliseTeste({ linhas, tipologias, filtroGravado }: { linhas
                 </td>
                 <td className="max-w-[300px] px-3 py-2.5">
                   <div className="line-clamp-3 text-ink-primary" title={l.nome}>{l.nome}</div>
-                  <div className="text-[11px] text-ink-muted">{l.orgao ?? "-"} · {l.status ?? "-"} · criada {l.anoCriacao ?? "-"} · recebida {l.anoReceb ?? "-"}</div>
+                  <div className="text-[11px] text-ink-muted">{l.orgao ?? "-"} · {l.status ?? "-"}</div>
                 </td>
+                <td className="tabular whitespace-nowrap px-3 py-2.5 text-ink-secondary">{l.anoCriacao ?? "-"}</td>
+                <td className="tabular whitespace-nowrap px-3 py-2.5 text-ink-secondary">{l.anoReceb ?? "-"}</td>
                 <td className="px-3 py-2.5 text-ink-secondary">{l.tipologia ?? "-"}</td>
                 <td className="whitespace-nowrap px-3 py-2.5 font-medium text-series-1">{l.unidade?.trim() || "-"}</td>
                 <td className="tabular whitespace-nowrap px-3 py-2.5 text-right font-medium text-series-1">{l.quantidade != null ? l.quantidade.toLocaleString("pt-BR", { maximumFractionDigits: 2 }) : "-"}</td>
@@ -447,7 +458,7 @@ export function NovaAnaliseTeste({ linhas, tipologias, filtroGravado }: { linhas
             ))}
             {visiveis.length === 0 && (
               <tr>
-                <td colSpan={8} className="px-4 py-10 text-center text-ink-muted">Nenhuma ação com esses filtros.</td>
+                <td colSpan={10} className="px-4 py-10 text-center text-ink-muted">Nenhuma ação com esses filtros.</td>
               </tr>
             )}
           </tbody>

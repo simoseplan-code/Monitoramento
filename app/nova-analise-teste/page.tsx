@@ -91,6 +91,9 @@ export default async function NovaAnaliseTestePage() {
   }
   const filtroGravado = gravado ? { estado: gravado.estado as unknown, atualizadoEm: gravado.atualizado_em as string, por: gravadoPor } : null;
 
+  // Quando os dados das ações vieram do SIMO pela última vez (a sincronização diária, ou o botão Sincronizar).
+  const { data: ultimoSync } = await admin.from("sync_log").select("executado_em").eq("sucesso", true).gt("linhas_processadas", 0).not("mensagem", "ilike", "Sobreposições%").order("executado_em", { ascending: false }).limit(1).maybeSingle();
+
   // Só o que a tela precisa (o texto longo da descrição fica no servidor).
   const enxutas = linhas.map((l) => ({ ...l, nome: l.nome.length > 160 ? l.nome.slice(0, 157) + "..." : l.nome }));
 
@@ -106,7 +109,7 @@ export default async function NovaAnaliseTestePage() {
       {obras.erro ? (
         <p className="rounded-lg bg-status-critical/10 px-3 py-2 text-xs text-status-critical">Falha ao carregar os dados: {obras.erro}</p>
       ) : (
-        <NovaAnaliseTeste linhas={enxutas} tipologias={tipologias} filtroGravado={filtroGravado} />
+        <NovaAnaliseTeste linhas={enxutas} tipologias={tipologias} filtroGravado={filtroGravado} ehAdmin={!!profile?.is_admin} atualizadoEm={(ultimoSync?.executado_em as string | null) ?? null} />
       )}
     </AppShell>
   );
