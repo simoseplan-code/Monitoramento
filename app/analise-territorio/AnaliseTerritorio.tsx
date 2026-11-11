@@ -2,7 +2,7 @@
 
 import "leaflet/dist/leaflet.css";
 import { Component, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { AlertTriangle, Download, Info, Loader2, MapPinned, Maximize2, Minimize2, RefreshCw, Save, X } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, Download, Info, Loader2, MapPinned, Maximize2, Minimize2, RefreshCw, Save, X } from "lucide-react";
 import type { Map as MapaDoLeaflet } from "leaflet";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
 import { dataBR } from "@/lib/acoesFiltro";
@@ -18,6 +18,7 @@ import {
   valorFinal,
   anoDeCriacao,
   anoDeRecebimento,
+  dataDeRecebimento,
   cruza,
   descreverFiltros,
   descricaoDosMunicipios,
@@ -771,9 +772,67 @@ function ResumoSimples({ acoes }: { acoes: AcaoT[] }) {
 
 function ListaAcoes({ acoes, pagina, aoMudarPagina, comPct, doSimo = false }: { acoes: AcaoT[]; pagina: number; aoMudarPagina: (p: number) => void; comPct: boolean; doSimo?: boolean }) {
   const [verMapa, setVerMapa] = useState<{ id: string; nome: string } | null>(null);
-  const totalPaginas = Math.max(1, Math.ceil(acoes.length / TAMANHO));
+  // Ordenação da lista (botões discretos no título de cada coluna): maior→menor, menor→maior; clicar de novo volta ao normal.
+  const [ordem, setOrdem] = useState<{ chave: string; dir: "desc" | "asc" } | null>(null);
+  const valorDe = (a: AcaoT, chave: string): number | string | null => {
+    switch (chave) {
+      case "quantidade":
+        return a.quantidade;
+      case "extensao":
+        return a.extensaoM > 0 ? a.extensaoM : null;
+      case "exec":
+        return a.pct;
+      case "criada":
+        return a.criadaEm || null;
+      case "recebida":
+        return dataDeRecebimento(a);
+      case "pago":
+        return a.pago;
+      default:
+        return null;
+    }
+  };
+  const ordenadas = useMemo(() => {
+    if (!ordem) return acoes;
+    const { chave, dir } = ordem;
+    // Sem valor fica sempre no fim, em qualquer direção.
+    return [...acoes].sort((x, y) => {
+      const vx = valorDe(x, chave);
+      const vy = valorDe(y, chave);
+      if (vx == null && vy == null) return 0;
+      if (vx == null) return 1;
+      if (vy == null) return -1;
+      const c = typeof vx === "number" && typeof vy === "number" ? vx - vy : String(vx).localeCompare(String(vy));
+      return dir === "asc" ? c : -c;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [acoes, ordem]);
+  const ordenar = (chave: string, dir: "desc" | "asc") => {
+    setOrdem((o) => (o && o.chave === chave && o.dir === dir ? null : { chave, dir }));
+    aoMudarPagina(1);
+  };
+  const Ordem = ({ chave }: { chave: string }) => (
+    <span className="ml-1 inline-flex flex-col align-middle leading-none">
+      {(["asc", "desc"] as const).map((d) => {
+        const ativo = ordem?.chave === chave && ordem.dir === d;
+        const Icone = d === "asc" ? ArrowUp : ArrowDown;
+        return (
+          <button
+            key={d}
+            type="button"
+            onClick={() => ordenar(chave, d)}
+            title={(d === "desc" ? "Do maior para o menor" : "Do menor para o maior") + (ativo ? " (clique de novo para voltar ao normal)" : "")}
+            className={"rounded p-px " + (ativo ? "text-series-1" : "text-ink-muted/40 hover:text-ink-secondary")}
+          >
+            <Icone size={9} strokeWidth={3} />
+          </button>
+        );
+      })}
+    </span>
+  );
+  const totalPaginas = Math.max(1, Math.ceil(ordenadas.length / TAMANHO));
   const atual = Math.min(pagina, totalPaginas);
-  const visiveis = acoes.slice((atual - 1) * TAMANHO, atual * TAMANHO);
+  const visiveis = ordenadas.slice((atual - 1) * TAMANHO, atual * TAMANHO);
   return (
     <section className="overflow-x-auto rounded-xl border border-black/5 bg-surface shadow-card">
       <table className="w-full text-xs">
@@ -784,20 +843,20 @@ function ListaAcoes({ acoes, pagina, aoMudarPagina, comPct, doSimo = false }: { 
             <th className="px-3 py-2.5">Órgão</th>
             <th className="px-3 py-2.5">Tipologia</th>
             <th className="px-3 py-2.5 text-series-1">Unidade</th>
-            <th className="px-3 py-2.5 text-right text-series-1">Quantidade</th>
+            <th className="px-3 py-2.5 text-right text-series-1">Quantidade<Ordem chave="quantidade" /></th>
             {!doSimo && (
               <th className="px-3 py-2.5 text-right" style={{ color: "#8b5a2b" }} title="Extensão do traçado (KML) calculada pelo painel, em km.">
-                Extensão do traçado (km)
+                Extensão do traçado (km)<Ordem chave="extensao" />
               </th>
             )}
             <th className="px-3 py-2.5">{doSimo ? "Município(s) (dado do SIMO)" : "Município(s)"}</th>
             <th className="px-3 py-2.5">{doSimo ? "Território(s) (dado do SIMO)" : "Território(s)"}</th>
             <th className="px-3 py-2.5">Status</th>
             <th className="px-3 py-2.5">Vinculação</th>
-            <th className="px-3 py-2.5 text-right">Exec.</th>
-            <th className="px-3 py-2.5">Criada</th>
-            <th className="px-3 py-2.5">Recebida</th>
-            <th className="px-3 py-2.5 text-right">Valor pago</th>
+            <th className="px-3 py-2.5 text-right">Exec.<Ordem chave="exec" /></th>
+            <th className="px-3 py-2.5">Criada<Ordem chave="criada" /></th>
+            <th className="px-3 py-2.5">Recebida<Ordem chave="recebida" /></th>
+            <th className="px-3 py-2.5 text-right">Valor pago<Ordem chave="pago" /></th>
             <th className="px-3 py-2.5">KML</th>
           </tr>
         </thead>
