@@ -1004,7 +1004,11 @@ function MapaTracados({ acoes, filtros, ehAdmin, comPct, detalhes = false }: { a
 
   // Aplica o resultado de uma conferência no SIMO: se achou o KML, ele já fica guardado (Buscador de KML SIMO, Sobreposições e Verificação de bairros usam o mesmo).
   function aplicarResultado(r: ResultadoLote) {
-    if (r.situacao === "baixado" || r.situacao === "ja_tinha") {
+    if (r.situacao === "baixado" && !(Number(r.extensaoKm) > 0)) {
+      // O SIMO tinha KML, mas sem linha de traçado (só pontos/polígonos ou vazio): conferida, porém não georreferenciada por linha.
+      setConferidas((c) => ({ ...c, [r.id]: "sem_linha" }));
+      setResultado((x) => ({ ...x, [r.id]: "KML baixado, mas sem linha de traçado" }));
+    } else if (r.situacao === "baixado" || r.situacao === "ja_tinha") {
       setFontes((f) => ({ ...(f ?? {}), [r.id]: f?.[r.id] === "mapa" ? "ambos" : (f?.[r.id] ?? "kml") }));
       setConferidas((c) => {
         const n = { ...c };
@@ -1041,7 +1045,7 @@ function MapaTracados({ acoes, filtros, ehAdmin, comPct, detalhes = false }: { a
   const [refazerSemKml, setRefazerSemKml] = useState(false);
   const parar = useRef(false);
   const alvos = useMemo(
-    () => (fontes === null ? [] : acoes.filter((a) => !fontes[a.id] && (refazerSemKml || conferidas[a.id] !== "sem_kml")).map((a) => a.id)),
+    () => (fontes === null ? [] : acoes.filter((a) => !fontes[a.id] && (refazerSemKml || (conferidas[a.id] !== "sem_kml" && conferidas[a.id] !== "sem_linha"))).map((a) => a.id)),
     [acoes, fontes, conferidas, refazerSemKml]
   );
 
@@ -1443,7 +1447,7 @@ function ListaDoMapa({ acoes, filtros, aoAbrirKml, ehAdmin, tr, comPct, detalhes
     const f = fontes[id];
     if (f) return f === "kml" ? "Sim (KML do SIMO)" : f === "mapa" ? "Sim (mapa de obras)" : "Sim (KML e mapa)";
     const c = conferidas[id];
-    return c === "sem_kml" ? "Não (sem KML no SIMO)" : c === "erro" ? "Não (erro ao baixar)" : "Não (não conferida)";
+    return c === "sem_kml" ? "Não (sem KML no SIMO)" : c === "sem_linha" ? "Não (KML sem linha de traçado)" : c === "erro" ? "Não (erro ao baixar)" : "Não (não conferida)";
   };
 
   // Confere uma só ação no SIMO (botão da linha).

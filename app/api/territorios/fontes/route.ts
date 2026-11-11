@@ -33,6 +33,10 @@ export async function POST(request: NextRequest) {
     for (let i = 0; i < ids.length; i += 200) {
       const { data } = await admin.from("kml_arquivos").select("id_acao, situacao").in("id_acao", ids.slice(i, i + 200)).in("situacao", ["sem_kml", "erro"]);
       for (const r of data ?? []) conferidas[r.id_acao as string] = r.situacao as string;
+      // KML já baixado do SIMO, mas sem nenhuma LINHA de traçado (só pontos/polígonos ou vazio): não conta como georreferenciada,
+      // mas a ação JÁ foi conferida (antes ela aparecia como "não conferida" ao recarregar a tela).
+      const { data: semLinha } = await admin.from("kml_arquivos").select("id_acao").in("id_acao", ids.slice(i, i + 200)).eq("situacao", "baixado").is("wkt", null);
+      for (const r of semLinha ?? []) if (!fontes.has(r.id_acao as string)) conferidas[r.id_acao as string] = "sem_linha";
     }
     return NextResponse.json({ fontes: Object.fromEntries(fontes), conferidas });
   } catch (e) {
