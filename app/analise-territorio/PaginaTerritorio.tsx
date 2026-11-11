@@ -183,7 +183,7 @@ export async function PaginaTerritorio({ modo }: { modo: "analise" | "mapa" | "h
       isAdmin={!!profile?.is_admin}
       digepi={digepi}
       counts={{ acoes: totalAcoes ?? 0, pendentesAprovacao: pendentesAprovacao ?? 0, novasAcoesPendentes }}
-      titulo={hidricos ? "Mapa de Recursos Hídricos" : modo === "mapa" ? "Mapa geral" : "Análise por território"}
+      titulo={hidricos ? "Mapa de Recursos Hídricos" : modo === "mapa" ? "Mapa geral" : "Análise geral"}
       subtitulo={hidricos ? `Adutora, barragem, abastecimento de água, cisterna, poço e rede de distribuição · ${acoes.length.toLocaleString("pt-BR")} ação(ões)` : modo === "mapa" ? `Traçados (KML) das ações, com os filtros que você escolher · ${acoes.length.toLocaleString("pt-BR")} ação(ões)` : `${acoes.length.toLocaleString("pt-BR")} ação(ões) nos 12 territórios de desenvolvimento`}
     >
       {erro ? (

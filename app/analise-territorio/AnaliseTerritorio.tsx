@@ -1352,7 +1352,7 @@ function MapaTracados({ acoes, filtros, ehAdmin, comPct, detalhes = false }: { a
         <p className={"rounded-lg px-3 py-2 text-xs " + (lote.rodando ? "bg-plane text-ink-secondary" : lote.erros > 0 ? "bg-status-warning-bg text-status-warning" : "bg-status-good-bg text-status-good")}>
           {lote.rodando ? "Conferindo no SIMO... " : `${lote.fim} `}
           {inteiro(lote.feitos)} de {inteiro(lote.total)} conferida(s): <strong>{inteiro(lote.baixados)}</strong> com KML (baixado e guardado), <strong>{inteiro(lote.semKml)}</strong> sem KML no SIMO, {inteiro(lote.erros)} com erro.
-          {!lote.rodando && lote.baixados > 0 && " Para as novas aparecerem nos territórios, rode Atualizar localização (na Análise por território)."}
+          {!lote.rodando && lote.baixados > 0 && " Para as novas aparecerem nos territórios, rode Atualizar localização (na Análise geral)."}
         </p>
       )}
       {avisoKml && <p className={"rounded-lg px-3 py-2 text-xs " + (avisoKml.tipo === "ok" ? "bg-status-good-bg text-status-good" : "bg-status-critical/10 text-status-critical")}>{avisoKml.texto}</p>}

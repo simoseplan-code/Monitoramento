@@ -100,6 +100,7 @@ export function Sidebar({
     { href: "/novas-em-execucao", label: "Novas em Execução", icon: PlayCircle, count: counts.novasExecucaoPendentes || undefined, grupo: "diarias" },
     { href: "/termos", label: "Termos (Outros Docs)", icon: FileCheck2, count: counts.termosPendentes || undefined, grupo: "diarias" },
     { href: "/unidade-quantidade", label: "Unidade/Quantidade", icon: Ruler, count: counts.sugestoesUnidadePendentes || undefined, grupo: "diarias" },
+    { href: "/analise-territorio", label: "Análise geral", icon: MapaIcon, grupo: "diarias" },
     // Verificação SIAFE
     { href: "/siafe-duplicado", label: "SIAFE duplicado", icon: Copy, grupo: "siafe" },
     { href: "/acoes-nao-vinculadas", label: "Não vinculadas SIAFE", icon: Unlink, grupo: "siafe" },
@@ -109,7 +110,6 @@ export function Sidebar({
     { href: "/arquivos-kml", label: "Buscador de KML SIMO", icon: MapPinned, grupo: "georef" },
     { href: "/sobreposicoes", label: "Sobreposições", icon: Layers, count: counts.sobreposicoesPendentes || undefined, adminOnly: true, grupo: "georef" },
     { href: "/verificacao-bairros", label: "Verificação de bairros", icon: MapPin, grupo: "georef" },
-    { href: "/analise-territorio", label: "Análise por território", icon: MapaIcon, grupo: "georef" },
     { href: "/mapa-geral", label: "Mapa geral", icon: Route, adminOnly: true, grupo: "georef" },
     { href: "/recursos-hidricos", label: "Recursos Hídricos", icon: Droplets, grupo: "georef" },
     // Medições
