@@ -236,12 +236,22 @@ export async function executarRevinculacao(ids: string[], executadoPor: string):
   const resultados: ResultadoRevinculacao[] = [];
   let feitas = 0;
 
+  // Toda tentativa entra no histórico (inclusive as que nem chegaram ao SIMO). Se não gravar, avisa na própria linha.
+  const guardar = async (r: ResultadoRevinculacao): Promise<ResultadoRevinculacao> => {
+    const { error: erroGrava } = await admin.from("revinculacoes").insert({ id_acao: r.idAcao, nome_acao: r.nomeAcao, numero_usado: r.numero, origem_numero: r.origemNumero, sucesso: r.sucesso, resultado: r.resultado, antes: r.antes, depois: r.depois, executado_por: executadoPor });
+    if (erroGrava) {
+      console.error("revinculacoes:", erroGrava.message);
+      return { ...r, resultado: `${r.resultado} (aviso: não consegui gravar no histórico: ${erroGrava.message})` };
+    }
+    return r;
+  };
+
   for (const id of unicos) {
     if (Date.now() - inicio > LIMITE_TEMPO_MS) break;
     feitas++;
     const obra = mapa.get(id);
     if (!obra) {
-      resultados.push({ idAcao: id, nomeAcao: "", numero: null, origemNumero: null, sucesso: false, resultado: "Ação não encontrada no painel (sincronize antes).", antes: null, depois: null });
+      resultados.push(await guardar({ idAcao: id, nomeAcao: "", numero: null, origemNumero: null, sucesso: false, resultado: "Ação não encontrada no painel (sincronize antes).", antes: null, depois: null }));
       continue;
     }
     const siafe = (obra.numero_siafe ?? "").trim();
@@ -250,7 +260,7 @@ export async function executarRevinculacao(ids: string[], executadoPor: string):
     const [numero, origem] = /^d{8}$/.test(siafe) ? [siafe, "Número do Contrato no SIAFE"] : /^d{8}$/.test(auto) ? [auto, "Número Automático"] : [null, null];
     const antes: FotoValores = { total: numeroOuNull(obra.valor_total) ?? numeroOuNull(obra.valor_original), pago: pagoDoExtra(obra.extra as Record<string, string> | null), medido: null, automatico: auto || null };
     if (!numero) {
-      resultados.push({ idAcao: id, nomeAcao: obra.nome_acao ?? "", numero: null, origemNumero: null, sucesso: false, resultado: "Sem número de 8 dígitos (nem Contrato SIAFE, nem Número Automático) para revincular.", antes, depois: null });
+      resultados.push(await guardar({ idAcao: id, nomeAcao: obra.nome_acao ?? "", numero: null, origemNumero: null, sucesso: false, resultado: "Sem número de 8 dígitos (nem Contrato SIAFE, nem Número Automático) para revincular.", antes, depois: null }));
       continue;
     }
 
@@ -289,11 +299,9 @@ export async function executarRevinculacao(ids: string[], executadoPor: string):
     }
 
     await admin.from("obras_vinculacao_log").insert({ id_acao: id, nome_acao: obra.nome_acao ?? "", numero_siafe: numero, http_code: httpCode, resultado: sucesso ? "Sucesso" : resultado, resposta_bruta: bruta.slice(0, 2000), executado_por: executadoPor });
-    const { error: erroGrava } = await admin.from("revinculacoes").insert({ id_acao: id, nome_acao: obra.nome_acao ?? "", numero_usado: numero, origem_numero: origem, sucesso, resultado, antes, depois, executado_por: executadoPor });
-    if (erroGrava) console.error("revinculacoes:", erroGrava.message);
     await registrarAnalise(admin, executadoPor, "vinculacao", id, sucesso ? "revinculado" : "falha_revinculacao", resultado);
 
-    resultados.push({ idAcao: id, nomeAcao: obra.nome_acao ?? "", numero, origemNumero: origem, sucesso, resultado, antes, depois });
+    resultados.push(await guardar({ idAcao: id, nomeAcao: obra.nome_acao ?? "", numero, origemNumero: origem, sucesso, resultado, antes, depois }));
     if (feitas < unicos.length) await new Promise((res) => setTimeout(res, PAUSA_MS));
   }
 

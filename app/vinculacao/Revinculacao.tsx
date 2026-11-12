@@ -39,7 +39,7 @@ function csvEscape(v: string) {
   return /[";\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 }
 
-export function Revinculacao({ historico }: { historico: LinhaRev[] }) {
+export function Revinculacao({ historico, erroHistorico }: { historico: LinhaRev[]; erroHistorico?: string | null }) {
   const [texto, setTexto] = useState("");
   const [rodando, setRodando] = useState(false);
   const [resultados, setResultados] = useState<LinhaRev[]>([]);
@@ -195,6 +195,7 @@ export function Revinculacao({ historico }: { historico: LinhaRev[] }) {
         <div className="border-b border-black/5 px-4 py-3">
           <h2 className="text-sm font-semibold text-ink-primary">Últimas revinculações</h2>
           <p className="text-xs text-ink-muted">As 50 mais recentes, de todos os usuários. O “antes” vem do relatório do dia; o “depois”, da página da ação no SIMO.</p>
+          {erroHistorico && <p className="mt-1 text-xs font-medium text-status-critical">Não consegui ler o histórico: {erroHistorico}. Confira se o SQL 0101 foi rodado.</p>}
         </div>
         {tabela(historico, true)}
       </section>

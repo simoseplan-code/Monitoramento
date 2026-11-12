@@ -86,8 +86,10 @@ export default async function VinculacaoPage({
 
   // Revinculação: últimas tentativas (SQL 0101). Sem a tabela, a lista vem vazia.
   let historicoRev: LinhaRev[] = [];
+  let erroHistoricoRev: string | null = null;
   if (naRevinculacao) {
-    const { data: revs } = await createAdminClient().from("revinculacoes").select("id_acao, nome_acao, numero_usado, origem_numero, sucesso, resultado, antes, depois, executado_em").order("executado_em", { ascending: false }).limit(50);
+    const { data: revs, error: erroRev } = await createAdminClient().from("revinculacoes").select("id_acao, nome_acao, numero_usado, origem_numero, sucesso, resultado, antes, depois, executado_em").order("executado_em", { ascending: false }).limit(50);
+    if (erroRev) erroHistoricoRev = erroRev.message;
     historicoRev = (revs ?? []).map((r) => ({ idAcao: r.id_acao as string, nomeAcao: (r.nome_acao as string | null) ?? "", numero: r.numero_usado as string | null, origemNumero: r.origem_numero as string | null, sucesso: !!r.sucesso, resultado: (r.resultado as string | null) ?? "", antes: r.antes as LinhaRev["antes"], depois: r.depois as LinhaRev["depois"], quando: r.executado_em as string }));
   }
 
@@ -107,7 +109,7 @@ export default async function VinculacaoPage({
       subtitulo={`${totalGeral} ação(ões) pendentes de vinculação (com Número do Contrato no SIAFE, sem Número Automático)`}
     >
       {abas}
-      {naRevinculacao && <Revinculacao historico={historicoRev} />}
+      {naRevinculacao && <Revinculacao historico={historicoRev} erroHistorico={erroHistoricoRev} />}
       {!naRevinculacao && isAdmin && (
         <div className="mb-4 rounded-xl border border-black/5 bg-surface p-4 shadow-card">
           <div className="mb-1 flex items-center justify-between">
@@ -151,7 +153,7 @@ export default async function VinculacaoPage({
         <Paginacao paginaAtual={paginaAtual} totalPaginas={totalPaginas} baseHref="/vinculacao" params={{ busca, orgao }} />
       </div>}
 
-      {isAdmin && (
+      {!naRevinculacao && isAdmin && (
         <div className="mt-6 rounded-xl border border-black/5 bg-surface p-5 shadow-card">
           <h2 className="mb-3 text-sm font-semibold text-ink-primary">Histórico recente de vinculação</h2>
           <ul className="space-y-2">
