@@ -151,7 +151,7 @@ export default async function VinculacaoPage({
         <Paginacao paginaAtual={paginaAtual} totalPaginas={totalPaginas} baseHref="/vinculacao" params={{ busca, orgao }} />
       </div>}
 
-      {!naRevinculacao && isAdmin && (
+      {isAdmin && (
         <div className="mt-6 rounded-xl border border-black/5 bg-surface p-5 shadow-card">
           <h2 className="mb-3 text-sm font-semibold text-ink-primary">Histórico recente de vinculação</h2>
           <ul className="space-y-2">

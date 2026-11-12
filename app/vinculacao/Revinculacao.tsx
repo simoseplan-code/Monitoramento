@@ -135,7 +135,7 @@ export function Revinculacao({ historico }: { historico: LinhaRev[] }) {
           ))}
           {linhas.length === 0 && (
             <tr>
-              <td colSpan={8} className="px-4 py-8 text-center text-ink-muted">Nada por aqui ainda.</td>
+              <td colSpan={8} className="px-4 py-8 text-center text-ink-muted">Nenhuma revinculação feita ainda. Cole IDs acima e clique em Revincular: o resultado aparece aqui.</td>
             </tr>
           )}
         </tbody>
