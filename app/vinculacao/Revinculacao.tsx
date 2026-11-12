@@ -61,9 +61,15 @@ export function Revinculacao({ historico, erroHistorico }: { historico: LinhaRev
     try {
       while (restantes.length > 0 && !parar.current) {
         const resp = await fetch("/api/admin/revincular", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: restantes }) });
-        const json = (await resp.json().catch(() => ({}))) as { error?: string; resultados?: LinhaRev[]; restantes?: string[] };
-        if (!resp.ok) {
-          setErro(json.error ?? "Falha ao revincular.");
+        const bruto = await resp.text();
+        let json: { error?: string; resultados?: LinhaRev[]; restantes?: string[] } = {};
+        try {
+          json = JSON.parse(bruto);
+        } catch {
+          // não veio JSON
+        }
+        if (!resp.ok || !Array.isArray(json.resultados)) {
+          setErro(json.error ?? `Resposta inesperada do servidor (HTTP ${resp.status}): ${bruto.replace(/s+/g, " ").slice(0, 200) || "vazia"}`);
           break;
         }
         const novos = json.resultados ?? [];
