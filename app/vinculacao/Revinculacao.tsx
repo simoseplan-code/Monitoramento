@@ -1,6 +1,7 @@
 "use client";
 
 import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { CheckCircle2, Download, RefreshCw, XCircle } from "lucide-react";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
 
@@ -15,6 +16,7 @@ export type LinhaRev = {
   antes: Foto | null;
   depois: Foto | null;
   quando?: string;
+  por?: string | null;
 };
 
 const brl = (v: number | null | undefined) => (v == null ? "-" : v.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }));
@@ -35,6 +37,10 @@ function Mudanca({ antes, depois }: { antes: number | null | undefined; depois: 
   );
 }
 
+type Filtro = "todas" | "mudaram" | "iguais" | "erro";
+const POR_PAGINA = 50;
+const mudou = (r: LinhaRev) => r.sucesso && !!r.depois && ((r.antes?.total ?? null) !== r.depois.total || (r.antes?.pago ?? null) !== r.depois.pago);
+
 function csvEscape(v: string) {
   return /[";\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
 }
@@ -46,6 +52,10 @@ export function Revinculacao({ historico, erroHistorico }: { historico: LinhaRev
   const [progresso, setProgresso] = useState<{ feitas: number; total: number } | null>(null);
   const [erro, setErro] = useState<string | null>(null);
   const parar = useRef(false);
+  const router = useRouter();
+  const [busca, setBusca] = useState("");
+  const [filtro, setFiltro] = useState<Filtro>("todas");
+  const [pagina, setPagina] = useState(1);
 
   const ids = Array.from(new Set((texto.match(/\d+/g) ?? []).filter((i) => i.length <= 12)));
 
@@ -88,13 +98,15 @@ export function Revinculacao({ historico, erroHistorico }: { historico: LinhaRev
       setErro("Sem conexão com o servidor.");
     } finally {
       setRodando(false);
+      setPagina(1);
+      router.refresh(); // traz o histórico atualizado, já com esta rodada
     }
   }
 
   function excel() {
-    const cols = ["ID", "Ação", "Número usado", "Origem do número", "Resultado", "Valor total antes", "Valor total depois", "Valor pago antes", "Valor pago depois", "Medido depois"];
+    const cols = ["ID", "Ação", "Número usado", "Origem do número", "Resultado", "Valor total antes", "Valor total depois", "Valor pago antes", "Valor pago depois", "Medido depois", "Quando", "Por"];
     const n = (v: number | null | undefined) => (v == null ? "" : String(v).replace(".", ","));
-    const linhas = resultados.map((r) => [r.idAcao, r.nomeAcao, r.numero ?? "", r.origemNumero ?? "", r.resultado, n(r.antes?.total), n(r.depois?.total), n(r.antes?.pago), n(r.depois?.pago), n(r.depois?.medido)].map((x) => csvEscape(String(x))).join(";"));
+    const linhas = filtradas.map((r) => [r.idAcao, r.nomeAcao, r.numero ?? "", r.origemNumero ?? "", r.resultado, n(r.antes?.total), n(r.depois?.total), n(r.antes?.pago), n(r.depois?.pago), n(r.depois?.medido), r.quando ? new Date(r.quando).toLocaleString("pt-BR") : "", r.por ?? ""].map((x) => csvEscape(String(x))).join(";"));
     const csv = "﻿" + [cols.join(";"), ...linhas].join("\n");
     const url = URL.createObjectURL(new Blob([csv], { type: "text/csv;charset=utf-8" }));
     const a = document.createElement("a");
@@ -139,7 +151,7 @@ export function Revinculacao({ historico, erroHistorico }: { historico: LinhaRev
               <td className="whitespace-nowrap px-3 py-2.5">{r.sucesso ? (r.depois ? <Mudanca antes={r.antes?.total} depois={r.depois.total} /> : <span className="text-ink-muted">não consegui ler no SIMO</span>) : <span className="text-ink-muted">{brl(r.antes?.total)}</span>}</td>
               <td className="whitespace-nowrap px-3 py-2.5">{r.sucesso && r.depois ? <Mudanca antes={r.antes?.pago} depois={r.depois.pago} /> : <span className="text-ink-muted">{brl(r.antes?.pago)}</span>}</td>
               <td className="tabular whitespace-nowrap px-3 py-2.5 text-ink-secondary">{brl(r.depois?.medido)}</td>
-              {mostrarQuando && <td className="whitespace-nowrap px-3 py-2.5 text-ink-muted">{r.quando ? new Date(r.quando).toLocaleString("pt-BR") : "-"}</td>}
+              {mostrarQuando && <td className="whitespace-nowrap px-3 py-2.5 text-ink-muted">{r.quando ? new Date(r.quando).toLocaleString("pt-BR") : "-"}{r.por && <div className="text-[10px]">{r.por}</div>}</td>}
             </tr>
           ))}
           {linhas.length === 0 && (
@@ -153,7 +165,18 @@ export function Revinculacao({ historico, erroHistorico }: { historico: LinhaRev
   );
 
   const ok = resultados.filter((r) => r.sucesso).length;
-  const mudaram = resultados.filter((r) => r.sucesso && r.depois && ((r.antes?.total ?? null) !== r.depois.total || (r.antes?.pago ?? null) !== r.depois.pago)).length;
+  const mudaram = resultados.filter(mudou).length;
+
+  const filtradas = historico.filter((r) => {
+    if (filtro === "mudaram" && !mudou(r)) return false;
+    if (filtro === "iguais" && !(r.sucesso && !mudou(r))) return false;
+    if (filtro === "erro" && r.sucesso) return false;
+    const q = busca.trim().toLowerCase();
+    return !q || r.idAcao.includes(q) || r.nomeAcao.toLowerCase().includes(q);
+  });
+  const totalPaginas = Math.max(1, Math.ceil(filtradas.length / POR_PAGINA));
+  const paginaAtual = Math.min(pagina, totalPaginas);
+  const pagina_ = filtradas.slice((paginaAtual - 1) * POR_PAGINA, paginaAtual * POR_PAGINA);
 
   return (
     <div className="space-y-4">
@@ -184,29 +207,47 @@ export function Revinculacao({ historico, erroHistorico }: { historico: LinhaRev
       </section>
 
       {resultados.length > 0 && (
-        <section className="overflow-hidden rounded-xl border border-black/5 bg-surface shadow-card">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-black/5 px-4 py-3">
-            <div>
-              <h2 className="text-sm font-semibold text-ink-primary">Resultado desta rodada</h2>
-              <p className="text-xs text-ink-muted">
-                {ok} revinculada(s), {resultados.length - ok} com erro · {mudaram} com valor diferente depois
-              </p>
-            </div>
-            <button onClick={excel} className="flex items-center gap-1.5 rounded-full bg-status-good px-3 py-1.5 text-xs font-semibold text-white">
-              <Download size={13} /> Exportar Excel
-            </button>
-          </div>
-          {tabela(resultados, false)}
-        </section>
+        <p className="rounded-lg border border-black/5 bg-surface px-4 py-2.5 text-xs text-ink-secondary shadow-card">
+          <strong>Esta rodada:</strong> {ok} revinculada(s), {resultados.length - ok} com erro · {mudaram} com valor diferente depois. Tudo fica guardado no histórico abaixo.
+        </p>
       )}
 
       <section className="overflow-hidden rounded-xl border border-black/5 bg-surface shadow-card">
-        <div className="border-b border-black/5 px-4 py-3">
-          <h2 className="text-sm font-semibold text-ink-primary">Últimas revinculações</h2>
-          <p className="text-xs text-ink-muted">As 50 mais recentes, de todos os usuários. O “antes” vem do relatório do dia; o “depois”, da página da ação no SIMO.</p>
-          {erroHistorico && <p className="mt-1 text-xs font-medium text-status-critical">Não consegui ler o histórico: {erroHistorico}. Confira se o SQL 0101 foi rodado.</p>}
+        <div className="flex flex-wrap items-start justify-between gap-2 border-b border-black/5 px-4 py-3">
+          <div>
+            <h2 className="text-sm font-semibold text-ink-primary">Histórico de revinculações ({historico.length.toLocaleString("pt-BR")})</h2>
+            <p className="text-xs text-ink-muted">Todas as revinculações já feitas, de todos os usuários, nada é apagado. O “antes” vem do relatório do dia; o “depois”, da página da ação no SIMO.</p>
+            {erroHistorico && <p className="mt-1 text-xs font-medium text-status-critical">Não consegui ler o histórico: {erroHistorico}. Confira se o SQL 0101 foi rodado.</p>}
+          </div>
+          <button onClick={excel} disabled={filtradas.length === 0} className="flex items-center gap-1.5 rounded-full bg-status-good px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
+            <Download size={13} /> Exportar Excel ({filtradas.length.toLocaleString("pt-BR")})
+          </button>
         </div>
-        {tabela(historico, true)}
+        <div className="flex flex-wrap items-center gap-2 border-b border-black/5 px-4 py-2.5">
+          <input
+            value={busca}
+            onChange={(e) => { setBusca(e.target.value); setPagina(1); }}
+            placeholder="Buscar ID ou nome..."
+            className="w-56 rounded-lg border border-black/10 bg-plane px-3 py-1.5 text-xs outline-none focus:border-series-1"
+          />
+          <select value={filtro} onChange={(e) => { setFiltro(e.target.value as Filtro); setPagina(1); }} className="rounded-lg border border-black/10 bg-plane px-2 py-1.5 text-xs">
+            <option value="todas">Todas</option>
+            <option value="mudaram">Só as que mudaram de valor</option>
+            <option value="iguais">Só as sem mudança</option>
+            <option value="erro">Só as com erro</option>
+          </select>
+          <span className="text-[11px] text-ink-muted">{filtradas.length.toLocaleString("pt-BR")} registro(s)</span>
+        </div>
+        {tabela(pagina_, true)}
+        {totalPaginas > 1 && (
+          <div className="flex items-center justify-between border-t border-black/5 px-4 py-2 text-xs text-ink-muted">
+            <span>Página {paginaAtual} de {totalPaginas}</span>
+            <span className="flex gap-2">
+              <button disabled={paginaAtual <= 1} onClick={() => setPagina(paginaAtual - 1)} className="rounded-full bg-plane px-3 py-1 font-medium disabled:opacity-40">Anterior</button>
+              <button disabled={paginaAtual >= totalPaginas} onClick={() => setPagina(paginaAtual + 1)} className="rounded-full bg-plane px-3 py-1 font-medium disabled:opacity-40">Próxima</button>
+            </span>
+          </div>
+        )}
       </section>
     </div>
   );

@@ -88,9 +88,20 @@ export default async function VinculacaoPage({
   let historicoRev: LinhaRev[] = [];
   let erroHistoricoRev: string | null = null;
   if (naRevinculacao) {
-    const { data: revs, error: erroRev } = await createAdminClient().from("revinculacoes").select("id_acao, nome_acao, numero_usado, origem_numero, sucesso, resultado, antes, depois, executado_em").order("executado_em", { ascending: false }).limit(50);
-    if (erroRev) erroHistoricoRev = erroRev.message;
-    historicoRev = (revs ?? []).map((r) => ({ idAcao: r.id_acao as string, nomeAcao: (r.nome_acao as string | null) ?? "", numero: r.numero_usado as string | null, origemNumero: r.origem_numero as string | null, sucesso: !!r.sucesso, resultado: (r.resultado as string | null) ?? "", antes: r.antes as LinhaRev["antes"], depois: r.depois as LinhaRev["depois"], quando: r.executado_em as string }));
+    // TODAS as revinculações (nada é apagado), de mil em mil.
+    const admin = createAdminClient();
+    type Rev = { id_acao: string; nome_acao: string | null; numero_usado: string | null; origem_numero: string | null; sucesso: boolean; resultado: string | null; antes: LinhaRev["antes"]; depois: LinhaRev["depois"]; executado_em: string; profiles: { nome: string | null } | null };
+    const revs: Rev[] = [];
+    for (let de = 0; ; de += 1000) {
+      const { data, error: erroRev } = await admin.from("revinculacoes").select("id, id_acao, nome_acao, numero_usado, origem_numero, sucesso, resultado, antes, depois, executado_em, profiles(nome)").order("executado_em", { ascending: false }).order("id", { ascending: false }).range(de, de + 999);
+      if (erroRev) {
+        erroHistoricoRev = erroRev.message;
+        break;
+      }
+      revs.push(...((data ?? []) as unknown as Rev[]));
+      if (!data || data.length < 1000) break;
+    }
+    historicoRev = revs.map((r) => ({ idAcao: r.id_acao, nomeAcao: r.nome_acao ?? "", numero: r.numero_usado, origemNumero: r.origem_numero, sucesso: !!r.sucesso, resultado: r.resultado ?? "", antes: r.antes, depois: r.depois, quando: r.executado_em, por: r.profiles?.nome ?? null }));
   }
 
   return (
