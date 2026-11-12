@@ -57,6 +57,7 @@ export function Revinculacao({ historico, erroHistorico }: { historico: LinhaRev
     setResultados([]);
     parar.current = false;
     let restantes = ids;
+    let recebidos = 0;
     setProgresso({ feitas: 0, total: ids.length });
     try {
       while (restantes.length > 0 && !parar.current) {
@@ -73,6 +74,7 @@ export function Revinculacao({ historico, erroHistorico }: { historico: LinhaRev
           break;
         }
         const novos = json.resultados ?? [];
+        recebidos += novos.length;
         setResultados((r) => [...r, ...novos]);
         restantes = json.restantes ?? [];
         setProgresso({ feitas: ids.length - restantes.length, total: ids.length });
@@ -81,6 +83,7 @@ export function Revinculacao({ historico, erroHistorico }: { historico: LinhaRev
           break;
         }
       }
+      if (recebidos === 0 && !parar.current) setErro("O servidor respondeu sem nenhum resultado para esses IDs. Recarregue a página (Ctrl+F5) e tente de novo.");
     } catch {
       setErro("Sem conexão com o servidor.");
     } finally {
