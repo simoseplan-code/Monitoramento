@@ -130,7 +130,7 @@ export function Revinculacao({ historico, erroHistorico }: { historico: LinhaRev
     } finally {
       setRodando(false);
     }
-    if (feitasOk.length > 0) await puxarDoRelatorio(feitasOk);
+    // (O download do relatório é lento e fica só no botão "Puxar valores do relatório", se alguém quiser.)
   }
 
   function excel() {
@@ -179,7 +179,7 @@ export function Revinculacao({ historico, erroHistorico }: { historico: LinhaRev
                 </span>
               </td>
               <td className="whitespace-nowrap px-3 py-2.5">{r.sucesso ? (r.depois ? <Mudanca antes={r.antes?.total} depois={r.depois.total} /> : <span className="text-ink-muted">não consegui ler no SIMO</span>) : <span className="text-ink-muted">{brl(r.antes?.total)}</span>}</td>
-              <td className="whitespace-nowrap px-3 py-2.5">{r.sucesso && r.depois ? r.depois.pago != null ? <Mudanca antes={r.antes?.pago} depois={r.depois.pago} /> : <span className="text-ink-muted">{brl(r.antes?.pago)} <span className="text-[10px]">(novo valor vem do relatório)</span></span> : <span className="text-ink-muted">{brl(r.antes?.pago)}</span>}</td>
+              <td className="whitespace-nowrap px-3 py-2.5">{r.sucesso && r.depois ? r.depois.pago != null ? <Mudanca antes={r.antes?.pago} depois={r.depois.pago} /> : <span className="text-ink-muted">{brl(r.antes?.pago)} <span className="text-[10px]">(valor pago novo: em ajuste)</span></span> : <span className="text-ink-muted">{brl(r.antes?.pago)}</span>}</td>
               <td className="tabular whitespace-nowrap px-3 py-2.5 text-ink-secondary">{brl(r.depois?.medido)}</td>
               {mostrarQuando && <td className="whitespace-nowrap px-3 py-2.5 text-ink-muted">{r.quando ? new Date(r.quando).toLocaleString("pt-BR") : "-"}{r.por && <div className="text-[10px]">{r.por}</div>}</td>}
             </tr>

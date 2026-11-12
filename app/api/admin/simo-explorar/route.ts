@@ -88,6 +88,47 @@ export async function GET(request: NextRequest) {
     }
   }
 
+  // ?id=12719&procurar=16.840.602,50: descobre ONDE esse valor aparece na ação. Procura na página da ação e nos endereços de
+  // abas que ela usa (contratos, pagamentos...), e lista os endereços internos que a página menciona.
+  const procurar = request.nextUrl.searchParams.get("procurar");
+  if (idValido && procurar) {
+    try {
+      const variantes = Array.from(new Set([procurar, procurar.replace(/\./g, ""), procurar.replace(/\./g, "").replace(",", ".")]));
+      const acha = (t: string) => variantes.flatMap((v) => (t.includes(v) ? [v] : []));
+      const contexto = (t: string) => {
+        const v = variantes.find((x) => t.includes(x));
+        if (!v) return null;
+        const i = t.indexOf(v);
+        return textoSimples(t.slice(Math.max(0, i - 700), i + 300)).slice(-400);
+      };
+      let cookie = await loginSimo();
+      const abertura = await fetch(`${SIMO}/cahier/action/projects/show/id/${id}`, { headers: { Cookie: cookie }, redirect: "manual", signal: AbortSignal.timeout(30_000) });
+      const novos = abertura.headers.getSetCookie?.() ?? [];
+      if (novos.length) cookie = [cookie, ...novos.map((c) => c.split(";")[0])].join("; ");
+      const paginaHtml = Buffer.from(await abertura.arrayBuffer()).toString("utf8");
+      const enderecos = Array.from(new Set([...paginaHtml.matchAll(/["'(]((?:https?:\/\/simo\.pi\.gov\.br)?\/cahier\/[a-zA-Z0-9_\-/.]+)/g)].map((m) => m[1].replace(/^https?:\/\/simo\.pi\.gov\.br/, "")))).filter((e) => /contract|payment|pag|financ|valor|empenh|ordem|desembolso|medi/i.test(e));
+      const cab = { Cookie: cookie, "Content-Type": "application/x-www-form-urlencoded", Referer: `${SIMO}/cahier/action/projects/show/id/${id}`, "X-Requested-With": "XMLHttpRequest" };
+      const tentativas: { caminho: string; corpo: string }[] = [];
+      for (const e of enderecos.slice(0, 25)) tentativas.push({ caminho: e, corpo: `project_id=${id}&source=action_project&id=${id}` });
+      for (const e of ["/cahier/action/projects/contracts/index/", "/cahier/action/projects/contracts/", "/cahier/action/projects/contracts/list/", "/cahier/action/projects/payments/index/", "/cahier/action/projects/financial/index/"]) {
+        if (!tentativas.some((t) => t.caminho === e)) tentativas.push({ caminho: e, corpo: `project_id=${id}&source=action_project&id=${id}` });
+      }
+      const resultados = [];
+      for (const t of tentativas) {
+        try {
+          const r = await fetch(SIMO + t.caminho, { method: "POST", headers: cab, body: t.corpo, redirect: "manual", signal: AbortSignal.timeout(15_000) });
+          const txt = Buffer.from(await r.arrayBuffer()).toString("utf8");
+          resultados.push({ caminho: t.caminho, status: r.status, tamanho: txt.length, achou: acha(txt), contexto: contexto(txt), inicio: textoSimples(txt).slice(0, 250) });
+        } catch (e) {
+          resultados.push({ caminho: t.caminho, erro: e instanceof Error ? e.message : "falhou" });
+        }
+      }
+      return NextResponse.json({ id, procurando: variantes, naPaginaDaAcao: { achou: acha(paginaHtml), contexto: contexto(paginaHtml), tamanho: paginaHtml.length }, enderecosMencionadosNaPagina: enderecos, resultados });
+    } catch (e) {
+      return NextResponse.json({ error: e instanceof Error ? e.message : "Falha ao consultar o SIMO." }, { status: 502 });
+    }
+  }
+
   // ?id=...&formulario=1: lê o formulário de edição da ação (o mesmo que o SIMO abre ao
   // clicar em "editar"; a aba "Trechos" com o KML anexado fica nele) e mostra onde aparece
   // "kml" e os links de download. ?bruto=PALAVRA muda a palavra procurada.
