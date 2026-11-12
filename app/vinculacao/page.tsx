@@ -10,6 +10,9 @@ import { contarSugestoesUnidadePendentes } from "@/lib/unidadeQuantidade";
 import { contarVinculacaoPendentes } from "@/lib/vinculacao";
 import { CheckCircle2, XCircle } from "lucide-react";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
+import Link from "next/link";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { Revinculacao, type LinhaRev } from "./Revinculacao";
 
 const PAGE_SIZE = 50;
 
@@ -28,9 +31,9 @@ type LinhaPendente = {
 export default async function VinculacaoPage({
   searchParams,
 }: {
-  searchParams: Promise<{ busca?: string; orgao?: string; pagina?: string }>;
+  searchParams: Promise<{ busca?: string; orgao?: string; pagina?: string; aba?: string }>;
 }) {
-  const { busca, orgao, pagina } = await searchParams;
+  const { busca, orgao, pagina, aba } = await searchParams;
   const paginaAtual = Math.max(1, parseInt(pagina ?? "1", 10) || 1);
   const supabase = await createClient();
   const {
@@ -68,6 +71,25 @@ export default async function VinculacaoPage({
   const totalPaginas = Math.max(1, Math.ceil(totalGeral / PAGE_SIZE));
   const orgaosDisponiveis = (orgaosRpc ?? []).map((r: { orgao: string }) => r.orgao);
   const isAdmin = !!profile?.is_admin;
+  const naRevinculacao = isAdmin && aba === "revinculacao";
+
+  const abas = isAdmin ? (
+    <div className="mb-4 flex gap-2">
+      <Link href="/vinculacao" className={"rounded-full px-4 py-2 text-xs font-semibold " + (!naRevinculacao ? "bg-series-1 text-white" : "bg-surface text-ink-secondary hover:bg-plane")}>
+        Pendentes de vinculação
+      </Link>
+      <Link href="/vinculacao?aba=revinculacao" className={"rounded-full px-4 py-2 text-xs font-semibold " + (naRevinculacao ? "bg-series-1 text-white" : "bg-surface text-ink-secondary hover:bg-plane")}>
+        Revinculação
+      </Link>
+    </div>
+  ) : null;
+
+  // Revinculação: últimas tentativas (SQL 0101). Sem a tabela, a lista vem vazia.
+  let historicoRev: LinhaRev[] = [];
+  if (naRevinculacao) {
+    const { data: revs } = await createAdminClient().from("revinculacoes").select("id_acao, nome_acao, numero_usado, origem_numero, sucesso, resultado, antes, depois, executado_em").order("executado_em", { ascending: false }).limit(50);
+    historicoRev = (revs ?? []).map((r) => ({ idAcao: r.id_acao as string, nomeAcao: (r.nome_acao as string | null) ?? "", numero: r.numero_usado as string | null, origemNumero: r.origem_numero as string | null, sucesso: !!r.sucesso, resultado: (r.resultado as string | null) ?? "", antes: r.antes as LinhaRev["antes"], depois: r.depois as LinhaRev["depois"], quando: r.executado_em as string }));
+  }
 
   return (
     <AppShell
@@ -84,7 +106,9 @@ export default async function VinculacaoPage({
       titulo="Vinculação SIAFE"
       subtitulo={`${totalGeral} ação(ões) pendentes de vinculação (com Número do Contrato no SIAFE, sem Número Automático)`}
     >
-      {isAdmin && (
+      {abas}
+      {naRevinculacao && <Revinculacao historico={historicoRev} />}
+      {!naRevinculacao && isAdmin && (
         <div className="mb-4 rounded-xl border border-black/5 bg-surface p-4 shadow-card">
           <div className="mb-1 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-ink-primary">Vinculação no SIMO</h2>
@@ -98,11 +122,11 @@ export default async function VinculacaoPage({
         </div>
       )}
 
-      <div className="mb-4">
+      {!naRevinculacao && <div className="mb-4">
         <FiltrosVinculacao buscaAtual={busca ?? ""} orgaoAtual={orgao ?? ""} orgaos={orgaosDisponiveis} />
-      </div>
+      </div>}
 
-      <div className="space-y-3">
+      {!naRevinculacao && <div className="space-y-3">
         {linhas.map((l) => (
           <CardPendenteVinculacao
             key={l.id_acao}
@@ -125,9 +149,9 @@ export default async function VinculacaoPage({
         )}
 
         <Paginacao paginaAtual={paginaAtual} totalPaginas={totalPaginas} baseHref="/vinculacao" params={{ busca, orgao }} />
-      </div>
+      </div>}
 
-      {isAdmin && (
+      {!naRevinculacao && isAdmin && (
         <div className="mt-6 rounded-xl border border-black/5 bg-surface p-5 shadow-card">
           <h2 className="mb-3 text-sm font-semibold text-ink-primary">Histórico recente de vinculação</h2>
           <ul className="space-y-2">

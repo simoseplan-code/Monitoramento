@@ -3,6 +3,8 @@ import { idsDeListas } from "@/lib/desconsideradas";
 import { loginSimo } from "@/lib/simo/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { registrarAnalise } from "@/lib/analisesLog";
+import { buscarBoletins } from "@/lib/simo/medicoes";
+import { dinheiroParaNumero } from "@/lib/simo/parseCsv";
 
 // Endpoint que efetivamente cria o vínculo de contrato SIAFE numa ação
 // (o que acontece ao clicar "Vincular Contrato" → colar o código →
@@ -196,4 +198,104 @@ export async function executarVinculacaoUnica(
 
   const cookie = await loginSimo();
   return tentarVincular(admin, cookie, { ...obra, numero_siafe: numeroFinal }, executadoPor);
+}
+
+// ---------- REVINCULAÇÃO ----------
+// Refaz a vinculação de ações que JÁ estão vinculadas (o SIMO atualiza os valores ao vincular de novo). Guarda como a ação
+// estava antes (valores do relatório) e como ficou depois (lido na página da ação no SIMO), para mostrar o que mudou.
+
+export type FotoValores = { total: number | null; pago: number | null; medido: number | null; automatico: string | null };
+export type ResultadoRevinculacao = {
+  idAcao: string;
+  nomeAcao: string;
+  numero: string | null;
+  origemNumero: string | null;
+  sucesso: boolean;
+  resultado: string;
+  antes: FotoValores | null;
+  depois: FotoValores | null;
+};
+
+function pagoDoExtra(extra: Record<string, string> | null): number | null {
+  if (!extra) return null;
+  const chave = Object.keys(extra).find((k) => /valors*pago/i.test(k));
+  return chave ? dinheiroParaNumero(extra[chave]) : null;
+}
+
+const numeroOuNull = (v: unknown): number | null => (v == null || v === "" ? null : Number.isFinite(Number(v)) ? Number(v) : null);
+
+export async function executarRevinculacao(ids: string[], executadoPor: string): Promise<{ resultados: ResultadoRevinculacao[]; restantes: string[] }> {
+  const admin = createAdminClient();
+  const inicio = Date.now();
+  const unicos = Array.from(new Set(ids.map((i) => i.trim()).filter((i) => /^d{1,12}$/.test(i))));
+  const { data: obras, error } = await admin.from("obras").select("id_acao, nome_acao, numero_siafe, numero_automatico, valor_total, valor_original, extra").in("id_acao", unicos);
+  if (error) throw new Error(`Falha ao ler as ações: ${error.message}`);
+  const mapa = new Map((obras ?? []).map((o) => [o.id_acao as string, o]));
+
+  const cookie = await loginSimo();
+  const resultados: ResultadoRevinculacao[] = [];
+  let feitas = 0;
+
+  for (const id of unicos) {
+    if (Date.now() - inicio > LIMITE_TEMPO_MS) break;
+    feitas++;
+    const obra = mapa.get(id);
+    if (!obra) {
+      resultados.push({ idAcao: id, nomeAcao: "", numero: null, origemNumero: null, sucesso: false, resultado: "Ação não encontrada no painel (sincronize antes).", antes: null, depois: null });
+      continue;
+    }
+    const siafe = (obra.numero_siafe ?? "").trim();
+    const auto = (obra.numero_automatico ?? "").trim();
+    // O SIMO vincula pelo número do contrato no SIAFE. Se ele não estiver válido, tenta o Número Automático.
+    const [numero, origem] = /^d{8}$/.test(siafe) ? [siafe, "Número do Contrato no SIAFE"] : /^d{8}$/.test(auto) ? [auto, "Número Automático"] : [null, null];
+    const antes: FotoValores = { total: numeroOuNull(obra.valor_total) ?? numeroOuNull(obra.valor_original), pago: pagoDoExtra(obra.extra as Record<string, string> | null), medido: null, automatico: auto || null };
+    if (!numero) {
+      resultados.push({ idAcao: id, nomeAcao: obra.nome_acao ?? "", numero: null, origemNumero: null, sucesso: false, resultado: "Sem número de 8 dígitos (nem Contrato SIAFE, nem Número Automático) para revincular.", antes, depois: null });
+      continue;
+    }
+
+    let resultado: string;
+    let sucesso = false;
+    let httpCode: number | null = null;
+    let bruta = "";
+    try {
+      const r = await vincularContratoSiafe(cookie, id, numero);
+      httpCode = r.httpCode;
+      bruta = r.texto;
+      let parsed: { status?: string; message?: string } | null = null;
+      try {
+        parsed = JSON.parse(r.texto);
+      } catch {
+        // não é JSON
+      }
+      if (parsed?.status === "success") {
+        resultado = "Revinculada";
+        sucesso = true;
+      } else if (parsed?.status === "error") resultado = parsed.message || "Erro desconhecido";
+      else resultado = `Resposta inesperada (HTTP ${httpCode})`;
+    } catch (e) {
+      resultado = `Erro: ${e instanceof Error ? e.message : "desconhecido"}`;
+    }
+
+    // Lê os valores que o SIMO mostra agora na página da ação.
+    let depois: FotoValores | null = null;
+    if (sucesso) {
+      try {
+        const { valores } = await buscarBoletins(cookie, id, 20_000);
+        depois = { total: valores.total, pago: valores.pago, medido: valores.medido, automatico: null };
+      } catch {
+        depois = null;
+      }
+    }
+
+    await admin.from("obras_vinculacao_log").insert({ id_acao: id, nome_acao: obra.nome_acao ?? "", numero_siafe: numero, http_code: httpCode, resultado: sucesso ? "Sucesso" : resultado, resposta_bruta: bruta.slice(0, 2000), executado_por: executadoPor });
+    const { error: erroGrava } = await admin.from("revinculacoes").insert({ id_acao: id, nome_acao: obra.nome_acao ?? "", numero_usado: numero, origem_numero: origem, sucesso, resultado, antes, depois, executado_por: executadoPor });
+    if (erroGrava) console.error("revinculacoes:", erroGrava.message);
+    await registrarAnalise(admin, executadoPor, "vinculacao", id, sucesso ? "revinculado" : "falha_revinculacao", resultado);
+
+    resultados.push({ idAcao: id, nomeAcao: obra.nome_acao ?? "", numero, origemNumero: origem, sucesso, resultado, antes, depois });
+    if (feitas < unicos.length) await new Promise((res) => setTimeout(res, PAUSA_MS));
+  }
+
+  return { resultados, restantes: unicos.slice(feitas) };
 }
