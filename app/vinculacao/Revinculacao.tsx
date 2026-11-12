@@ -39,7 +39,7 @@ function Mudanca({ antes, depois }: { antes: number | null | undefined; depois: 
 
 type Filtro = "todas" | "mudaram" | "iguais" | "erro";
 const POR_PAGINA = 50;
-const mudou = (r: LinhaRev) => r.sucesso && !!r.depois && ((r.antes?.total ?? null) !== r.depois.total || (r.antes?.pago ?? null) !== r.depois.pago);
+const mudou = (r: LinhaRev) => r.sucesso && !!r.depois && ((r.depois.total != null && (r.antes?.total ?? null) !== r.depois.total) || (r.depois.pago != null && (r.antes?.pago ?? null) !== r.depois.pago));
 
 function csvEscape(v: string) {
   return /[";\n]/.test(v) ? `"${v.replace(/"/g, '""')}"` : v;
@@ -56,8 +56,34 @@ export function Revinculacao({ historico, erroHistorico }: { historico: LinhaRev
   const [busca, setBusca] = useState("");
   const [filtro, setFiltro] = useState<Filtro>("todas");
   const [pagina, setPagina] = useState(1);
+  const [atualizando, setAtualizando] = useState(false);
+  const [aviso, setAviso] = useState<string | null>(null);
 
   const ids = Array.from(new Set((texto.match(/\d+/g) ?? []).filter((i) => i.length <= 12)));
+
+  // Baixa o relatório do SIMO (lento) e atualiza o valor pago e o total dessas ações, no painel e no "depois" da revinculação.
+  async function puxarDoRelatorio(lista: string[]) {
+    if (lista.length === 0) return;
+    setAtualizando(true);
+    setAviso("Baixando o relatório do SIMO para trazer o valor pago certo... pode levar alguns minutos, não feche a página.");
+    try {
+      const resp = await fetch("/api/admin/revincular/atualizar", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ids: lista }) });
+      const bruto = await resp.text();
+      let json: { error?: string; atualizadas?: number; naoEncontradas?: string[] } = {};
+      try {
+        json = JSON.parse(bruto);
+      } catch {
+        // não veio JSON
+      }
+      if (!resp.ok) setAviso(json.error ?? `Não consegui baixar o relatório (HTTP ${resp.status}). Use o botão Puxar valores do relatório mais tarde.`);
+      else setAviso(`Valores atualizados pelo relatório do SIMO: ${json.atualizadas ?? 0} ação(ões)${json.naoEncontradas?.length ? `; não vieram no relatório: ${json.naoEncontradas.join(", ")}` : ""}.`);
+    } catch {
+      setAviso("Sem conexão com o servidor ao baixar o relatório. Use o botão Puxar valores do relatório mais tarde.");
+    } finally {
+      setAtualizando(false);
+      router.refresh();
+    }
+  }
 
   async function revincular() {
     if (ids.length === 0) return;
@@ -68,6 +94,8 @@ export function Revinculacao({ historico, erroHistorico }: { historico: LinhaRev
     parar.current = false;
     let restantes = ids;
     let recebidos = 0;
+    const feitasOk: string[] = [];
+    setAviso(null);
     setProgresso({ feitas: 0, total: ids.length });
     try {
       while (restantes.length > 0 && !parar.current) {
@@ -85,6 +113,7 @@ export function Revinculacao({ historico, erroHistorico }: { historico: LinhaRev
         }
         const novos = json.resultados ?? [];
         recebidos += novos.length;
+        for (const n of novos) if (n.sucesso) feitasOk.push(n.idAcao);
         setResultados((r) => [...r, ...novos]);
         restantes = json.restantes ?? [];
         setProgresso({ feitas: ids.length - restantes.length, total: ids.length });
@@ -94,13 +123,14 @@ export function Revinculacao({ historico, erroHistorico }: { historico: LinhaRev
         }
       }
       if (recebidos === 0 && !parar.current) setErro("O servidor respondeu sem nenhum resultado para esses IDs. Recarregue a página (Ctrl+F5) e tente de novo.");
+      setPagina(1);
+      router.refresh(); // traz o histórico atualizado, já com esta rodada
     } catch {
       setErro("Sem conexão com o servidor.");
     } finally {
       setRodando(false);
-      setPagina(1);
-      router.refresh(); // traz o histórico atualizado, já com esta rodada
     }
+    if (feitasOk.length > 0) await puxarDoRelatorio(feitasOk);
   }
 
   function excel() {
@@ -149,7 +179,7 @@ export function Revinculacao({ historico, erroHistorico }: { historico: LinhaRev
                 </span>
               </td>
               <td className="whitespace-nowrap px-3 py-2.5">{r.sucesso ? (r.depois ? <Mudanca antes={r.antes?.total} depois={r.depois.total} /> : <span className="text-ink-muted">não consegui ler no SIMO</span>) : <span className="text-ink-muted">{brl(r.antes?.total)}</span>}</td>
-              <td className="whitespace-nowrap px-3 py-2.5">{r.sucesso && r.depois ? <Mudanca antes={r.antes?.pago} depois={r.depois.pago} /> : <span className="text-ink-muted">{brl(r.antes?.pago)}</span>}</td>
+              <td className="whitespace-nowrap px-3 py-2.5">{r.sucesso && r.depois ? r.depois.pago != null ? <Mudanca antes={r.antes?.pago} depois={r.depois.pago} /> : <span className="text-ink-muted">{brl(r.antes?.pago)} <span className="text-[10px]">(novo valor vem do relatório)</span></span> : <span className="text-ink-muted">{brl(r.antes?.pago)}</span>}</td>
               <td className="tabular whitespace-nowrap px-3 py-2.5 text-ink-secondary">{brl(r.depois?.medido)}</td>
               {mostrarQuando && <td className="whitespace-nowrap px-3 py-2.5 text-ink-muted">{r.quando ? new Date(r.quando).toLocaleString("pt-BR") : "-"}{r.por && <div className="text-[10px]">{r.por}</div>}</td>}
             </tr>
@@ -204,6 +234,7 @@ export function Revinculacao({ historico, erroHistorico }: { historico: LinhaRev
           {progresso && <span className="tabular text-xs text-ink-muted">{progresso.feitas} de {progresso.total} feitas</span>}
         </div>
         {erro && <p className="mt-2 text-xs font-medium text-status-critical">{erro}</p>}
+        {aviso && <p className="mt-2 text-xs font-medium text-series-1">{aviso}</p>}
       </section>
 
       {resultados.length > 0 && (
@@ -219,6 +250,9 @@ export function Revinculacao({ historico, erroHistorico }: { historico: LinhaRev
             <p className="text-xs text-ink-muted">Todas as revinculações já feitas, de todos os usuários, nada é apagado. O “antes” vem do relatório do dia; o “depois”, da página da ação no SIMO.</p>
             {erroHistorico && <p className="mt-1 text-xs font-medium text-status-critical">Não consegui ler o histórico: {erroHistorico}. Confira se o SQL 0101 foi rodado.</p>}
           </div>
+          <button onClick={() => puxarDoRelatorio(Array.from(new Set(filtradas.filter((r) => r.sucesso).map((r) => r.idAcao))))} disabled={atualizando || rodando || filtradas.length === 0} className="flex items-center gap-1.5 rounded-full border border-black/10 px-3 py-1.5 text-xs font-semibold text-ink-secondary hover:bg-plane disabled:opacity-50" title="Baixa o relatório do SIMO e atualiza o valor pago e o total das ações listadas (usa os filtros atuais)">
+            <RefreshCw size={13} className={atualizando ? "animate-spin" : ""} /> Puxar valores do relatório
+          </button>
           <button onClick={excel} disabled={filtradas.length === 0} className="flex items-center gap-1.5 rounded-full bg-status-good px-3 py-1.5 text-xs font-semibold text-white disabled:opacity-50">
             <Download size={13} /> Exportar Excel ({filtradas.length.toLocaleString("pt-BR")})
           </button>

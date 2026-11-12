@@ -1,10 +1,10 @@
 import { createAdminClient } from "@/lib/supabase/admin";
 import { idsDeListas } from "@/lib/desconsideradas";
-import { loginSimo } from "@/lib/simo/client";
+import { loginSimo, prepararRelatorioSimo, baixarCsvSimo } from "@/lib/simo/client";
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { registrarAnalise } from "@/lib/analisesLog";
 import { buscarBoletins } from "@/lib/simo/medicoes";
-import { dinheiroParaNumero } from "@/lib/simo/parseCsv";
+import { dinheiroParaNumero, csvParaObras } from "@/lib/simo/parseCsv";
 
 // Endpoint que efetivamente cria o vínculo de contrato SIAFE numa ação
 // (o que acontece ao clicar "Vincular Contrato" → colar o código →
@@ -292,7 +292,8 @@ export async function executarRevinculacao(ids: string[], executadoPor: string):
     if (sucesso) {
       try {
         const { valores } = await buscarBoletins(cookie, id, 20_000);
-        depois = { total: valores.total, pago: valores.pago, medido: valores.medido, automatico: null };
+        // O "Pago" do cabeçalho da página do SIMO não bate com o do relatório (que é o valor certo): o pago vem do relatório, depois.
+        depois = { total: valores.total, pago: null, medido: valores.medido, automatico: null };
       } catch {
         depois = null;
       }
@@ -306,4 +307,42 @@ export async function executarRevinculacao(ids: string[], executadoPor: string):
   }
 
   return { resultados, restantes: unicos.slice(feitas) };
+}
+
+// Depois de revincular, o valor pago certo está no RELATÓRIO do SIMO (o mesmo que o painel baixa todo dia), não no cabeçalho
+// da página da ação. Baixa o relatório uma vez (lento), atualiza essas ações no painel e preenche o "depois" da revinculação.
+export async function atualizarPeloRelatorio(ids: string[]): Promise<{ atualizadas: number; naoEncontradas: string[] }> {
+  const admin = createAdminClient();
+  const unicos = Array.from(new Set(ids.map((i) => i.trim()).filter((i) => /^\d{1,12}$/.test(i)))).slice(0, 2000);
+  if (unicos.length === 0) return { atualizadas: 0, naoEncontradas: [] };
+
+  const inicio = Date.now();
+  const cookie = await loginSimo(20_000);
+  await prepararRelatorioSimo(cookie, 60_000);
+  const csv = await baixarCsvSimo(cookie, Math.max(20_000, 250_000 - (Date.now() - inicio)));
+  const todas = csvParaObras(csv);
+  // Proteção: relatório muito menor que o banco = filtrado ou cortado. Não mexe em nada.
+  const { count: noBanco } = await admin.from("obras").select("id_acao", { count: "exact", head: true });
+  if (todas.length < Math.max(100, (noBanco ?? 0) * 0.8)) throw new Error(`O relatório veio com ${todas.length} ações e o painel tem ${noBanco ?? 0}: parece filtrado. Nada foi alterado.`);
+
+  const querem = new Set(unicos);
+  const achadas = todas.filter((o) => querem.has(o.id_acao));
+  const agora = new Date().toISOString();
+  if (achadas.length) {
+    const { error } = await admin.from("obras").upsert(achadas.map((o) => ({ ...o, atualizado_em: agora })), { onConflict: "id_acao" });
+    if (error) throw new Error(`Falha ao atualizar as ações: ${error.message}`);
+  }
+
+  // Preenche o "depois" da revinculação mais recente de cada ação.
+  const { data: revs } = await admin.from("revinculacoes").select("id, id_acao, depois").in("id_acao", unicos).eq("sucesso", true).order("executado_em", { ascending: false });
+  const ultima = new Map<string, { id: number; depois: FotoValores | null }>();
+  for (const r of revs ?? []) if (!ultima.has(r.id_acao as string)) ultima.set(r.id_acao as string, { id: r.id as number, depois: r.depois as FotoValores | null });
+  for (const o of achadas) {
+    const u = ultima.get(o.id_acao);
+    if (!u) continue;
+    const depois: FotoValores = { total: o.valor_total ?? o.valor_original ?? u.depois?.total ?? null, pago: pagoDoExtra(o.extra), medido: u.depois?.medido ?? null, automatico: o.numero_automatico ?? null };
+    await admin.from("revinculacoes").update({ depois }).eq("id", u.id);
+  }
+  const achou = new Set(achadas.map((o) => o.id_acao));
+  return { atualizadas: achadas.length, naoEncontradas: unicos.filter((i) => !achou.has(i)) };
 }
