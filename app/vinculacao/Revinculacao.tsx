@@ -70,7 +70,7 @@ export function Revinculacao({ historico, erroHistorico }: { historico: LinhaRev
           // não veio JSON
         }
         if (!resp.ok || !Array.isArray(json.resultados)) {
-          setErro(json.error ?? `Resposta inesperada do servidor (HTTP ${resp.status}): ${bruto.replace(/s+/g, " ").slice(0, 200) || "vazia"}`);
+          setErro(json.error ?? `Resposta inesperada do servidor (HTTP ${resp.status}): ${bruto.replace(/\s+/g, " ").slice(0, 200) || "vazia"}`);
           break;
         }
         const novos = json.resultados ?? [];

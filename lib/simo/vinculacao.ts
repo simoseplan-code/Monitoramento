@@ -218,7 +218,7 @@ export type ResultadoRevinculacao = {
 
 function pagoDoExtra(extra: Record<string, string> | null): number | null {
   if (!extra) return null;
-  const chave = Object.keys(extra).find((k) => /valors*pago/i.test(k));
+  const chave = Object.keys(extra).find((k) => /valor\s*pago/i.test(k));
   return chave ? dinheiroParaNumero(extra[chave]) : null;
 }
 
@@ -227,7 +227,7 @@ const numeroOuNull = (v: unknown): number | null => (v == null || v === "" ? nul
 export async function executarRevinculacao(ids: string[], executadoPor: string): Promise<{ resultados: ResultadoRevinculacao[]; restantes: string[] }> {
   const admin = createAdminClient();
   const inicio = Date.now();
-  const unicos = Array.from(new Set(ids.map((i) => i.trim()).filter((i) => /^d{1,12}$/.test(i))));
+  const unicos = Array.from(new Set(ids.map((i) => i.trim()).filter((i) => /^\d{1,12}$/.test(i))));
   const { data: obras, error } = await admin.from("obras").select("id_acao, nome_acao, numero_siafe, numero_automatico, valor_total, valor_original, extra").in("id_acao", unicos);
   if (error) throw new Error(`Falha ao ler as ações: ${error.message}`);
   const mapa = new Map((obras ?? []).map((o) => [o.id_acao as string, o]));
@@ -257,7 +257,7 @@ export async function executarRevinculacao(ids: string[], executadoPor: string):
     const siafe = (obra.numero_siafe ?? "").trim();
     const auto = (obra.numero_automatico ?? "").trim();
     // O SIMO vincula pelo número do contrato no SIAFE. Se ele não estiver válido, tenta o Número Automático.
-    const [numero, origem] = /^d{8}$/.test(siafe) ? [siafe, "Número do Contrato no SIAFE"] : /^d{8}$/.test(auto) ? [auto, "Número Automático"] : [null, null];
+    const [numero, origem] = /^\d{8}$/.test(siafe) ? [siafe, "Número do Contrato no SIAFE"] : /^\d{8}$/.test(auto) ? [auto, "Número Automático"] : [null, null];
     const antes: FotoValores = { total: numeroOuNull(obra.valor_total) ?? numeroOuNull(obra.valor_original), pago: pagoDoExtra(obra.extra as Record<string, string> | null), medido: null, automatico: auto || null };
     if (!numero) {
       resultados.push(await guardar({ idAcao: id, nomeAcao: obra.nome_acao ?? "", numero: null, origemNumero: null, sucesso: false, resultado: "Sem número de 8 dígitos (nem Contrato SIAFE, nem Número Automático) para revincular.", antes, depois: null }));
