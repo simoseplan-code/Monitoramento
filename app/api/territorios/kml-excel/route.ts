@@ -50,7 +50,9 @@ export type SemKmExcel = { id: string; motivo: string };
 export async function POST(request: NextRequest) {
   try {
     // Automação (script na máquina da equipe): entra com o mesmo segredo dos cron jobs, com acesso total.
-    const porSegredo = !!process.env.CRON_SECRET && request.headers.get("authorization") === `Bearer ${process.env.CRON_SECRET}`;
+    // Segredo próprio desta automação (KML_EXCEL_TOKEN); o CRON_SECRET também vale.
+    const auth = request.headers.get("authorization");
+    const porSegredo = (!!process.env.KML_EXCEL_TOKEN && auth === `Bearer ${process.env.KML_EXCEL_TOKEN}`) || (!!process.env.CRON_SECRET && auth === `Bearer ${process.env.CRON_SECRET}`);
     let acesso: Awaited<ReturnType<typeof acessoDoUsuario>>;
     if (porSegredo) {
       acesso = { liberado: true, supervisor: true } as Awaited<ReturnType<typeof acessoDoUsuario>>;
