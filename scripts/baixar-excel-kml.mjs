@@ -91,7 +91,15 @@ sem.forEach((l, k) => {
 });
 
 mkdirSync(DESTINO, { recursive: true });
-const dia = new Date().toLocaleDateString("sv-SE", { timeZone: "America/Fortaleza" });
-const arquivo = join(DESTINO, `dados-kml-${dia}.xlsx`);
-writeFileSync(arquivo, Buffer.from(await wb.xlsx.writeBuffer()));
+// Nome fixo: cada execução substitui o arquivo anterior.
+const arquivo = join(DESTINO, "informações dos kmls-simo.xlsx");
+try {
+  writeFileSync(arquivo, Buffer.from(await wb.xlsx.writeBuffer()));
+} catch (e) {
+  if (e.code === "EBUSY" || e.code === "EPERM" || e.code === "EACCES") {
+    console.error(`Não consegui substituir "${arquivo}": o arquivo está aberto no Excel. Feche-o e rode de novo.`);
+    process.exit(1);
+  }
+  throw e;
+}
 console.log(`Salvo: ${arquivo} (${linhas.length} linhas, ${new Set(linhas.map((l) => l.id)).size} ações com KML, ${sem.length} sem KML)`);
