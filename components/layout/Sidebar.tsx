@@ -50,11 +50,11 @@ type NavItem = {
 type GrupoMenu = "gestao" | "retiradas" | "diarias" | "siafe" | "georef" | "medicoes";
 
 // Classes escritas por extenso para o Tailwind encontrá-las.
-const GRUPOS: Record<GrupoMenu, { titulo: string; faixa: string; texto: string }> = {
+const GRUPOS: Record<GrupoMenu, { titulo: string; faixa: string; texto: string; destaque?: boolean }> = {
   gestao: { titulo: "Gestão", faixa: "border-l-series-1", texto: "text-series-1" },
   retiradas: { titulo: "Retiradas", faixa: "border-l-series-8", texto: "text-series-8" },
   siafe: { titulo: "Verificação SIAFE", faixa: "border-l-series-7", texto: "text-series-7" },
-  diarias: { titulo: "Verificações diárias", faixa: "border-l-series-6", texto: "text-series-6" },
+  diarias: { titulo: "Verificações diárias", faixa: "border-l-series-6", texto: "text-series-6", destaque: true },
   georef: { titulo: "Georreferenciamento", faixa: "border-l-series-4", texto: "text-status-warning" },
   medicoes: { titulo: "Medições", faixa: "border-l-series-3", texto: "text-series-3" },
 };
@@ -86,18 +86,6 @@ export function Sidebar({
   const [colapsada, setColapsada] = useState(false);
 
   const itens: NavItem[] = [
-    // Gestão
-    { href: "/", label: "Dashboard Gestão", icon: LayoutGrid, grupo: "gestao" },
-    { href: "/acoes", label: "Ações", icon: ClipboardList, count: counts.acoes, grupo: "gestao" },
-    { href: "/orgaos", label: "Órgãos", icon: Building2, grupo: "gestao" },
-    { href: "/historico", label: "Histórico", icon: History, grupo: "gestao" },
-    { href: "/desempenho", label: "Desempenho", icon: BarChart3, adminOnly: true, grupo: "gestao" },
-    { href: "/equipe", label: "Equipe", icon: Users, count: counts.pendentesAprovacao || undefined, adminOnly: true, grupo: "gestao" },
-    { href: "/admin", label: "Administração", icon: ShieldCheck, adminOnly: true, grupo: "gestao" },
-    { href: "/analise-concluidas", label: "Análise de obras concluídas", icon: Banknote, adminOnly: true, grupo: "gestao" },
-    { href: "/analise-custos", label: "Análise de custos", icon: TrendingUp, adminOnly: true, grupo: "gestao" },
-    // Retiradas
-    { href: "/acoes-desconsideradas", label: "Ações desconsideradas", icon: EyeOff, grupo: "retiradas" },
     // Verificações diárias
     { href: "/novas-acoes", label: "Novas Ações", icon: ClipboardCheck, count: counts.novasAcoesPendentes || undefined, grupo: "diarias" },
     { href: "/novas-em-execucao", label: "Novas em Execução", icon: PlayCircle, count: counts.novasExecucaoPendentes || undefined, grupo: "diarias" },
@@ -105,6 +93,8 @@ export function Sidebar({
     { href: "/unidade-quantidade", label: "Unidade/Quantidade", icon: Ruler, count: counts.sugestoesUnidadePendentes || undefined, grupo: "diarias" },
     { href: "/analise-territorio", label: "Análise geral", icon: MapaIcon, grupo: "diarias" },
     { href: "/nova-analise-teste", label: "Nova análise em teste", icon: FlaskConical, grupo: "diarias" },
+    // Retiradas
+    { href: "/acoes-desconsideradas", label: "Ações desconsideradas", icon: EyeOff, grupo: "retiradas" },
     // Verificação SIAFE
     { href: "/siafe-duplicado", label: "SIAFE duplicado", icon: Copy, grupo: "siafe" },
     { href: "/acoes-nao-vinculadas", label: "Não vinculadas SIAFE", icon: Unlink, grupo: "siafe" },
@@ -118,6 +108,16 @@ export function Sidebar({
     { href: "/recursos-hidricos", label: "Recursos Hídricos", icon: Droplets, grupo: "georef" },
     // Medições
     { href: "/compatibilizacao-medicoes", label: "Compatibilização de medições", icon: Scale, grupo: "medicoes" },
+    // Gestão
+    { href: "/", label: "Dashboard Gestão", icon: LayoutGrid, grupo: "gestao" },
+    { href: "/acoes", label: "Ações", icon: ClipboardList, count: counts.acoes, grupo: "gestao" },
+    { href: "/orgaos", label: "Órgãos", icon: Building2, grupo: "gestao" },
+    { href: "/historico", label: "Histórico", icon: History, grupo: "gestao" },
+    { href: "/desempenho", label: "Desempenho", icon: BarChart3, adminOnly: true, grupo: "gestao" },
+    { href: "/equipe", label: "Equipe", icon: Users, count: counts.pendentesAprovacao || undefined, adminOnly: true, grupo: "gestao" },
+    { href: "/admin", label: "Administração", icon: ShieldCheck, adminOnly: true, grupo: "gestao" },
+    { href: "/analise-concluidas", label: "Análise de obras concluídas", icon: Banknote, adminOnly: true, grupo: "gestao" },
+    { href: "/analise-custos", label: "Análise de custos", icon: TrendingUp, adminOnly: true, grupo: "gestao" },
   ];
 
   const iniciais = nome
@@ -196,8 +196,8 @@ export function Sidebar({
         )}
         {blocos.map((bloco, i) =>
           bloco.grupo ? (
-            <div key={i} className={`my-2 rounded-xl border border-l-4 border-black/5 bg-plane/60 py-1.5 ${GRUPOS[bloco.grupo].faixa} ${colapsada ? "px-0.5" : "px-1.5"}`}>
-              {!colapsada && <p className={`px-2 pb-1 pt-0.5 text-[10px] font-semibold uppercase tracking-wide ${GRUPOS[bloco.grupo].texto}`}>{GRUPOS[bloco.grupo].titulo}</p>}
+            <div key={i} className={`my-2 rounded-xl border ${GRUPOS[bloco.grupo].destaque ? "border-l-[6px] border-series-6/30 bg-series-6/10 py-2 shadow-card" : "border-l-4 border-black/5 bg-plane/60 py-1.5"} ${GRUPOS[bloco.grupo].faixa} ${colapsada ? "px-0.5" : "px-1.5"}`}>
+              {!colapsada && <p className={`px-2 pb-1 pt-0.5 font-semibold uppercase tracking-wide ${GRUPOS[bloco.grupo].destaque ? "text-xs font-bold" : "text-[10px]"} ${GRUPOS[bloco.grupo].texto}`}>{GRUPOS[bloco.grupo].titulo}</p>}
               <div className="space-y-1">{bloco.itens.map(itemDoMenu)}</div>
             </div>
           ) : (
