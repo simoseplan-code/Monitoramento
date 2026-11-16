@@ -4,6 +4,7 @@ import { createServerClient, serializeCookieHeader, type CookieOptions } from "@
 import { renderToBuffer } from "@react-pdf/renderer";
 import { PendenciasPdf, type OrgaoPendente } from "@/lib/pdf/PendenciasPdf";
 import { ITENS_EXECUCAO } from "@/lib/execucao";
+import { ITENS_CONCLUIDAS } from "@/lib/concluidas";
 
 // Pages Router de propósito (mesmo motivo de pdf.ts): o gerador de PDF usa o React
 // instalado, e o App Router do Next usa um React próprio.
@@ -22,6 +23,11 @@ const TEXTO_EXECUCAO: Record<string, string> = {
   emissao_os: "Ordem de Serviço (O.S.) não emitida",
   cronograma: "Cronograma físico-financeiro ausente ou com problema",
   documentos_medicao: "Documentos de medição pendentes",
+};
+
+const TEXTO_CONCLUIDAS: Record<string, string> = {
+  kml_anexado: "KML não anexado ou com problema",
+  termo_recebimento: "Termo de recebimento não inserido ou com problema",
 };
 
 type LinhaExecucao = {
@@ -77,10 +83,13 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
 
   const orgaoPedido = (Array.isArray(req.query.orgao) ? req.query.orgao[0] : req.query.orgao)?.trim();
 
-  const execucao = (Array.isArray(req.query.modulo) ? req.query.modulo[0] : req.query.modulo) === "execucao";
+  const modulo = Array.isArray(req.query.modulo) ? req.query.modulo[0] : req.query.modulo;
+  const concluidas = modulo === "concluidas";
+  // Execução e Concluídas guardam os itens num jsonb (chave do item -> status); Novas Ações tem colunas fixas.
+  const execucao = modulo === "execucao" || concluidas;
 
   try {
-    const { data, error } = await supabase.rpc(execucao ? "novas_execucao_encaminhadas" : "novas_acoes_encaminhadas");
+    const { data, error } = await supabase.rpc(concluidas ? "novas_concluidas_encaminhadas" : execucao ? "novas_execucao_encaminhadas" : "novas_acoes_encaminhadas");
     if (error) throw new Error(error.message);
 
     const porOrgao = new Map<string, OrgaoPendente>();
@@ -88,8 +97,8 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
       // Novas em Execução: itens vêm num jsonb (chave do item -> status) e os comentários em outro.
       for (const l of (data ?? []) as LinhaExecucao[]) {
         if (orgaoPedido && l.orgao !== orgaoPedido) continue;
-        const itens = ITENS_EXECUCAO.filter((i) => l.itens?.[i.campo] === "aguardando_atualizacao").map((i) => ({
-          texto: TEXTO_EXECUCAO[i.campo],
+        const itens = (concluidas ? ITENS_CONCLUIDAS : ITENS_EXECUCAO).filter((i) => l.itens?.[i.campo] === "aguardando_atualizacao").map((i) => ({
+          texto: (concluidas ? TEXTO_CONCLUIDAS : TEXTO_EXECUCAO)[i.campo],
           comentario: l.obs?.[i.campo] ?? null,
         }));
         if (itens.length === 0) continue;
@@ -123,12 +132,12 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     if (orgaos.length === 0) return res.status(404).json({ error: "Não há ações aguardando solução de pendência." });
 
     const geradoEm = new Date().toLocaleString("pt-BR", { timeZone: "America/Fortaleza", dateStyle: "short", timeStyle: "short" });
-    const buffer = await renderToBuffer(createElement(PendenciasPdf, execucao ? { orgaos, geradoEm, rotuloData: "EM EXECUÇÃO DESDE", tituloModulo: "Novas em Execução" } : { orgaos, geradoEm }) as Parameters<typeof renderToBuffer>[0]);
+    const buffer = await renderToBuffer(createElement(PendenciasPdf, concluidas ? { orgaos, geradoEm, rotuloData: "CONCLUÍDA DESDE", tituloModulo: "Novas Concluídas" } : execucao ? { orgaos, geradoEm, rotuloData: "EM EXECUÇÃO DESDE", tituloModulo: "Novas em Execução" } : { orgaos, geradoEm }) as Parameters<typeof renderToBuffer>[0]);
 
     const hoje = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
     const nomeOrgao = orgaoPedido ? `-${orgaoPedido.replace(/[^A-Za-z0-9]+/g, "_")}` : "-todos-os-orgaos";
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="pendencias${execucao ? "-execucao" : ""}${nomeOrgao}-${hoje}.pdf"`);
+    res.setHeader("Content-Disposition", `attachment; filename="pendencias${concluidas ? "-concluidas" : execucao ? "-execucao" : ""}${nomeOrgao}-${hoje}.pdf"`);
     res.setHeader("Cache-Control", "no-store");
     return res.status(200).send(buffer);
   } catch (e) {

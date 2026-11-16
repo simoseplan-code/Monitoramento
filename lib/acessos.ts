@@ -26,6 +26,7 @@ export const TELAS_E_ACESSOS: { grupo: string; tela: string; regra: Regra }[] = 
   { grupo: "Retiradas", tela: "Ações desconsideradas", regra: todosAprovados },
   { grupo: "Verificações diárias", tela: "Novas Ações", regra: todosAprovados },
   { grupo: "Verificações diárias", tela: "Novas em Execução", regra: todosAprovados },
+  { grupo: "Verificações diárias", tela: "Novas Concluídas", regra: todosAprovados },
   { grupo: "Verificações diárias", tela: "Termos (Outros Docs)", regra: todosAprovados },
   { grupo: "Verificações diárias", tela: "Unidade/Quantidade", regra: todosAprovados },
   { grupo: "Verificações diárias", tela: "Análise geral", regra: todosAprovados },

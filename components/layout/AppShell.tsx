@@ -25,6 +25,7 @@ export async function AppShell({
     vinculacaoPendentes?: number;
     termosPendentes?: number;
     novasExecucaoPendentes?: number;
+    novasConcluidasPendentes?: number;
   };
   titulo: string;
   subtitulo?: string;
@@ -46,6 +47,18 @@ export async function AppShell({
     }
   }
 
+  let novasConcluidasPendentes = counts.novasConcluidasPendentes;
+  if (novasConcluidasPendentes === undefined && digepi) novasConcluidasPendentes = 0;
+  if (novasConcluidasPendentes === undefined) {
+    try {
+      const supabase = await createClient();
+      const { data } = await supabase.rpc("contar_novas_concluidas_pendentes");
+      novasConcluidasPendentes = Number(data ?? 0);
+    } catch {
+      novasConcluidasPendentes = 0;
+    }
+  }
+
   const iniciais = nome
     .split(" ")
     .filter(Boolean)
@@ -55,7 +68,7 @@ export async function AppShell({
 
   return (
     <div className="flex min-h-screen bg-plane">
-      <Sidebar nome={nome} cargo={cargo} isAdmin={isAdmin} digepi={digepi} counts={{ ...counts, novasExecucaoPendentes }} />
+      <Sidebar nome={nome} cargo={cargo} isAdmin={isAdmin} digepi={digepi} counts={{ ...counts, novasExecucaoPendentes, novasConcluidasPendentes }} />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar titulo={titulo} subtitulo={subtitulo} iniciais={iniciais} notificacoesCount={notificacoesCount} semBusca={digepi} />
         <main className="flex-1 px-6 py-6">{children}</main>

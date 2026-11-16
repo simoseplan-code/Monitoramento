@@ -532,6 +532,7 @@ const NOMES_MODULO: Record<string, string> = {
   unidade_quantidade: "Unidade/Quantidade",
   vinculacao: "Vinculação",
   novas_em_execucao: "Novas em Execução",
+  novas_concluidas: "Novas Concluídas",
   kml: "Análise de KML",
   configuracao_td: "Configuração de TD",
 };
@@ -542,6 +543,7 @@ const CORES_MODULO: Record<string, string> = {
   unidade_quantidade: C.laranja,
   vinculacao: C.violeta,
   novas_em_execucao: C.verde,
+  novas_concluidas: C.azul,
   kml: C.vermelho,
   configuracao_td: C.neutro,
 };

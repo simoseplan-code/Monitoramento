@@ -1,0 +1,226 @@
+import Link from "next/link";
+import { createClient } from "@/lib/supabase/server";
+import { AppShell } from "@/components/layout/AppShell";
+import { Paginacao } from "@/components/Paginacao";
+import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
+import { sanitizarBusca } from "@/lib/seguranca";
+import { ListaNovasConcluidas } from "./ListaNovasConcluidas";
+import { FiltroOrgaos } from "@/app/novas-em-execucao/FiltroOrgaos";
+import { PendenciasPorOrgao, type ConfigPendencias, type GrupoOrgao } from "@/app/novas-acoes/PendenciasPorOrgao";
+import { ITENS_CONCLUIDAS } from "@/lib/concluidas";
+
+const PAGE_SIZE = 30;
+
+const CONFIG_PENDENCIAS_CONCLUIDAS: ConfigPendencias = {
+  itens: ITENS_CONCLUIDAS.map((i) => ({ campo: i.campo, rotulo: i.label })),
+  encaminharEndpoint: "/api/concluidas/encaminhar",
+  checkEndpoint: "/api/concluidas/check",
+  pdfHref: "/api/relatorios/pendencias?modulo=concluidas",
+  pdfNome: "pendencias-concluidas",
+  abaOrigem: "Em análise",
+};
+
+type LinhaEncaminhada = {
+  id_acao: string;
+  nome_acao: string;
+  orgao: string;
+  virou_em: string | null;
+  itens: Record<string, "pendente" | "confirmado" | "aguardando_atualizacao">;
+  obs: Record<string, string | null>;
+  encaminhada_em: string;
+  encaminhada_por_nome: string | null;
+  responsavel_id: string | null;
+  responsavel_nome: string | null;
+};
+
+type Linha = {
+  id_acao: string;
+  nome_acao: string;
+  orgao: string | null;
+  data_criacao: string | null;
+  virou_em: string;
+  status_anterior: string | null;
+  itens: Record<string, string>;
+  obs: Record<string, string>;
+  concluido: boolean;
+  responsavel_id: string | null;
+  responsavel_nome: string | null;
+  total_geral: number;
+};
+
+export default async function NovasConcluidasPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ busca?: string; concluidos?: string; pagina?: string; aba?: string; orgaos?: string }>;
+}) {
+  const { busca, concluidos, pagina, aba, orgaos: orgaosParam } = await searchParams;
+  // Órgãos marcados no filtro (vários, separados por | no endereço); vazio = todos.
+  const orgaosMarcados = (orgaosParam ?? "").split("|").map((o) => o.trim()).filter(Boolean);
+  const abaPendencias = aba === "pendencias";
+  const concluidosPedido = concluidos === "1";
+  const paginaAtual = Math.max(1, parseInt(pagina ?? "1", 10) || 1);
+  const termo = sanitizarBusca(busca);
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  // A aba "Análise concluída" é só para admin/chefe: para os demais o parâmetro é ignorado.
+  const { data: acesso } = await supabase.from("profiles").select("is_admin").eq("id", user!.id).single();
+  const mostrarConcluidos = concluidosPedido && !!acesso?.is_admin;
+
+  const [{ data: profile }, { count: totalAcoes }, { count: pendentesAprovacao }, novasAcoesPendentes, { data: linhasRpc, error: erroLista }, { data: pendentesRpc }, { data: equipeAtiva }, { data: encaminhadasRpc }] =
+    await Promise.all([
+      supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
+      supabase.from("obras").select("id_acao", { count: "exact", head: true }),
+      supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
+      contarNovasAcoesPendentes(supabase),
+      supabase.rpc("novas_concluidas_lista", { mostrar_concluidos: mostrarConcluidos, busca: termo || null, pagina: 1, tamanho: 5000 }),
+      supabase.rpc("contar_novas_concluidas_pendentes"),
+      // Só admin enxerga os perfis de todo mundo (RLS); pros demais volta vazio e a troca nem aparece.
+      supabase.from("profiles").select("id, nome").eq("status", "aprovado").order("nome"),
+      supabase.rpc("novas_concluidas_encaminhadas"),
+    ]);
+
+  const todasAsLinhas = (linhasRpc ?? []) as Linha[];
+  // Órgãos que aparecem na lista de agora (com a quantidade), para marcar um ou mais.
+  const contagemOrgaos = new Map<string, number>();
+  for (const l of todasAsLinhas) contagemOrgaos.set(l.orgao ?? "(sem órgão)", (contagemOrgaos.get(l.orgao ?? "(sem órgão)") ?? 0) + 1);
+  const opcoesOrgaos = Array.from(contagemOrgaos, ([valor, qtd]) => ({ valor, qtd })).sort((a, b) => a.valor.localeCompare(b.valor, "pt-BR"));
+  const filtradas = orgaosMarcados.length ? todasAsLinhas.filter((l) => orgaosMarcados.includes(l.orgao ?? "(sem órgão)")) : todasAsLinhas;
+  const totalFiltrado = filtradas.length;
+  const linhas = filtradas.slice((paginaAtual - 1) * PAGE_SIZE, paginaAtual * PAGE_SIZE);
+  // Quais destas ações já têm KML guardado (botão "Analisar KML" fica verde).
+  const { data: kmlGuardados } = linhas.map((l) => l.id_acao).length
+    ? await supabase.from("kml_arquivos").select("id_acao").eq("situacao", "baixado").in("id_acao", linhas.map((l) => l.id_acao))
+    : { data: [] as { id_acao: string }[] };
+  const comKml = new Set((kmlGuardados ?? []).map((r) => r.id_acao));
+  const totalPaginas = Math.max(1, Math.ceil(totalFiltrado / PAGE_SIZE));
+  const pendentes = Number(pendentesRpc ?? 0);
+  const ehAdmin = !!profile?.is_admin;
+  const equipe = ehAdmin ? ((equipeAtiva ?? []) as { id: string; nome: string }[]) : [];
+  const usuario = { id: user!.id, nome: profile?.nome ?? "Você" };
+
+  const encaminhadas = (encaminhadasRpc ?? []) as LinhaEncaminhada[];
+  const grupos: GrupoOrgao[] = [];
+  for (const e of encaminhadas) {
+    let g = grupos.find((x) => x.orgao === e.orgao);
+    if (!g) {
+      g = { orgao: e.orgao, acoes: [] };
+      grupos.push(g);
+    }
+    g.acoes.push({
+      idAcao: e.id_acao,
+      nomeAcao: e.nome_acao,
+      info: e.virou_em ? `virou concluída em ${new Date(e.virou_em + "T00:00:00").toLocaleDateString("pt-BR")}` : null,
+      itens: e.itens ?? {},
+      obs: e.obs ?? {},
+      encaminhadaEm: e.encaminhada_em,
+      encaminhadaPor: e.encaminhada_por_nome,
+      responsavelId: e.responsavel_id,
+      responsavelNome: e.responsavel_nome,
+    });
+  }
+
+  const estiloAba = (ativa: boolean) =>
+    `rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${ativa ? "bg-series-1 text-white" : "border border-black/10 text-ink-secondary hover:bg-plane"}`;
+
+  return (
+    <AppShell
+      nome={profile?.nome ?? "Usuário"}
+      cargo={profile?.cargo}
+      isAdmin={ehAdmin}
+      counts={{ acoes: totalAcoes ?? 0, pendentesAprovacao: pendentesAprovacao ?? 0, novasAcoesPendentes }}
+      titulo="Novas Concluídas"
+      subtitulo={abaPendencias ? `${encaminhadas.length} ação(ões) aguardando solução de pendência em ${grupos.length} órgão(s)` : `${totalFiltrado} ação(ões) ${mostrarConcluidos ? "com análise concluída" : "aguardando análise"}`}
+    >
+      <div className="space-y-4">
+        <div className="flex flex-wrap items-center gap-2">
+          <Link href="/novas-concluidas" className={estiloAba(!abaPendencias && !mostrarConcluidos)}>
+            Em análise <span className="tabular opacity-80">({pendentes})</span>
+          </Link>
+          <Link
+            href="/novas-concluidas?aba=pendencias"
+            className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${
+              abaPendencias ? "bg-status-warning text-white" : "border border-black/10 text-ink-secondary hover:bg-plane"
+            }`}
+          >
+            Aguardando solução de pendência <span className="tabular opacity-80">({encaminhadas.length})</span>
+          </Link>
+          {ehAdmin && (
+            <Link href="/novas-concluidas?concluidos=1" className={estiloAba(!abaPendencias && mostrarConcluidos)}>
+              Análise concluída
+            </Link>
+          )}
+          {!abaPendencias && (
+            <form action="/novas-concluidas" className="ml-auto flex items-center gap-2">
+              {mostrarConcluidos && <input type="hidden" name="concluidos" value="1" />}
+              {orgaosMarcados.length > 0 && <input type="hidden" name="orgaos" value={orgaosMarcados.join("|")} />}
+              <input
+                name="busca"
+                defaultValue={busca ?? ""}
+                placeholder="Buscar ação, órgão..."
+                className="w-56 rounded-lg border border-black/10 bg-plane px-3 py-1.5 text-xs text-ink-secondary focus:border-series-1 focus:outline-none"
+              />
+            </form>
+          )}
+        </div>
+
+        {!abaPendencias && opcoesOrgaos.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2">
+            <FiltroOrgaos opcoes={opcoesOrgaos} selecionados={orgaosMarcados.length ? orgaosMarcados : null} baseHref="/novas-concluidas" params={{ busca: termo || undefined, concluidos: mostrarConcluidos ? "1" : undefined }} />
+            {orgaosMarcados.length > 0 && <span className="text-xs text-ink-muted">{totalFiltrado} de {todasAsLinhas.length} ação(ões)</span>}
+          </div>
+        )}
+
+        {abaPendencias ? (
+          <PendenciasPorOrgao grupos={grupos} usuarioId={usuario.id} ehAdmin={ehAdmin} config={CONFIG_PENDENCIAS_CONCLUIDAS} />
+        ) : (
+        <>
+        {erroLista && (
+          <p className="rounded-lg bg-status-critical/10 px-3 py-2 text-xs text-status-critical">Falha ao carregar a lista: {erroLista.message}</p>
+        )}
+
+        <div className="space-y-3">
+          <ListaNovasConcluidas
+            usuario={usuario}
+            ehAdmin={ehAdmin}
+            equipe={equipe}
+            itens={linhas.map((l) => ({
+              idAcao: l.id_acao,
+              nomeAcao: l.nome_acao,
+              orgao: l.orgao,
+              virouEm: l.virou_em,
+              estagioAnterior: l.status_anterior,
+              itens: l.itens ?? {},
+              obs: l.obs ?? {},
+              concluido: l.concluido,
+              kmlGuardado: comKml.has(l.id_acao),
+              responsavel: l.responsavel_id ? { id: l.responsavel_id, nome: l.responsavel_nome ?? "-" } : null,
+            }))}
+          />
+
+          {linhas.length === 0 && !erroLista && (
+            <div className="rounded-xl border border-black/5 bg-surface p-10 text-center shadow-card">
+              <p className="text-sm text-ink-muted">
+                {mostrarConcluidos
+                  ? "Nenhuma análise concluída ainda."
+                  : "Nenhuma ação entrou no status CONCLUÍDO desde que o histórico começou. A lista enche a cada sincronização com o SIMO, com o que mudou de status."}
+              </p>
+            </div>
+          )}
+
+          <Paginacao
+            paginaAtual={paginaAtual}
+            totalPaginas={totalPaginas}
+            baseHref="/novas-concluidas"
+            params={{ busca: termo || undefined, concluidos: mostrarConcluidos ? "1" : undefined, orgaos: orgaosMarcados.length ? orgaosMarcados.join("|") : undefined }}
+          />
+        </div>
+        </>
+        )}
+      </div>
+    </AppShell>
+  );
+}

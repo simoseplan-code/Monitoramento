@@ -19,6 +19,7 @@ import {
   Link2,
   ListTree,
   PlayCircle,
+  CheckCircle2,
   MapPinned,
   Unlink,
   Copy,
@@ -80,6 +81,7 @@ export function Sidebar({
     vinculacaoPendentes?: number;
     termosPendentes?: number;
     novasExecucaoPendentes?: number;
+    novasConcluidasPendentes?: number;
   };
 }) {
   const pathname = usePathname();
@@ -89,6 +91,7 @@ export function Sidebar({
     // Verificações diárias
     { href: "/novas-acoes", label: "Novas Ações", icon: ClipboardCheck, count: counts.novasAcoesPendentes || undefined, grupo: "diarias" },
     { href: "/novas-em-execucao", label: "Novas em Execução", icon: PlayCircle, count: counts.novasExecucaoPendentes || undefined, grupo: "diarias" },
+    { href: "/novas-concluidas", label: "Novas Concluídas", icon: CheckCircle2, count: counts.novasConcluidasPendentes || undefined, grupo: "diarias" },
     { href: "/termos", label: "Termos (Outros Docs)", icon: FileCheck2, count: counts.termosPendentes || undefined, grupo: "diarias" },
     { href: "/unidade-quantidade", label: "Unidade/Quantidade", icon: Ruler, count: counts.sugestoesUnidadePendentes || undefined, grupo: "diarias" },
     { href: "/analise-territorio", label: "Análise geral", icon: MapaIcon, grupo: "diarias" },

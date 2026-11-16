@@ -33,6 +33,14 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, responsavelId: novo.id, responsavelNome: novo.nome });
   }
 
+  if (modulo === "concluidas") {
+    const { error: erroConcl } = await admin
+      .from("obras_concl_revisao")
+      .upsert({ id_acao: idAcao, responsavel_id: novo.id, revisado_por: novo.id, atualizado_em: agoraIso }, { onConflict: "id_acao" });
+    if (erroConcl) return NextResponse.json({ error: "Falha ao trocar o responsável." }, { status: 500 });
+    return NextResponse.json({ ok: true, responsavelId: novo.id, responsavelNome: novo.nome });
+  }
+
   if (modulo === "sobreposicoes") {
     // idAcao aqui é a chave do local. Se já houve decisão, a revisão passa a constar no novo responsável.
     const { data: local } = await admin.from("sobreposicoes").select("status").eq("chave_local", idAcao).maybeSingle();

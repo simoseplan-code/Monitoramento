@@ -15,6 +15,7 @@ export const MODULOS = [
   { chave: "unidade_quantidade", nome: "Unidade/Quantidade", cor: "var(--series-2)" },
   { chave: "vinculacao", nome: "Vinculação SIAFE", cor: "var(--series-7)" },
   { chave: "novas_em_execucao", nome: "Novas em Execução", cor: "var(--series-6)" },
+  { chave: "novas_concluidas", nome: "Novas Concluídas", cor: "var(--series-3)" },
   { chave: "kml", nome: "Análise de KML", cor: "var(--series-5)" },
   { chave: "configuracao_td", nome: "Configuração de TD", cor: "var(--series-8)" },
 ] as const;

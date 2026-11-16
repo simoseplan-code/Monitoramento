@@ -586,6 +586,7 @@ const ROTULO_MODULO: Record<string, string> = {
   unidade_quantidade: "Unidade/Quantidade",
   vinculacao: "Vinculação SIAFE",
   novas_em_execucao: "Novas em Execução",
+  novas_concluidas: "Novas Concluídas",
   kml: "Análise de KML",
   configuracao_td: "Configuração de TD",
 };
