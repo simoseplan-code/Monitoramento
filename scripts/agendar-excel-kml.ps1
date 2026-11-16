@@ -13,7 +13,7 @@ if (-not $Segredo) { Write-Host "Sem segredo, nada foi feito."; exit 1 }
 Set-Content -Path "$projeto\scripts\excel-kml.segredo.txt" -Value $Segredo -Encoding ASCII -NoNewline
 Set-Content -Path "$projeto\scripts\excel-kml.destino.txt" -Value $Destino -Encoding UTF8 -NoNewline
 
-$acao = New-ScheduledTaskAction -Execute "$projeto\scripts\rodar-excel-kml.bat" -WorkingDirectory $projeto
+$acao = New-ScheduledTaskAction -Execute "$projeto\scripts\rodar-excel-kml.bat" -Argument "auto" -WorkingDirectory $projeto
 $gatilho = New-ScheduledTaskTrigger -Weekly -DaysOfWeek Monday, Tuesday, Wednesday, Thursday, Friday -At $Hora
 $config = New-ScheduledTaskSettingsSet -StartWhenAvailable -WakeToRun -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries -ExecutionTimeLimit (New-TimeSpan -Hours 1)
 Register-ScheduledTask -TaskName "Monitoramento - Excel dos KML" -Action $acao -Trigger $gatilho -Settings $config -Force | Out-Null
