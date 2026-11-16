@@ -11,3 +11,5 @@ build/
 supabase/.temp/
 next-env.d.ts
 scripts/excel-kml.log
+scripts/excel-kml.segredo.txt
+scripts/excel-kml.destino.txt
