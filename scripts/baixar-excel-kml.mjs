@@ -11,7 +11,9 @@ import { join } from "node:path";
 
 const URL_BASE = (process.env.MONITORAMENTO_URL || "https://monitoramento-eight.vercel.app").replace(/\/$/, "");
 const SEGREDO = process.env.CRON_SECRET;
-const DESTINO = process.env.DESTINO || "C:\\Users\\tom.morais\\Nextcloud\\DIMA";
+// O arquivo de destino pode vir com caracteres invisíveis (BOM) na frente: começa a partir da letra do disco.
+const destinoBruto = (process.env.DESTINO || "").trim();
+const DESTINO = (destinoBruto.match(/[A-Za-z]:\\.*$/) || [])[0] || "C:\\Users\\tom.morais\\Nextcloud\\DIMA";
 if (!SEGREDO) {
   console.error("Falta a variável CRON_SECRET.");
   process.exit(1);
