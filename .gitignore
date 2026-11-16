@@ -10,3 +10,4 @@ build/
 .vercel
 supabase/.temp/
 next-env.d.ts
+scripts/excel-kml.log

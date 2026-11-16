@@ -49,13 +49,20 @@ export type SemKmExcel = { id: string; motivo: string };
 // Dados do KML guardado das ações pedidas, uma linha por geometria e bairro (para o Excel "Dados do KML").
 export async function POST(request: NextRequest) {
   try {
-    const supabase = await createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
-    if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
-    const acesso = await acessoDoUsuario(supabase, user.id);
-    if (!acesso.liberado) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+    // Automação (script na máquina da equipe): entra com o mesmo segredo dos cron jobs, com acesso total.
+    const porSegredo = !!process.env.CRON_SECRET && request.headers.get("authorization") === `Bearer ${process.env.CRON_SECRET}`;
+    let acesso: Awaited<ReturnType<typeof acessoDoUsuario>>;
+    if (porSegredo) {
+      acesso = { liberado: true, supervisor: true } as Awaited<ReturnType<typeof acessoDoUsuario>>;
+    } else {
+      const supabase = await createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
+      if (!user) return NextResponse.json({ error: "Não autenticado." }, { status: 401 });
+      acesso = await acessoDoUsuario(supabase, user.id);
+      if (!acesso.liberado) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
+    }
 
     const corpo = (await request.json().catch(() => null)) as { ids?: unknown; todos?: unknown; apos?: unknown } | null;
     const admin = createAdminClient();
