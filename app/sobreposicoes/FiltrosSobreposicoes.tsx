@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { Filter, Search, X } from "lucide-react";
+import { AlertTriangle, Filter, Search, X } from "lucide-react";
 import { hrefSobre, qtdFiltrosAtivos, type FiltrosSobre } from "@/lib/sobreposicoes/filtros";
 
 const ABAS = [
@@ -20,25 +20,29 @@ const GRUPOS = [
 
 const campo = "w-full rounded-lg border border-black/10 bg-plane px-2.5 py-1.5 text-xs text-ink-secondary focus:border-series-1 focus:outline-none";
 
-// Faixa de cima: grupo (em andamento / concluída) e abas de status, com os números.
+// Faixa de cima: grupo (em andamento / concluída), a aba de Pendências e as abas de status, com os números.
 export function BarraSobreposicoes({
   filtros,
   contagens,
   pendentesPorGrupo,
+  pendencias,
 }: {
   filtros: FiltrosSobre;
   contagens: { pendente: number; ok: number; problema: number; solucionado: number };
   pendentesPorGrupo: Record<string, number>;
+  /** Total dos dois grupos juntos: pares com problema a resolver e já solucionados. */
+  pendencias: { aguardando: number; solucionados: number };
 }) {
+  const nasPendencias = filtros.aba === "pendencias";
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap items-center gap-2">
         {GRUPOS.map((g) => {
-          const ativo = filtros.grupo === g.valor;
+          const ativo = !nasPendencias && filtros.grupo === g.valor;
           return (
             <Link
               key={g.valor}
-              href={hrefSobre({ ...filtros, grupo: g.valor, status: "pendente" })}
+              href={hrefSobre({ ...filtros, aba: "analise", grupo: g.valor, status: "pendente" })}
               title={g.dica}
               className={`rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
                 ativo ? "border border-series-1 bg-series-1/10 text-series-1" : "border border-black/10 bg-surface text-ink-secondary hover:bg-plane"
@@ -48,20 +52,45 @@ export function BarraSobreposicoes({
             </Link>
           );
         })}
+        <Link
+          href={hrefSobre({ ...filtros, aba: "pendencias", status: "problema" })}
+          title="Pares marcados com problema, a resolver: lista, resumo por órgão e relatórios"
+          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+            nasPendencias ? "border border-status-warning bg-status-warning text-white shadow-card" : "border border-status-warning/40 bg-status-warning-bg text-status-warning hover:bg-status-warning/20"
+          }`}
+        >
+          <AlertTriangle size={15} />
+          Pendências
+          <span className={`tabular rounded-full px-2 py-0.5 text-xs ${nasPendencias ? "bg-white/25 text-white" : "bg-status-warning/15"}`}>{pendencias.aguardando}</span>
+        </Link>
       </div>
+
       <div className="flex flex-wrap gap-2 rounded-xl border border-black/5 bg-surface p-3 shadow-card">
-        {ABAS.map((a) => {
-          const ativa = filtros.status === a.valor;
-          return (
-            <Link
-              key={a.valor}
-              href={hrefSobre({ ...filtros, status: a.valor })}
-              className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${ativa ? a.ativa : "border border-black/10 text-ink-secondary hover:bg-plane"}`}
-            >
-              {a.rotulo} <span className="tabular opacity-80">({contagens[a.valor]})</span>
-            </Link>
-          );
-        })}
+        {nasPendencias
+          ? ([
+              { valor: "problema", rotulo: "Aguardando solução", n: pendencias.aguardando, ativa: "bg-status-warning text-white" },
+              { valor: "solucionado", rotulo: "Já solucionadas", n: pendencias.solucionados, ativa: "bg-series-7 text-white" },
+            ] as const).map((a) => (
+              <Link
+                key={a.valor}
+                href={hrefSobre({ ...filtros, status: a.valor })}
+                className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${filtros.status === a.valor ? a.ativa : "border border-black/10 text-ink-secondary hover:bg-plane"}`}
+              >
+                {a.rotulo} <span className="tabular opacity-80">({a.n})</span>
+              </Link>
+            ))
+          : ABAS.map((a) => {
+              const ativa = filtros.status === a.valor;
+              return (
+                <Link
+                  key={a.valor}
+                  href={hrefSobre({ ...filtros, status: a.valor })}
+                  className={`rounded-full px-3.5 py-1.5 text-xs font-semibold transition-colors ${ativa ? a.ativa : "border border-black/10 text-ink-secondary hover:bg-plane"}`}
+                >
+                  {a.rotulo} <span className="tabular opacity-80">({contagens[a.valor]})</span>
+                </Link>
+              );
+            })}
       </div>
     </div>
   );

@@ -2,6 +2,8 @@
 // copiar o link, abrir em outra aba e a paginação mantém os filtros.
 
 export type FiltrosSobre = {
+  /** "analise": fila de análise (em andamento / concluída). "pendencias": pares com problema, a resolver. */
+  aba: "analise" | "pendencias";
   status: "pendente" | "ok" | "problema" | "solucionado";
   grupo: "andamento" | "concluidas";
   orgaos: string[];
@@ -16,6 +18,7 @@ export type FiltrosSobre = {
 };
 
 export type ParamsBrutos = {
+  aba?: string;
   status?: string;
   grupo?: string;
   orgao?: string;
@@ -37,8 +40,11 @@ const numero = (v?: string) => {
 };
 
 export function lerFiltros(p: ParamsBrutos): FiltrosSobre {
+  const aba = p.aba === "pendencias" ? "pendencias" : "analise";
   return {
-    status: p.status === "ok" || p.status === "problema" || p.status === "solucionado" ? p.status : "pendente",
+    aba,
+    // Nas pendências só existem "com problema" (a resolver) e "solucionado".
+    status: aba === "pendencias" ? (p.status === "solucionado" ? "solucionado" : "problema") : p.status === "ok" || p.status === "problema" || p.status === "solucionado" ? p.status : "pendente",
     grupo: p.grupo === "concluidas" ? "concluidas" : "andamento",
     orgaos: lista(p.orgao),
     statusObras: lista(p.statusObra),
@@ -55,7 +61,8 @@ export function lerFiltros(p: ParamsBrutos): FiltrosSobre {
 /** Parâmetros da URL (só o que foge do padrão). */
 export function paramsDe(f: FiltrosSobre): Record<string, string | undefined> {
   return {
-    status: f.status !== "pendente" ? f.status : undefined,
+    aba: f.aba === "pendencias" ? "pendencias" : undefined,
+    status: (f.aba === "pendencias" ? f.status !== "problema" : f.status !== "pendente") ? f.status : undefined,
     grupo: f.grupo === "concluidas" ? "concluidas" : undefined,
     orgao: f.orgaos.length ? f.orgaos.join("|") : undefined,
     statusObra: f.statusObras.length ? f.statusObras.join("|") : undefined,

@@ -1,4 +1,3 @@
-import { FileSpreadsheet, FileText } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/layout/AppShell";
 import { contarNovasAcoesPendentes } from "@/lib/novasAcoes";
@@ -6,6 +5,7 @@ import { UploadCsvSobreposicoes } from "./UploadCsvSobreposicoes";
 import { AtualizarDoMapa } from "./AtualizarDoMapa";
 import { CardSobreposicao } from "./CardSobreposicao";
 import { BarraSobreposicoes, FiltrosLaterais } from "./FiltrosSobreposicoes";
+import { PainelPendencias, type LinhaPainel } from "./PainelPendencias";
 import { Paginacao } from "@/components/Paginacao";
 import type { ObraNoLocal } from "@/lib/sobreposicoes/parseCsv";
 import { lerFiltros, paramsDe, type ParamsBrutos } from "@/lib/sobreposicoes/filtros";
@@ -56,6 +56,7 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
     pct_max: f.pctMax ? Number(f.pctMax) : null,
     busca: f.busca || null,
   });
+  const nasPendencias = f.aba === "pendencias";
   const outroGrupo = f.grupo === "concluidas" ? "andamento" : "concluidas";
   // A função de resumo devolve os dois grupos juntos, então não recebe o filtro de grupo.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -68,6 +69,7 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
     novasAcoesPendentes,
     { data: totalPendentes },
     { data: resumoRpc, error: erroContagens },
+    { data: painelRpc },
     { data: linhasRpc, error: erroLista },
     { data: orgaosRpc },
     { data: anosRpc },
@@ -82,7 +84,9 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
     supabase.rpc("contar_sobreposicoes_pendentes"),
     // Números das abas de status e dos dois grupos, de uma vez: seguem os filtros da lateral.
     supabase.rpc("sobreposicoes_pares_resumo", semGrupo),
-    supabase.rpc("sobreposicoes_pares_lista", { ...comuns(f.grupo), filtro_status: f.status, pagina: paginaAtual, tamanho: PAGE_SIZE }),
+    // Só na aba Pendências: resumo por órgão (um registro de total e um por órgão).
+    nasPendencias ? supabase.rpc("sobreposicoes_pendencias_painel", { ...semGrupo, filtro_status: f.status }) : Promise.resolve({ data: null }),
+    supabase.rpc("sobreposicoes_pares_lista", { ...comuns(nasPendencias ? "" : f.grupo), filtro_status: f.status, pagina: paginaAtual, tamanho: PAGE_SIZE }),
     supabase.rpc("sobreposicoes_orgaos"),
     supabase.rpc("sobreposicoes_anos"),
     supabase.rpc("sobreposicoes_tipologias"),
@@ -136,6 +140,12 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
     solucionado: Number(doGrupo?.solucionado ?? 0),
   };
 
+  // Pendências somam os dois grupos (em andamento e concluída).
+  const pendencias = {
+    aguardando: Number(resumo(false)?.problema ?? 0) + Number(resumo(true)?.problema ?? 0),
+    solucionados: Number(resumo(false)?.solucionado ?? 0) + Number(resumo(true)?.solucionado ?? 0),
+  };
+
   return (
     <AppShell
       nome={profile?.nome ?? "Usuário"}
@@ -148,7 +158,7 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
         sobreposicoesPendentes: Number(totalPendentes ?? 0),
       }}
       titulo="Sobreposições"
-      subtitulo={`${f.grupo === "concluidas" ? "Concluída × Concluída" : "Em andamento"}: ${totalFiltrado} par(es) de obras, ${{ pendente: "aguardando revisão", ok: "sem problema", problema: "com problema", solucionado: "solucionado" }[f.status]}`}
+      subtitulo={`${nasPendencias ? "Pendências" : f.grupo === "concluidas" ? "Concluída × Concluída" : "Em andamento"}: ${totalFiltrado} par(es) de obras, ${{ pendente: "aguardando revisão", ok: "sem problema", problema: "com problema", solucionado: "solucionado" }[f.status]}`}
     >
       <div className="mb-4 space-y-3">
         <AtualizarDoMapa />
@@ -157,30 +167,15 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
 
       {(erroLista || erroContagens) && (
         <p className="mb-4 rounded-lg bg-status-critical/10 px-3 py-2 text-xs text-status-critical">
-          Falha ao carregar a lista: {(erroLista ?? erroContagens)?.message}. Se a mensagem falar de função que não existe, falta rodar o SQL 0103 no Supabase.
+          Falha ao carregar a lista: {(erroLista ?? erroContagens)?.message}. Se a mensagem falar de função que não existe, falta rodar o SQL mais recente da pasta supabase/migrations (0107).
         </p>
       )}
 
-      <div className="mb-4 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-status-warning/20 bg-status-warning-bg px-4 py-3">
-        <div>
-          <p className="text-sm font-semibold text-ink-primary">Relatório de todos os pares com problema</p>
-          <p className="text-xs text-ink-muted">
-            {`${Number(resumo(false)?.problema ?? 0) + Number(resumo(true)?.problema ?? 0)} par(es) com problema aguardando solução`}, com IDs, órgãos, status, execução, trechos e a observação de quem analisou.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <a href="/api/relatorios?tipo=sobreposicoes_problemas" className="inline-flex items-center gap-1.5 rounded-full bg-status-good px-3.5 py-2 text-xs font-semibold text-white hover:opacity-90">
-            <FileSpreadsheet size={14} /> Baixar Excel
-          </a>
-          <a href="/api/relatorios/sobreposicoes-problemas" className="inline-flex items-center gap-1.5 rounded-full bg-series-1 px-3.5 py-2 text-xs font-semibold text-white hover:opacity-90">
-            <FileText size={14} /> Baixar PDF
-          </a>
-        </div>
+      <div className="mb-4">
+        <BarraSobreposicoes filtros={f} contagens={contagens} pendentesPorGrupo={{ [f.grupo]: contagens.pendente, [outroGrupo]: Number(doOutro?.pendente ?? 0) }} pendencias={pendencias} />
       </div>
 
-      <div className="mb-4">
-        <BarraSobreposicoes filtros={f} contagens={contagens} pendentesPorGrupo={{ [f.grupo]: contagens.pendente, [outroGrupo]: Number(doOutro?.pendente ?? 0) }} />
-      </div>
+      {nasPendencias && <PainelPendencias filtros={f} linhas={(painelRpc ?? []) as LinhaPainel[]} />}
 
       <div className="flex items-start gap-4">
         <FiltrosLaterais
@@ -217,7 +212,7 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
 
           {linhas.length === 0 && (
             <div className="rounded-xl border border-black/5 bg-surface p-10 text-center shadow-card">
-              <p className="text-sm text-ink-muted">{f.status === "pendente" ? "Nenhuma sobreposição pendente com esses filtros." : "Nenhum par nesta lista com esses filtros."}</p>
+              <p className="text-sm text-ink-muted">{nasPendencias ? "Nenhuma pendência nesta lista com esses filtros." : f.status === "pendente" ? "Nenhuma sobreposição pendente com esses filtros." : "Nenhum par nesta lista com esses filtros."}</p>
             </div>
           )}
 

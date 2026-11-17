@@ -34,12 +34,14 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
   if (perfil?.status !== "aprovado" || !perfil.is_admin) return res.status(403).json({ error: "Sem permissão." });
 
   try {
-    const pares = (await buscarParesComProblema(supabase)).sort((a, b) => (b.extensaoM ?? 0) - (a.extensaoM ?? 0));
+    const orgaoParam = Array.isArray(req.query.orgao) ? req.query.orgao[0] : req.query.orgao;
+    const orgaos = (orgaoParam ?? "").split("|").map((o) => o.trim()).filter(Boolean);
+    const pares = (await buscarParesComProblema(supabase, orgaos)).sort((a, b) => (b.extensaoM ?? 0) - (a.extensaoM ?? 0));
     const geradoEm = new Date().toLocaleString("pt-BR", { timeZone: "America/Fortaleza", dateStyle: "short", timeStyle: "short" });
-    const buffer = await renderToBuffer(createElement(SobreposicoesProblemasPdf, { pares, geradoEm }) as Parameters<typeof renderToBuffer>[0]);
+    const buffer = await renderToBuffer(createElement(SobreposicoesProblemasPdf, { pares, geradoEm, orgaosFiltro: orgaos }) as Parameters<typeof renderToBuffer>[0]);
     const hoje = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
     res.setHeader("Content-Type", "application/pdf");
-    res.setHeader("Content-Disposition", `attachment; filename="sobreposicoes-com-problema-${hoje}.pdf"`);
+    res.setHeader("Content-Disposition", `attachment; filename="sobreposicoes-com-problema${orgaos.length === 1 ? `-${orgaos[0].replace(/[^A-Za-z0-9]+/g, "_")}` : ""}-${hoje}.pdf"`);
     res.setHeader("Cache-Control", "no-store");
     return res.status(200).send(buffer);
   } catch (e) {

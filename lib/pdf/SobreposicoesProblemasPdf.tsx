@@ -34,14 +34,14 @@ const dia = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("pt-
 const inteiro = (n: number) => n.toLocaleString("pt-BR");
 const urlSimo = (id: string) => `http://simo.pi.gov.br/cahier/action/projects/show/id/${encodeURIComponent(id)}`;
 
-function Cabecalho({ geradoEm, total }: { geradoEm: string; total: number }) {
+function Cabecalho({ geradoEm, total, orgaosFiltro }: { geradoEm: string; total: number; orgaosFiltro: string[] }) {
   return (
     <View style={s.topo} fixed>
       <View style={{ flexDirection: "row", alignItems: "center", flex: 1 }}>
         <View style={s.logo} />
         <View style={{ flex: 1 }}>
           <Text style={s.titulo}>Sobreposições com problema</Text>
-          <Text style={s.subtitulo}>{inteiro(total)} par(es) de obras aguardando solução</Text>
+          <Text style={s.subtitulo}>{inteiro(total)} par(es) de obras aguardando solução{orgaosFiltro.length ? ` · órgão: ${orgaosFiltro.join(", ")}` : ""}</Text>
         </View>
       </View>
       <View>
@@ -52,7 +52,7 @@ function Cabecalho({ geradoEm, total }: { geradoEm: string; total: number }) {
   );
 }
 
-export function SobreposicoesProblemasPdf({ pares, geradoEm }: { pares: ParComProblema[]; geradoEm: string }) {
+export function SobreposicoesProblemasPdf({ pares, geradoEm, orgaosFiltro = [] }: { pares: ParComProblema[]; geradoEm: string; orgaosFiltro?: string[] }) {
   const metros = pares.reduce((t, p) => t + (p.extensaoM ?? 0), 0);
   const porOrgao = new Map<string, number>();
   for (const p of pares) for (const o of p.orgaos) porOrgao.set(o, (porOrgao.get(o) ?? 0) + 1);
@@ -61,7 +61,7 @@ export function SobreposicoesProblemasPdf({ pares, geradoEm }: { pares: ParComPr
   return (
     <Document title="Sobreposições com problema: Monitoramento de Obras" author="Monitoramento de Obras">
       <Page size="A4" orientation="landscape" style={s.pagina}>
-        <Cabecalho geradoEm={geradoEm} total={pares.length} />
+        <Cabecalho geradoEm={geradoEm} total={pares.length} orgaosFiltro={orgaosFiltro} />
         <Text style={s.intro}>
           Cada linha é um par de obras (ID × ID) que se sobrepõem no mapa e foi analisado como COM PROBLEMA. Os trechos onde as mesmas obras se
           sobrepõem aparecem juntos, com os metros somados. Em cada par, a primeira ação (menor ID) é a principal, normalmente a original.

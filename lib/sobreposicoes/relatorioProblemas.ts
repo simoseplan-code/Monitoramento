@@ -40,10 +40,10 @@ type LinhaRpc = {
 
 type ObraViva = { id_acao: string; status: string | null; percentual_execucao: number | null; numero_automatico: string | null; numero_siafe: string | null };
 
-export async function buscarParesComProblema(supabase: SupabaseClient): Promise<ParComProblema[]> {
+export async function buscarParesComProblema(supabase: SupabaseClient, orgaos: string[] = []): Promise<ParComProblema[]> {
   const linhas: LinhaRpc[] = [];
   for (let pagina = 1; ; pagina++) {
-    const { data, error } = await supabase.rpc("sobreposicoes_pares_lista", { filtro_status: "problema", grupo_situacao: "", pagina, tamanho: 500 });
+    const { data, error } = await supabase.rpc("sobreposicoes_pares_lista", { filtro_status: "problema", grupo_situacao: "", orgaos_filtro: orgaos.length ? orgaos : null, pagina, tamanho: 500 });
     if (error) throw new Error(error.message);
     const lote = (data ?? []) as LinhaRpc[];
     linhas.push(...lote);
@@ -91,7 +91,7 @@ export async function buscarParesComProblema(supabase: SupabaseClient): Promise<
 
 const dataBr = (iso: string | null) => (iso ? new Date(iso).toLocaleDateString("pt-BR", { timeZone: "America/Fortaleza" }) : "");
 
-export async function excelParesComProblema(pares: ParComProblema[]): Promise<Buffer> {
+export async function excelParesComProblema(pares: ParComProblema[], orgaosFiltro: string[] = []): Promise<Buffer> {
   const wb = new ExcelJS.Workbook();
   wb.creator = "Monitoramento de Obras";
   wb.created = new Date();
@@ -175,6 +175,7 @@ export async function excelParesComProblema(pares: ParComProblema[]): Promise<Bu
   const wr = wb.addWorksheet("Resumo");
   wr.columns = [{ header: "Item", key: "i", width: 40 }, { header: "Valor", key: "v", width: 60 }];
   wr.addRow({ i: "Relatório", v: "Sobreposições: pares de obras com problema (aguardando solução)" });
+  if (orgaosFiltro.length) wr.addRow({ i: "Filtro de órgão", v: orgaosFiltro.join(", ") });
   wr.addRow({ i: "Gerado em", v: new Date().toLocaleString("pt-BR", { timeZone: "America/Fortaleza" }) });
   wr.addRow({ i: "Pares com problema", v: pares.length });
   wr.addRow({ i: "Metros sobrepostos (soma de todos)", v: pares.reduce((s, p) => s + (p.extensaoM ?? 0), 0) });

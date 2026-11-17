@@ -24,13 +24,14 @@ export async function GET(request: NextRequest) {
   // Sobreposições: todos os pares de obras com problema (mesma base da tela).
   if (request.nextUrl.searchParams.get("tipo") === "sobreposicoes_problemas") {
     try {
-      const pares = await buscarParesComProblema(supabase);
-      const buffer = await excelParesComProblema(pares);
+      const orgaos = (request.nextUrl.searchParams.get("orgao") ?? "").split("|").map((o) => o.trim()).filter(Boolean);
+      const pares = await buscarParesComProblema(supabase, orgaos);
+      const buffer = await excelParesComProblema(pares, orgaos);
       const hoje = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
       return new NextResponse(new Uint8Array(buffer), {
         headers: {
           "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-          "Content-Disposition": `attachment; filename="sobreposicoes-com-problema-${hoje}.xlsx"`,
+          "Content-Disposition": `attachment; filename="sobreposicoes-com-problema${orgaos.length === 1 ? `-${orgaos[0].replace(/[^A-Za-z0-9]+/g, "_")}` : ""}-${hoje}.xlsx"`,
           "Cache-Control": "no-store",
         },
       });
