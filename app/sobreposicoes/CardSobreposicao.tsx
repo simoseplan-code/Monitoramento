@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { CheckCircle2, AlertTriangle, Undo2, MapPin, Star, Lock, UserRound, BadgeCheck } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Undo2, MapPin, Star, Lock, UserRound, BadgeCheck, MessageSquarePlus } from "lucide-react";
 import type { ObraNoLocal } from "@/lib/sobreposicoes/parseCsv";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
 import { MapaSobreposicaoBotao } from "./MapaSobreposicao";
@@ -93,6 +93,11 @@ export function CardSobreposicao({
   const [etapa, setEtapa] = useState<"fechado" | "escrevendo">("fechado");
   const [decisao, setDecisao] = useState<"ok" | "problema">("problema");
   const [observacao, setObservacao] = useState(observacaoInicial ?? "");
+  // Observações acrescentadas depois (cada uma com data e nome), sem apagar as anteriores.
+  const [observacaoLocal, setObservacaoLocal] = useState(observacaoInicial);
+  const [addObs, setAddObs] = useState(false);
+  const [textoObs, setTextoObs] = useState("");
+  const [salvandoObs, setSalvandoObs] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
   async function salvar(novoStatus: StatusRevisao, obs?: string) {
@@ -120,6 +125,31 @@ export function CardSobreposicao({
       setErro("Sem conexão com o servidor.");
     } finally {
       setSalvando(false);
+    }
+  }
+
+  async function acrescentarObservacao() {
+    setSalvandoObs(true);
+    setErro(null);
+    try {
+      const resp = await fetch("/api/sobreposicoes/observacao", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ chaveLocal, texto: textoObs.trim() }),
+      });
+      const json = (await resp.json().catch(() => ({}))) as { error?: string; observacao?: string };
+      if (!resp.ok) {
+        setErro(json.error ?? "Não foi possível salvar a observação.");
+        return;
+      }
+      setObservacaoLocal(json.observacao ?? observacaoLocal);
+      setTextoObs("");
+      setAddObs(false);
+      router.refresh();
+    } catch {
+      setErro("Sem conexão com o servidor.");
+    } finally {
+      setSalvandoObs(false);
     }
   }
 
@@ -311,9 +341,9 @@ export function CardSobreposicao({
       {status === "problema" && solucionando === 2 && (
         <div className="mb-3 space-y-2 rounded-lg border border-series-7/30 bg-white/70 p-3">
           <p className="text-xs font-semibold text-series-7">Como foi solucionado?</p>
-          {observacaoInicial && (
-            <p className="text-xs text-ink-muted">
-              <strong className="text-status-warning">Problema registrado:</strong> {observacaoInicial}
+          {observacaoLocal && (
+            <p className="whitespace-pre-line text-xs text-ink-muted">
+              <strong className="text-status-warning">Problema registrado:</strong> {observacaoLocal}
             </p>
           )}
           <textarea
@@ -356,17 +386,61 @@ export function CardSobreposicao({
         </p>
       )}
 
-      {status !== "pendente" && observacaoInicial && etapa === "fechado" && (
+      {status !== "pendente" && observacaoLocal && etapa === "fechado" && (
         <p
-          className={`mb-3 rounded-lg border bg-white/60 px-3 py-2 text-xs text-ink-secondary ${
+          className={`mb-3 whitespace-pre-line rounded-lg border bg-white/60 px-3 py-2 text-xs text-ink-secondary ${
             status === "ok" ? "border-status-good/20" : status === "solucionado" ? "border-series-7/20" : "border-status-warning/20"
           }`}
         >
           <strong className={status === "ok" ? "text-status-good" : "text-status-warning"}>
             {status === "solucionado" ? "Problema:" : "Observação:"}
           </strong>{" "}
-          {observacaoInicial}
+          {observacaoLocal}
         </p>
+      )}
+
+      {status !== "pendente" && etapa === "fechado" && !addObs && (
+        <button
+          onClick={() => setAddObs(true)}
+          className="mb-3 inline-flex items-center gap-1.5 rounded-full border border-black/10 bg-white/70 px-3 py-1.5 text-xs font-medium text-ink-secondary hover:bg-white"
+          title="Acrescenta uma observação com data e nome, sem apagar as anteriores"
+        >
+          <MessageSquarePlus size={13} /> + Observação
+        </button>
+      )}
+      {status !== "pendente" && addObs && (
+        <div className="mb-3 space-y-2 rounded-lg border border-black/10 bg-white/70 p-3">
+          <p className="text-xs font-semibold text-ink-primary">Nova observação</p>
+          <textarea
+            value={textoObs}
+            onChange={(e) => setTextoObs(e.target.value)}
+            placeholder="Ex.: encaminhado ao órgão, aguardando retorno, KML corrigido..."
+            rows={2}
+            maxLength={1000}
+            autoFocus
+            className="w-full rounded-lg border border-black/10 bg-plane px-3 py-2 text-xs text-ink-primary placeholder:text-ink-muted focus:border-series-1 focus:outline-none"
+          />
+          <div className="flex items-center gap-2">
+            <button
+              onClick={acrescentarObservacao}
+              disabled={salvandoObs || textoObs.trim().length < 2}
+              className="rounded-full bg-series-1 px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+            >
+              {salvandoObs ? "Salvando..." : "Salvar observação"}
+            </button>
+            <button
+              onClick={() => {
+                setAddObs(false);
+                setTextoObs("");
+              }}
+              disabled={salvandoObs}
+              className="rounded-full px-3 py-1.5 text-xs font-medium text-ink-muted hover:text-ink-primary"
+            >
+              Cancelar
+            </button>
+            <span className="text-[11px] text-ink-muted">Fica com a sua data e o seu nome.</span>
+          </div>
+        </div>
       )}
 
       {status === "solucionado" && solucao && (
