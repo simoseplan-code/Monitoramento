@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { registrarAnalise } from "@/lib/analisesLog";
-import { chavesDoPar } from "@/lib/sobreposicoes/par";
+import { chavesDoPar, reconstruirPar } from "@/lib/sobreposicoes/par";
 
 // Qualquer pessoa aprovada pode marcar um local "com problema" como
 // solucionado (fica gravado quem foi) e também desfazer. O responsável pela
@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
     if (!data || data.length === 0) {
       return NextResponse.json({ error: "Esse local não está mais como \"com problema\" (alguém pode ter alterado)." }, { status: 409 });
     }
+    await reconstruirPar(admin, chaveLocal);
     await registrarAnalise(admin, user.id, "sobreposicoes", chaveLocal, "solucionado", textoSolucao);
     return NextResponse.json({ ok: true });
   }
@@ -61,6 +62,7 @@ export async function POST(request: NextRequest) {
   if (!data || data.length === 0) {
     return NextResponse.json({ error: "Esse local não está mais como solucionado." }, { status: 409 });
   }
+  await reconstruirPar(admin, chaveLocal);
   await registrarAnalise(admin, user.id, "sobreposicoes", chaveLocal, "reaberto", "voltou com problema" + (anterior?.solucao ? " (solução anterior: " + anterior.solucao + ")" : ""));
   return NextResponse.json({ ok: true });
 }

@@ -4,7 +4,7 @@ import { limparTexto } from "@/lib/seguranca";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { registrarAnalise } from "@/lib/analisesLog";
 import { ALVO_SOBREPOSICOES, resolverResponsavel } from "@/lib/responsavelAnalise";
-import { chavesDoPar } from "@/lib/sobreposicoes/par";
+import { chavesDoPar, reconstruirPar } from "@/lib/sobreposicoes/par";
 
 const STATUS_VALIDOS = ["pendente", "ok", "problema"] as const;
 type Status = (typeof STATUS_VALIDOS)[number];
@@ -56,6 +56,7 @@ export async function POST(request: NextRequest) {
     const { error: erroIrmas } = await adminPar.from("sobreposicoes").update(campos).in("chave_local", irmas);
     if (erroIrmas) return NextResponse.json({ error: "Salvou o trecho principal, mas falhou ao aplicar nos outros trechos do par. Tente de novo." }, { status: 500 });
   }
+  await reconstruirPar(adminPar, chaveLocal);
   await registrarAnalise(
     resp.editandoPorOutro ? createAdminClient() : supabase,
     resp.responsavelId,

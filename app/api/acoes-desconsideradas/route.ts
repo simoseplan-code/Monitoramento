@@ -1,8 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { TELAS_DESCONSIDERADAS, listarDesconsideradas } from "@/lib/desconsideradas";
 
 export const runtime = "nodejs";
+export const maxDuration = 60;
 
 // Listas compartilhadas de IDs desconsiderados das análises (uma por análise, mais a "todas").
 // Qualquer pessoa aprovada mexe nas listas abertas.
@@ -54,6 +56,11 @@ export async function POST(request: NextRequest) {
       if (error) throw new Error(error.message);
     } else {
       return NextResponse.json({ error: "Ação inválida." }, { status: 400 });
+    }
+    // Sobreposições: quantas ações "ativas" cada par tem depende desta lista, e a tela lê uma tabela pronta.
+    if (tela === "todas") {
+      const { error: erroPares } = await createAdminClient().rpc("sobreposicoes_reconstruir_pares");
+      if (erroPares) console.error("acoes-desconsideradas: refazer pares de sobreposições:", erroPares.message);
     }
     const lista = (await listarDesconsideradas(supabase, [tela])).map(({ tela: _t, ...resto }) => resto);
     return NextResponse.json({ ok: true, lista });
