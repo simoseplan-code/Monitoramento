@@ -57,6 +57,9 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
     busca: f.busca || null,
   });
   const outroGrupo = f.grupo === "concluidas" ? "andamento" : "concluidas";
+  // A função de resumo devolve os dois grupos juntos, então não recebe o filtro de grupo.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const { grupo_situacao: _g, ...semGrupo } = comuns(f.grupo);
 
   const [
     { data: profile },
@@ -64,8 +67,7 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
     { count: pendentesAprovacao },
     novasAcoesPendentes,
     { data: totalPendentes },
-    { data: contagensRpc, error: erroContagens },
-    { data: contagensOutroGrupo },
+    { data: resumoRpc, error: erroContagens },
     { data: linhasRpc, error: erroLista },
     { data: orgaosRpc },
     { data: anosRpc },
@@ -78,10 +80,8 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
     supabase.from("profiles").select("id", { count: "exact", head: true }).eq("status", "pendente"),
     contarNovasAcoesPendentes(supabase),
     supabase.rpc("contar_sobreposicoes_pendentes"),
-    // Números das abas de status: seguem os filtros da lateral.
-    supabase.rpc("sobreposicoes_pares_contagens", comuns(f.grupo)),
-    // Só para mostrar quantos aguardam revisão no outro grupo.
-    supabase.rpc("sobreposicoes_pares_contagens", comuns(outroGrupo)),
+    // Números das abas de status e dos dois grupos, de uma vez: seguem os filtros da lateral.
+    supabase.rpc("sobreposicoes_pares_resumo", semGrupo),
     supabase.rpc("sobreposicoes_pares_lista", { ...comuns(f.grupo), filtro_status: f.status, pagina: paginaAtual, tamanho: PAGE_SIZE }),
     supabase.rpc("sobreposicoes_orgaos"),
     supabase.rpc("sobreposicoes_anos"),
@@ -125,11 +125,15 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
   }));
   const totalFiltrado = linhas[0]?.total_geral ?? 0;
   const totalPaginas = Math.max(1, Math.ceil(totalFiltrado / PAGE_SIZE));
+  type Resumo = { concluidas: boolean; pendente: number | string; ok: number | string; problema: number | string; solucionado: number | string };
+  const resumo = (concluidas: boolean) => ((resumoRpc ?? []) as Resumo[]).find((r) => r.concluidas === concluidas);
+  const doGrupo = resumo(f.grupo === "concluidas");
+  const doOutro = resumo(f.grupo !== "concluidas");
   const contagens = {
-    pendente: Number(contagensRpc?.[0]?.pendente ?? 0),
-    ok: Number(contagensRpc?.[0]?.ok ?? 0),
-    problema: Number(contagensRpc?.[0]?.problema ?? 0),
-    solucionado: Number(contagensRpc?.[0]?.solucionado ?? 0),
+    pendente: Number(doGrupo?.pendente ?? 0),
+    ok: Number(doGrupo?.ok ?? 0),
+    problema: Number(doGrupo?.problema ?? 0),
+    solucionado: Number(doGrupo?.solucionado ?? 0),
   };
 
   return (
@@ -161,7 +165,7 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
         <div>
           <p className="text-sm font-semibold text-ink-primary">Relatório de todos os pares com problema</p>
           <p className="text-xs text-ink-muted">
-            {contagensRpc ? `${contagensRpc[0]?.problema ?? 0} par(es) com problema aguardando solução` : "Pares com problema aguardando solução"}, com IDs, órgãos, status, execução, trechos e a observação de quem analisou.
+            {`${Number(resumo(false)?.problema ?? 0) + Number(resumo(true)?.problema ?? 0)} par(es) com problema aguardando solução`}, com IDs, órgãos, status, execução, trechos e a observação de quem analisou.
           </p>
         </div>
         <div className="flex gap-2">
@@ -175,7 +179,7 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
       </div>
 
       <div className="mb-4">
-        <BarraSobreposicoes filtros={f} contagens={contagens} pendentesPorGrupo={{ [f.grupo]: contagens.pendente, [outroGrupo]: Number(contagensOutroGrupo?.[0]?.pendente ?? 0) }} />
+        <BarraSobreposicoes filtros={f} contagens={contagens} pendentesPorGrupo={{ [f.grupo]: contagens.pendente, [outroGrupo]: Number(doOutro?.pendente ?? 0) }} />
       </div>
 
       <div className="flex items-start gap-4">
