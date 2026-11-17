@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { registrarAnalise } from "@/lib/analisesLog";
+import { chavesDoPar } from "@/lib/sobreposicoes/par";
 
 // Qualquer pessoa aprovada pode marcar um local "com problema" como
 // solucionado (fica gravado quem foi) e também desfazer. O responsável pela
@@ -30,12 +31,14 @@ export async function POST(request: NextRequest) {
 
   const admin = createAdminClient();
   const agora = new Date().toISOString();
+  // Vale para o par de obras inteiro (todos os trechos).
+  const chaves = await chavesDoPar(admin, chaveLocal);
 
   if (acao === "solucionar") {
     const { data, error } = await admin
       .from("sobreposicoes")
       .update({ status: "solucionado", solucionado_por: user.id, solucionado_em: agora, solucao: textoSolucao, atualizado_em: agora })
-      .eq("chave_local", chaveLocal)
+      .in("chave_local", chaves)
       .eq("status", "problema")
       .select("chave_local");
     if (error) return NextResponse.json({ error: "Falha ao salvar." }, { status: 500 });
@@ -51,7 +54,7 @@ export async function POST(request: NextRequest) {
   const { data, error } = await admin
     .from("sobreposicoes")
     .update({ status: "problema", solucionado_por: null, solucionado_em: null, solucao: null, atualizado_em: agora })
-    .eq("chave_local", chaveLocal)
+    .in("chave_local", chaves)
     .eq("status", "solucionado")
     .select("chave_local");
   if (error) return NextResponse.json({ error: "Falha ao salvar." }, { status: 500 });

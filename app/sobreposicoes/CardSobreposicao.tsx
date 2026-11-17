@@ -43,7 +43,7 @@ export function CardSobreposicao({
   obras,
   extensaoM,
   toleranciaM,
-  qtdSegmentos,
+  qtdTrechos,
   latInicio,
   lonInicio,
   latFim,
@@ -61,7 +61,7 @@ export function CardSobreposicao({
   obras: ObraNoLocal[];
   extensaoM: number | null;
   toleranciaM: number | null;
-  qtdSegmentos: number | null;
+  qtdTrechos: number;
   latInicio: number | null;
   lonInicio: number | null;
   latFim: number | null;
@@ -195,10 +195,11 @@ export function CardSobreposicao({
       <div className="mb-3 flex flex-wrap items-start justify-between gap-3">
         <div>
           <p className="text-sm font-semibold text-ink-primary">
-            {obras.length} obras envolvidas · {extensaoM != null ? `${Math.round(extensaoM)} m` : "-"} sobrepostos
+            {obras.length} obras envolvidas · {extensaoM != null ? `${Math.round(extensaoM).toLocaleString("pt-BR")} m` : "-"} sobrepostos
+            {qtdTrechos > 1 && <span className="ml-1.5 rounded-full bg-series-1/10 px-2 py-0.5 text-[11px] font-semibold text-series-1">{qtdTrechos} trechos</span>}
           </p>
           <p className="text-xs text-ink-muted">
-            Tolerância {toleranciaM ?? "-"} m · {qtdSegmentos ?? "-"} segmento(s)
+            Tolerância {toleranciaM ?? "-"} m · {qtdTrechos} trecho(s) neste par de obras
             {linkMapa && (
               <>
                 {" · "}

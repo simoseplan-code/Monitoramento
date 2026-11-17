@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { chavesDoPar } from "@/lib/sobreposicoes/par";
 
 // Só administrador troca quem é o responsável pela análise de uma ação.
 export async function POST(request: NextRequest) {
@@ -47,7 +48,8 @@ export async function POST(request: NextRequest) {
     if (!local) return NextResponse.json({ error: "Local não encontrado." }, { status: 404 });
     const mudancas: Record<string, unknown> = { responsavel_id: novo.id, atualizado_em: agoraIso };
     if (local.status !== "pendente") mudancas.revisado_por = novo.id;
-    const { error: erroSobre } = await admin.from("sobreposicoes").update(mudancas).eq("chave_local", idAcao);
+    // O responsável vale para o par de obras inteiro (todos os trechos).
+    const { error: erroSobre } = await admin.from("sobreposicoes").update(mudancas).in("chave_local", await chavesDoPar(admin, idAcao));
     if (erroSobre) return NextResponse.json({ error: "Falha ao trocar o responsável." }, { status: 500 });
     return NextResponse.json({ ok: true, responsavelId: novo.id, responsavelNome: novo.nome });
   }

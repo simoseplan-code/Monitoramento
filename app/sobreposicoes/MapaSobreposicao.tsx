@@ -7,7 +7,7 @@ import type { FeatureGroup, Map as MapaLeaflet } from "leaflet";
 import { wktParaLinhas } from "@/lib/sobreposicoes/geometria";
 
 type ObraLegenda = { id: string | null; nome: string; orgao: string | null };
-type Dados = { sobreposta: string[]; tracados: { id_acao: string; wkt: string }[] };
+type Dados = { sobreposta: string[]; trechos?: { extensao_m: number | null; geoms: string[] }[]; tracados: { id_acao: string; wkt: string }[] };
 
 // Uma cor por obra (a primeira é a principal); o trecho sobreposto fica em vermelho por cima.
 const CORES_OBRAS = ["#2563eb", "#f59e0b", "#7c3aed", "#0d9488", "#db2777"];
@@ -36,6 +36,7 @@ function MapaModal({ chaveLocal, obras, aoFechar }: { chaveLocal: string; obras:
   const mapaRef = useRef<MapaLeaflet | null>(null);
   const camadasRef = useRef(new Map<string, FeatureGroup>());
   const [ocultas, setOcultas] = useState<Set<string>>(new Set());
+  const [totalTrechos, setTotalTrechos] = useState(0);
 
   function alternar(chave: string) {
     const mapa = mapaRef.current;
@@ -101,9 +102,16 @@ function MapaModal({ chaveLocal, obras, aoFechar }: { chaveLocal: string; obras:
         });
         const camadaSobreposta = L.featureGroup().addTo(mapa);
         camadasRef.current.set(SOBREPOSTA, camadaSobreposta);
-        L.polyline(sobreposta, { color: COR_SOBREPOSTA, weight: 8, opacity: 0.9 })
-          .bindTooltip("Trecho sobreposto", { sticky: true })
-          .addTo(camadaSobreposta);
+        // Todos os trechos do par juntos, piscando (mesma animação do mapa de KML); cada trecho com seu tamanho.
+        const trechos = dados.trechos && dados.trechos.length > 0 ? dados.trechos : [{ extensao_m: null, geoms: dados.sobreposta }];
+        setTotalTrechos(trechos.length);
+        trechos.forEach((t, k) => {
+          const linhas = t.geoms.flatMap(wktParaLinhas);
+          if (linhas.length === 0) return;
+          const rotulo = `Trecho ${k + 1} de ${trechos.length}${t.extensao_m != null ? ` · ${Math.round(t.extensao_m).toLocaleString("pt-BR")} m` : ""}`;
+          L.polyline(linhas, { color: "#ffffff", weight: 15, opacity: 0.95, className: "kml-pisca", interactive: false }).addTo(camadaSobreposta);
+          L.polyline(linhas, { color: COR_SOBREPOSTA, weight: 9, opacity: 1, className: "kml-pisca" }).bindTooltip(rotulo, { sticky: true }).addTo(camadaSobreposta);
+        });
 
         // Abre enquadrando o trecho sobreposto (é o que interessa); o traçado inteiro continua lá.
         const foco = sobreposta.length > 0 ? camadaSobreposta : grupo;
@@ -129,7 +137,10 @@ function MapaModal({ chaveLocal, obras, aoFechar }: { chaveLocal: string; obras:
       >
         <div className="flex items-start justify-between gap-4 border-b border-black/5 px-4 py-3">
           <div className="min-w-0 space-y-1">
-            <p className="text-sm font-semibold text-ink-primary">Trecho sobreposto</p>
+            <p className="text-sm font-semibold text-ink-primary">
+              {totalTrechos > 1 ? `${totalTrechos} trechos sobrepostos` : "Trecho sobreposto"}
+              {totalTrechos > 1 && <span className="ml-2 text-xs font-normal text-ink-muted">todos os trechos deste par de obras, juntos no mapa</span>}
+            </p>
             <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-ink-secondary">
               {[{ chave: SOBREPOSTA, cor: COR_SOBREPOSTA, rotulo: "Sobreposição", titulo: "Trecho sobreposto", grossa: true }, ...obras.map((o, i) => ({ chave: chaveObra(o), cor: CORES_OBRAS[i % CORES_OBRAS.length], rotulo: `${o.orgao ?? ""} · ID ${o.id}`, titulo: o.nome, grossa: false }))].map((item) => {
                 const disponivel = estado === "ok" && camadasRef.current.has(item.chave);

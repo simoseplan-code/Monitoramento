@@ -1,7 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 
-// Dados do popup "Mostrar sobreposição": trecho sobreposto do local + traçado de cada obra.
+// Dados do popup "Mostrar sobreposição": TODOS os trechos sobrepostos do par de obras + traçado de cada obra.
 // O acesso (só admin e chefe) é garantido pelas regras de linha das duas tabelas.
 export async function GET(request: NextRequest) {
   const supabase = await createClient();
@@ -15,10 +15,22 @@ export async function GET(request: NextRequest) {
 
   const { data: local } = await supabase
     .from("sobreposicoes")
-    .select("geom_sobreposta, obras")
+    .select("geom_sobreposta, obras, chave_obras")
     .eq("chave_local", chave)
     .maybeSingle();
   if (!local) return NextResponse.json({ error: "Local não encontrado." }, { status: 404 });
+
+  // Todos os locais (trechos) do mesmo par de obras, do maior para o menor.
+  type Trecho = { chave_local: string; extensao_m: number | null; geom_sobreposta: string[] | null };
+  let trechos: Trecho[] = [{ chave_local: chave, extensao_m: null, geom_sobreposta: (local.geom_sobreposta ?? []) as string[] }];
+  if (local.chave_obras) {
+    const { data: irmas } = await supabase
+      .from("sobreposicoes")
+      .select("chave_local, extensao_m, geom_sobreposta")
+      .eq("chave_obras", local.chave_obras)
+      .order("extensao_m", { ascending: false, nullsFirst: false });
+    if (irmas && irmas.length > 0) trechos = irmas as Trecho[];
+  }
 
   const ids = ((local.obras ?? []) as { id: string | null }[]).map((o) => o.id).filter((id): id is string => !!id);
   const { data: tracados } = ids.length
@@ -34,7 +46,11 @@ export async function GET(request: NextRequest) {
   }
 
   return NextResponse.json(
-    { sobreposta: (local.geom_sobreposta ?? []) as string[], tracados: lista },
+    {
+      sobreposta: trechos.flatMap((t) => t.geom_sobreposta ?? []),
+      trechos: trechos.map((t) => ({ extensao_m: t.extensao_m, geoms: t.geom_sobreposta ?? [] })),
+      tracados: lista,
+    },
     { headers: { "Cache-Control": "private, max-age=300" } }
   );
 }

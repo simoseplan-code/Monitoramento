@@ -1,6 +1,7 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { gerarRelatorio, type TipoRelatorio } from "@/lib/relatorios";
+import { buscarParesComProblema, excelParesComProblema } from "@/lib/sobreposicoes/relatorioProblemas";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
@@ -19,6 +20,26 @@ export async function GET(request: NextRequest) {
   if (perfil?.status !== "aprovado" || !perfil.is_admin) return NextResponse.json({ error: "Sem permissão." }, { status: 403 });
 
   const tipo = request.nextUrl.searchParams.get("tipo") as TipoRelatorio | null;
+
+  // Sobreposições: todos os pares de obras com problema (mesma base da tela).
+  if (request.nextUrl.searchParams.get("tipo") === "sobreposicoes_problemas") {
+    try {
+      const pares = await buscarParesComProblema(supabase);
+      const buffer = await excelParesComProblema(pares);
+      const hoje = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
+      return new NextResponse(new Uint8Array(buffer), {
+        headers: {
+          "Content-Type": "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          "Content-Disposition": `attachment; filename="sobreposicoes-com-problema-${hoje}.xlsx"`,
+          "Cache-Control": "no-store",
+        },
+      });
+    } catch (e) {
+      console.error("relatorio sobreposicoes problemas:", e);
+      return NextResponse.json({ error: "Falha ao gerar o relatório." }, { status: 500 });
+    }
+  }
+
   if (!tipo || !TIPOS.includes(tipo)) return NextResponse.json({ error: "Tipo de relatório inválido." }, { status: 400 });
 
   try {
