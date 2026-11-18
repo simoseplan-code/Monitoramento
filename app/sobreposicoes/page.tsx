@@ -65,6 +65,7 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
     tipologia_todas_filtro: f.tipologiaTodas || null,
     ocultar_estrada_vicinal: f.ocultarEstradaVicinal,
     sem_vicinais: f.semVicinais,
+    sem_canceladas: f.semCanceladas,
     grupo_situacao: grupo,
     status_obras_filtro: f.statusObras.length ? f.statusObras : null,
     pct_min: f.pctMin ? Number(f.pctMin) : null,

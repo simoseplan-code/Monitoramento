@@ -26,7 +26,7 @@ export async function GET(request: NextRequest) {
     try {
       const orgaos = (request.nextUrl.searchParams.get("orgao") ?? "").split("|").map((o) => o.trim()).filter(Boolean);
       const destino = request.nextUrl.searchParams.get("destino") === "cgfr" ? "cgfr" : "pendencias";
-      const pares = await buscarParesComProblema(supabase, orgaos, destino, request.nextUrl.searchParams.get("semvic") === "1");
+      const pares = await buscarParesComProblema(supabase, orgaos, destino, request.nextUrl.searchParams.get("semvic") === "1", request.nextUrl.searchParams.get("semcanc") === "1");
       const buffer = await excelParesComProblema(pares, orgaos, destino);
       const hoje = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);
       return new NextResponse(new Uint8Array(buffer), {

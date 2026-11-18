@@ -23,7 +23,7 @@ export function PainelPendencias({ filtros, linhas }: { filtros: FiltrosSobre; l
 
   // Os relatórios seguem o filtro de órgão da tela (vazio = todos).
   const qsOrgao = filtros.orgaos.length ? `orgao=${encodeURIComponent(filtros.orgaos.join("|"))}` : "";
-  const extras = [qsOrgao, cgfr ? "destino=cgfr" : "", filtros.semVicinais ? "semvic=1" : ""].filter(Boolean);
+  const extras = [qsOrgao, cgfr ? "destino=cgfr" : "", filtros.semVicinais ? "semvic=1" : "", filtros.semCanceladas ? "semcanc=1" : ""].filter(Boolean);
   const hrefExcel = `/api/relatorios?tipo=sobreposicoes_problemas${extras.map((q) => `&${q}`).join("")}`;
   const hrefPdf = `/api/relatorios/sobreposicoes-problemas${extras.length ? `?${extras.join("&")}` : ""}`;
 
