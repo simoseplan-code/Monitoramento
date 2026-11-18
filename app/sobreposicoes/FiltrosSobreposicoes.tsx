@@ -3,8 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Filter, Search, Send, X } from "lucide-react";
-import { hrefSobre, qtdFiltrosAtivos, type FiltrosSobre } from "@/lib/sobreposicoes/filtros";
+import { AlertTriangle, Filter, Save, Search, Send, X } from "lucide-react";
+import { hrefSobre, paraGravar, qtdFiltrosAtivos, TELA_FILTRO, type FiltroGravado, type FiltrosSobre } from "@/lib/sobreposicoes/filtros";
 
 const ABAS = [
   { valor: "pendente", rotulo: "Aguardando revisão", ativa: "bg-series-1 text-white" },
@@ -184,17 +184,67 @@ export function FiltrosLaterais({
   statusObras,
   tipologias,
   anos,
+  gravado,
 }: {
   filtros: FiltrosSobre;
   orgaos: string[];
   statusObras: { valor: string; qtd: number }[];
   tipologias: string[];
   anos: number[];
+  gravado: { estado: FiltroGravado; atualizadoEm: string; por: string | null } | null;
 }) {
   const router = useRouter();
   const [rascunho, setRascunho] = useState<FiltrosSobre>(filtros);
   const chave = hrefSobre(filtros);
   useEffect(() => setRascunho(filtros), [chave]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Gravar filtro (um só, vale para todos).
+  const [gravadoEm, setGravadoEm] = useState<string | null>(gravado?.atualizadoEm ?? null);
+  const [gravadoPor, setGravadoPor] = useState<string | null>(gravado?.por ?? null);
+  const [gravadoJson, setGravadoJson] = useState<string | null>(gravado ? JSON.stringify(paraGravar({ ...filtros, ...gravado.estado })) : null);
+  const [gravando, setGravando] = useState(false);
+  const [aviso, setAviso] = useState<{ tipo: "ok" | "erro"; texto: string } | null>(null);
+  const jsonRascunho = JSON.stringify(paraGravar(rascunho));
+  const gravadoMudou = gravadoJson !== null && gravadoJson !== jsonRascunho;
+
+  async function gravarFiltro() {
+    setGravando(true);
+    setAviso(null);
+    try {
+      const resp = await fetch("/api/filtros", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ tela: TELA_FILTRO, estado: paraGravar(rascunho) }) });
+      const json = (await resp.json().catch(() => ({}))) as { error?: string; atualizadoEm?: string };
+      if (!resp.ok) setAviso({ tipo: "erro", texto: json.error ?? "Não foi possível gravar o filtro." });
+      else {
+        setGravadoEm(json.atualizadoEm ?? new Date().toISOString());
+        setGravadoPor("você");
+        setGravadoJson(jsonRascunho);
+        setAviso({ tipo: "ok", texto: "Filtro gravado para todos." });
+      }
+    } catch {
+      setAviso({ tipo: "erro", texto: "Sem conexão com o servidor." });
+    } finally {
+      setGravando(false);
+    }
+  }
+
+  async function apagarGravado() {
+    setGravando(true);
+    setAviso(null);
+    try {
+      const resp = await fetch(`/api/filtros?tela=${TELA_FILTRO}`, { method: "DELETE" });
+      if (!resp.ok) setAviso({ tipo: "erro", texto: "Não foi possível apagar o filtro gravado." });
+      else {
+        setGravadoEm(null);
+        setGravadoPor(null);
+        setGravadoJson(null);
+        setAviso({ tipo: "ok", texto: "Filtro gravado apagado para todos." });
+      }
+    } catch {
+      setAviso({ tipo: "erro", texto: "Sem conexão com o servidor." });
+    } finally {
+      setGravando(false);
+    }
+  }
 
   const mudou = hrefSobre(rascunho) !== chave;
   const ativos = qtdFiltrosAtivos(filtros);
@@ -277,6 +327,28 @@ export function FiltrosLaterais({
       >
         {mudou ? "Aplicar filtros" : "Filtros aplicados"}
       </button>
+
+      <button
+        onClick={gravarFiltro}
+        disabled={gravando}
+        title="Grava os filtros atuais para TODOS os usuários: a tela passa a abrir com eles"
+        className="flex w-full items-center justify-center gap-1.5 rounded-lg bg-series-3 px-3 py-2 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-60"
+      >
+        <Save size={13} /> {gravando ? "Gravando..." : "Gravar filtro"}
+      </button>
+      <p className="text-[10.5px] leading-snug text-ink-muted">
+        {gravadoEm
+          ? gravadoMudou
+            ? "Você mudou os filtros depois da última gravação. Clique em Gravar filtro para guardar (vale para todos)."
+            : `Filtro gravado em ${new Date(gravadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}${gravadoPor ? ` por ${gravadoPor}` : ""}. A tela abre com ele para todos.`
+          : "Nenhum filtro gravado: a tela abre sem filtros."}
+        {gravadoEm && (
+          <button onClick={apagarGravado} disabled={gravando} className="ml-1.5 font-medium hover:text-ink-primary hover:underline disabled:opacity-50">
+            Apagar filtro gravado
+          </button>
+        )}
+      </p>
+      {aviso && <p className={`rounded-lg px-2.5 py-1.5 text-[11px] ${aviso.tipo === "ok" ? "bg-status-good-bg text-status-good" : "bg-status-critical-bg text-status-critical"}`}>{aviso.texto}</p>}
     </aside>
   );
 }

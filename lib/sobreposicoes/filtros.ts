@@ -18,6 +18,7 @@ export type FiltrosSobre = {
 };
 
 export type ParamsBrutos = {
+  v?: string;
   aba?: string;
   status?: string;
   grupo?: string;
@@ -61,6 +62,8 @@ export function lerFiltros(p: ParamsBrutos): FiltrosSobre {
 /** Parâmetros da URL (só o que foge do padrão). */
 export function paramsDe(f: FiltrosSobre): Record<string, string | undefined> {
   return {
+    // Marca que a URL já carrega os filtros: o filtro gravado só vale como padrão quando se abre a tela "limpa" pelo menu.
+    v: "1",
     aba: f.aba !== "analise" ? f.aba : undefined,
     status: (f.aba !== "analise" ? f.status !== "problema" : f.status !== "pendente") ? f.status : undefined,
     grupo: f.grupo === "concluidas" ? "concluidas" : undefined,
@@ -100,3 +103,40 @@ export function qtdFiltrosAtivos(f: FiltrosSobre): number {
 
 /** Destino do par com problema: a aba onde ele está. */
 export const destinoDaAba = (aba: FiltrosSobre["aba"]): "pendencias" | "cgfr" => (aba === "cgfr" ? "cgfr" : "pendencias");
+
+// ---------- filtro gravado (um só, vale para todos; mesma tabela filtros_salvos das outras telas) ----------
+export const TELA_FILTRO = "sobreposicoes";
+
+export type FiltroGravado = Pick<FiltrosSobre, "orgaos" | "statusObras" | "tipologias" | "anos" | "tipologiaTodas" | "ocultarEstradaVicinal" | "pctMin" | "pctMax" | "busca">;
+
+/** Só os filtros da lateral entram no gravado (aba, status e grupo continuam sendo da navegação). */
+export function paraGravar(f: FiltrosSobre): FiltroGravado {
+  return {
+    orgaos: [...f.orgaos].sort(),
+    statusObras: [...f.statusObras].sort(),
+    tipologias: [...f.tipologias].sort(),
+    anos: [...f.anos].sort(),
+    tipologiaTodas: f.tipologiaTodas,
+    ocultarEstradaVicinal: f.ocultarEstradaVicinal,
+    pctMin: f.pctMin,
+    pctMax: f.pctMax,
+    busca: f.busca,
+  };
+}
+
+export function lerGravado(estado: unknown): FiltroGravado | null {
+  if (!estado || typeof estado !== "object") return null;
+  const e = estado as Record<string, unknown>;
+  const textos = (v: unknown) => (Array.isArray(v) ? v.filter((x): x is string => typeof x === "string") : []);
+  return {
+    orgaos: textos(e.orgaos),
+    statusObras: textos(e.statusObras),
+    tipologias: textos(e.tipologias),
+    anos: textos(e.anos),
+    tipologiaTodas: typeof e.tipologiaTodas === "string" ? e.tipologiaTodas : "",
+    ocultarEstradaVicinal: e.ocultarEstradaVicinal === true,
+    pctMin: typeof e.pctMin === "string" ? e.pctMin : "",
+    pctMax: typeof e.pctMax === "string" ? e.pctMax : "",
+    busca: typeof e.busca === "string" ? e.busca : "",
+  };
+}

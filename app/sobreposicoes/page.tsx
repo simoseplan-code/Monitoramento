@@ -8,7 +8,8 @@ import { BarraSobreposicoes, FiltrosLaterais } from "./FiltrosSobreposicoes";
 import { PainelPendencias, type LinhaPainel } from "./PainelPendencias";
 import { Paginacao } from "@/components/Paginacao";
 import type { ObraNoLocal } from "@/lib/sobreposicoes/parseCsv";
-import { destinoDaAba, lerFiltros, paramsDe, type ParamsBrutos } from "@/lib/sobreposicoes/filtros";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { destinoDaAba, lerFiltros, lerGravado, paramsDe, TELA_FILTRO, type ParamsBrutos } from "@/lib/sobreposicoes/filtros";
 
 const PAGE_SIZE = 30;
 
@@ -36,13 +37,25 @@ type LinhaPar = {
 
 export default async function SobreposicoesPage({ searchParams }: { searchParams: Promise<ParamsBrutos> }) {
   const brutos = await searchParams;
-  const f = lerFiltros(brutos);
   const paginaAtual = Math.max(1, parseInt(brutos.pagina ?? "1", 10) || 1);
 
   const supabase = await createClient();
   const {
     data: { user },
   } = await supabase.auth.getUser();
+
+  // Filtro gravado: UM SÓ, vale para todos (quem gravou por último). Só vira o padrão quando a tela abre "limpa" (pelo menu);
+  // qualquer clique na própria tela já leva os filtros na URL e eles mandam.
+  const adminFiltro = createAdminClient();
+  const { data: gravadoRow } = await adminFiltro.from("filtros_salvos").select("usuario_id, estado, atualizado_em").eq("tela", TELA_FILTRO).order("atualizado_em", { ascending: false }).limit(1).maybeSingle();
+  const gravadoEstado = lerGravado(gravadoRow?.estado);
+  let gravadoPor: string | null = null;
+  if (gravadoRow?.usuario_id) {
+    const { data: quem } = await adminFiltro.from("profiles").select("nome").eq("id", gravadoRow.usuario_id).maybeSingle();
+    gravadoPor = (quem?.nome as string | null) ?? null;
+  }
+  const filtrosDaUrl = lerFiltros(brutos);
+  const f = Object.keys(brutos).length === 0 && gravadoEstado ? { ...filtrosDaUrl, ...gravadoEstado } : filtrosDaUrl;
 
   // Argumentos comuns da lista e das contagens (listas vazias = sem filtro).
   const comuns = (grupo: string) => ({
@@ -189,6 +202,7 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
           statusObras={(statusObrasRpc ?? []).map((r: { status: string; qtd: number | string }) => ({ valor: r.status, qtd: Number(r.qtd) }))}
           tipologias={(tipologiasRpc ?? []).map((r: { tipologia: string }) => r.tipologia)}
           anos={(anosRpc ?? []).map((r: { ano: number }) => r.ano)}
+          gravado={gravadoEstado && gravadoRow ? { estado: gravadoEstado, atualizadoEm: gravadoRow.atualizado_em as string, por: gravadoPor } : null}
         />
 
         <div className="min-w-0 flex-1 space-y-3">
