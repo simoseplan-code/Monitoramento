@@ -66,6 +66,10 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
     ocultar_estrada_vicinal: f.ocultarEstradaVicinal,
     sem_vicinais: f.semVicinais,
     sem_canceladas: f.semCanceladas,
+    p_status_filtro: f.p1Status.length ? f.p1Status : null,
+    o_status_filtro: f.p2Status.length ? f.p2Status : null,
+    p_estagio_filtro: f.p1Estagio.length ? f.p1Estagio : null,
+    o_estagio_filtro: f.p2Estagio.length ? f.p2Estagio : null,
     grupo_situacao: grupo,
     status_obras_filtro: f.statusObras.length ? f.statusObras : null,
     pct_min: f.pctMin ? Number(f.pctMin) : null,
@@ -93,6 +97,7 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
     { data: anosRpc },
     { data: tipologiasRpc },
     { data: statusObrasRpc },
+    { data: estagiosRpc },
     { data: equipeAtiva },
   ] = await Promise.all([
     supabase.from("profiles").select("nome, cargo, is_admin").eq("id", user!.id).single(),
@@ -109,6 +114,7 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
     supabase.rpc("sobreposicoes_anos"),
     supabase.rpc("sobreposicoes_tipologias"),
     supabase.rpc("sobreposicoes_status_obras"),
+    supabase.rpc("sobreposicoes_estagios_obras"),
     // Só admin enxerga os perfis de todo mundo (RLS); pros demais volta vazio.
     supabase.from("profiles").select("id, nome").eq("status", "aprovado").order("nome"),
   ]);
@@ -203,6 +209,7 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
           orgaos={(orgaosRpc ?? []).map((r: { orgao: string }) => r.orgao)}
           statusObras={(statusObrasRpc ?? []).map((r: { status: string; qtd: number | string }) => ({ valor: r.status, qtd: Number(r.qtd) }))}
           tipologias={(tipologiasRpc ?? []).map((r: { tipologia: string }) => r.tipologia)}
+          estagios={(estagiosRpc ?? []).map((r: { estagio: string; qtd: number | string }) => ({ valor: r.estagio, qtd: Number(r.qtd) }))}
           anos={(anosRpc ?? []).map((r: { ano: number }) => r.ano)}
           gravado={gravadoEstado && gravadoRow ? { estado: gravadoEstado, atualizadoEm: gravadoRow.atualizado_em as string, por: gravadoPor } : null}
         />

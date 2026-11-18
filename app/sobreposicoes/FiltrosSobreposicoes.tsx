@@ -184,6 +184,7 @@ export function FiltrosLaterais({
   statusObras,
   tipologias,
   anos,
+  estagios,
   gravado,
 }: {
   filtros: FiltrosSobre;
@@ -191,6 +192,7 @@ export function FiltrosLaterais({
   statusObras: { valor: string; qtd: number }[];
   tipologias: string[];
   anos: number[];
+  estagios: { valor: string; qtd: number }[];
   gravado: { estado: FiltroGravado; atualizadoEm: string; por: string | null } | null;
 }) {
   const router = useRouter();
@@ -249,7 +251,7 @@ export function FiltrosLaterais({
   const mudou = hrefSobre(rascunho) !== chave;
   const ativos = qtdFiltrosAtivos(filtros);
   const aplicar = () => router.push(hrefSobre(rascunho));
-  const limpar = () => router.push(hrefSobre({ ...filtros, orgaos: [], statusObras: [], tipologias: [], anos: [], tipologiaTodas: "", ocultarEstradaVicinal: false, semVicinais: false, semCanceladas: false, pctMin: "", pctMax: "", busca: "" }));
+  const limpar = () => router.push(hrefSobre({ ...filtros, orgaos: [], statusObras: [], tipologias: [], anos: [], tipologiaTodas: "", ocultarEstradaVicinal: false, semVicinais: false, semCanceladas: false, p1Status: [], p2Status: [], p1Estagio: [], p2Estagio: [], pctMin: "", pctMax: "", busca: "" }));
 
   return (
     <aside className="sticky top-3 max-h-[calc(100vh-1.5rem)] w-64 shrink-0 space-y-2 overflow-y-auto rounded-xl border border-black/5 bg-surface p-3 shadow-card [scrollbar-width:thin]">
@@ -283,6 +285,17 @@ export function FiltrosLaterais({
 
       <GrupoCaixas titulo="Órgão" opcoes={orgaos.map((o) => ({ valor: o }))} marcados={rascunho.orgaos} aoMudar={(v) => setRascunho({ ...rascunho, orgaos: v })} dica="O par aparece se pelo menos uma das obras for de um órgão marcado" />
       <GrupoCaixas titulo="Status das obras" opcoes={statusObras} marcados={rascunho.statusObras} aoMudar={(v) => setRascunho({ ...rascunho, statusObras: v })} dica="O par aparece se pelo menos uma das obras estiver num status marcado" />
+
+      <div className="space-y-1.5 rounded-lg border border-series-1/25 bg-series-1/5 p-2">
+        <p className="px-0.5 text-xs font-bold text-series-1" title="Escolha o status e o estágio de cada uma das duas obras do par. Tudo vale junto.">
+          Filtros do par
+        </p>
+        <p className="px-0.5 text-[10.5px] leading-snug text-ink-muted">Obra 1 é a principal (menor ID); Obra 2 é a outra do par. Status e estágio se complementam.</p>
+        <GrupoCaixas titulo="Obra 1 · status" opcoes={statusObras} marcados={rascunho.p1Status} aoMudar={(v) => setRascunho({ ...rascunho, p1Status: v })} dica="Status da obra principal do par (a de menor ID)" />
+        <GrupoCaixas titulo="Obra 2 · status" opcoes={statusObras} marcados={rascunho.p2Status} aoMudar={(v) => setRascunho({ ...rascunho, p2Status: v })} dica="Status da outra obra do par (em par com 3 ou mais obras, vale qualquer uma das outras)" />
+        <GrupoCaixas titulo="Obra 1 · estágio" opcoes={estagios} marcados={rascunho.p1Estagio} aoMudar={(v) => setRascunho({ ...rascunho, p1Estagio: v })} dica="Estágio da obra principal do par (a de menor ID)" />
+        <GrupoCaixas titulo="Obra 2 · estágio" opcoes={estagios} marcados={rascunho.p2Estagio} aoMudar={(v) => setRascunho({ ...rascunho, p2Estagio: v })} dica="Estágio da outra obra do par (em par com 3 ou mais obras, vale qualquer uma das outras)" />
+      </div>
 
       <div className="rounded-lg border border-black/5 bg-plane/50 px-2.5 py-2">
         <p className="mb-1.5 text-xs font-semibold text-ink-primary" title="Usa a obra mais adiantada do par">

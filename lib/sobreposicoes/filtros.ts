@@ -8,6 +8,11 @@ export type FiltrosSobre = {
   grupo: "andamento" | "concluidas";
   orgaos: string[];
   statusObras: string[];
+  /** Composição do par: status e estágio da obra 1 (principal, menor ID) e da obra 2 (a outra). */
+  p1Status: string[];
+  p2Status: string[];
+  p1Estagio: string[];
+  p2Estagio: string[];
   tipologias: string[];
   anos: string[];
   tipologiaTodas: string;
@@ -28,6 +33,10 @@ export type ParamsBrutos = {
   grupo?: string;
   orgao?: string;
   statusObra?: string;
+  p1Status?: string;
+  p2Status?: string;
+  p1Estagio?: string;
+  p2Estagio?: string;
   tipologia?: string;
   ano?: string;
   tipologiaTodas?: string;
@@ -55,6 +64,10 @@ export function lerFiltros(p: ParamsBrutos): FiltrosSobre {
     grupo: p.grupo === "concluidas" ? "concluidas" : "andamento",
     orgaos: lista(p.orgao),
     statusObras: lista(p.statusObra),
+    p1Status: lista(p.p1Status),
+    p2Status: lista(p.p2Status),
+    p1Estagio: lista(p.p1Estagio),
+    p2Estagio: lista(p.p2Estagio),
     tipologias: lista(p.tipologia),
     anos: lista(p.ano).filter((a) => /^\d{4}$/.test(a)),
     tipologiaTodas: p.tipologiaTodas ?? "",
@@ -77,6 +90,10 @@ export function paramsDe(f: FiltrosSobre): Record<string, string | undefined> {
     grupo: f.grupo === "concluidas" ? "concluidas" : undefined,
     orgao: f.orgaos.length ? f.orgaos.join("|") : undefined,
     statusObra: f.statusObras.length ? f.statusObras.join("|") : undefined,
+    p1Status: f.p1Status.length ? f.p1Status.join("|") : undefined,
+    p2Status: f.p2Status.length ? f.p2Status.join("|") : undefined,
+    p1Estagio: f.p1Estagio.length ? f.p1Estagio.join("|") : undefined,
+    p2Estagio: f.p2Estagio.length ? f.p2Estagio.join("|") : undefined,
     tipologia: f.tipologias.length ? f.tipologias.join("|") : undefined,
     ano: f.anos.length ? f.anos.join("|") : undefined,
     tipologiaTodas: f.tipologiaTodas || undefined,
@@ -101,6 +118,10 @@ export function qtdFiltrosAtivos(f: FiltrosSobre): number {
   return (
     (f.orgaos.length ? 1 : 0) +
     (f.statusObras.length ? 1 : 0) +
+    (f.p1Status.length ? 1 : 0) +
+    (f.p2Status.length ? 1 : 0) +
+    (f.p1Estagio.length ? 1 : 0) +
+    (f.p2Estagio.length ? 1 : 0) +
     (f.tipologias.length ? 1 : 0) +
     (f.anos.length ? 1 : 0) +
     (f.tipologiaTodas ? 1 : 0) +
@@ -119,13 +140,17 @@ export const destinoDaAba = (aba: FiltrosSobre["aba"]): "pendencias" | "cgfr" =>
 // ---------- filtro gravado (um só, vale para todos; mesma tabela filtros_salvos das outras telas) ----------
 export const TELA_FILTRO = "sobreposicoes";
 
-export type FiltroGravado = Pick<FiltrosSobre, "orgaos" | "statusObras" | "tipologias" | "anos" | "tipologiaTodas" | "ocultarEstradaVicinal" | "semVicinais" | "semCanceladas" | "pctMin" | "pctMax" | "busca">;
+export type FiltroGravado = Pick<FiltrosSobre, "orgaos" | "statusObras" | "p1Status" | "p2Status" | "p1Estagio" | "p2Estagio" | "tipologias" | "anos" | "tipologiaTodas" | "ocultarEstradaVicinal" | "semVicinais" | "semCanceladas" | "pctMin" | "pctMax" | "busca">;
 
 /** Só os filtros da lateral entram no gravado (aba, status e grupo continuam sendo da navegação). */
 export function paraGravar(f: FiltrosSobre): FiltroGravado {
   return {
     orgaos: [...f.orgaos].sort(),
     statusObras: [...f.statusObras].sort(),
+    p1Status: [...f.p1Status].sort(),
+    p2Status: [...f.p2Status].sort(),
+    p1Estagio: [...f.p1Estagio].sort(),
+    p2Estagio: [...f.p2Estagio].sort(),
     tipologias: [...f.tipologias].sort(),
     anos: [...f.anos].sort(),
     tipologiaTodas: f.tipologiaTodas,
@@ -145,6 +170,10 @@ export function lerGravado(estado: unknown): FiltroGravado | null {
   return {
     orgaos: textos(e.orgaos),
     statusObras: textos(e.statusObras),
+    p1Status: textos(e.p1Status),
+    p2Status: textos(e.p2Status),
+    p1Estagio: textos(e.p1Estagio),
+    p2Estagio: textos(e.p2Estagio),
     tipologias: textos(e.tipologias),
     anos: textos(e.anos),
     tipologiaTodas: typeof e.tipologiaTodas === "string" ? e.tipologiaTodas : "",
