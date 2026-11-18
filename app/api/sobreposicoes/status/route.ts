@@ -20,10 +20,11 @@ export async function POST(request: NextRequest) {
   const { data: perfilAcesso } = await supabase.from("profiles").select("is_admin").eq("id", user.id).single();
   if (!perfilAcesso?.is_admin) return NextResponse.json({ error: "Sem permissão para Sobreposições." }, { status: 403 });
 
-  const { chaveLocal, status, observacao } = (await request.json()) as {
+  const { chaveLocal, status, observacao, destino } = (await request.json()) as {
     chaveLocal?: string;
     status?: string;
     observacao?: string;
+    destino?: string;
   };
 
   if (!chaveLocal || !STATUS_VALIDOS.includes(status as Status)) {
@@ -35,6 +36,8 @@ export async function POST(request: NextRequest) {
 
   const campos = {
     status,
+    // Par com problema: vai para a aba Pendências (padrão) ou para a aba CGFR. Nos outros status volta ao padrão.
+    destino: status === "problema" && destino === "cgfr" ? "cgfr" : "pendencias",
     observacao: limparTexto(observacao, 2000),
     responsavel_id: resp.responsavelId,
     revisado_por: status === "pendente" ? null : resp.responsavelId,

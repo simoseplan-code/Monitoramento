@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { CheckCircle2, AlertTriangle, Undo2, MapPin, Star, Lock, UserRound, BadgeCheck, MessageSquarePlus } from "lucide-react";
+import { CheckCircle2, AlertTriangle, Undo2, MapPin, Star, Lock, UserRound, BadgeCheck, MessageSquarePlus, Send } from "lucide-react";
 import type { ObraNoLocal } from "@/lib/sobreposicoes/parseCsv";
 import { IdAcaoLink } from "@/components/IdAcaoLink";
 import { MapaSobreposicaoBotao } from "./MapaSobreposicao";
@@ -53,6 +53,7 @@ export function CardSobreposicao({
   responsavelInicial,
   solucionadoPor: solucionadoPorInicial,
   solucao: solucaoInicial,
+  destino: destinoInicial,
   usuario,
   ehAdmin,
   equipe,
@@ -71,6 +72,8 @@ export function CardSobreposicao({
   responsavelInicial: PessoaEquipe | null;
   solucionadoPor: { nome: string; em: string | null } | null;
   solucao: string | null;
+  /** Para onde o par com problema foi: aba Pendências ou aba CGFR. */
+  destino: "pendencias" | "cgfr";
   usuario: PessoaEquipe;
   ehAdmin: boolean;
   equipe: PessoaEquipe[];
@@ -91,7 +94,8 @@ export function CardSobreposicao({
   // "escrevendo": campo de comentário aberto para a decisão escolhida
   // (ok ou problema), os dois botões passam pelo mesmo campo.
   const [etapa, setEtapa] = useState<"fechado" | "escrevendo">("fechado");
-  const [decisao, setDecisao] = useState<"ok" | "problema">("problema");
+  const [decisao, setDecisao] = useState<"ok" | "problema" | "cgfr">("problema");
+  const [destino, setDestino] = useState<"pendencias" | "cgfr">(destinoInicial);
   const [observacao, setObservacao] = useState(observacaoInicial ?? "");
   // Observações acrescentadas depois (cada uma com data e nome), sem apagar as anteriores.
   const [observacaoLocal, setObservacaoLocal] = useState(observacaoInicial);
@@ -100,14 +104,14 @@ export function CardSobreposicao({
   const [salvandoObs, setSalvandoObs] = useState(false);
   const [salvando, setSalvando] = useState(false);
 
-  async function salvar(novoStatus: StatusRevisao, obs?: string) {
+  async function salvar(novoStatus: StatusRevisao, obs?: string, novoDestino: "pendencias" | "cgfr" = "pendencias") {
     setSalvando(true);
     setErro(null);
     try {
       const resp = await fetch("/api/sobreposicoes/status", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ chaveLocal, status: novoStatus, observacao: obs ?? "" }),
+        body: JSON.stringify({ chaveLocal, status: novoStatus, observacao: obs ?? "", destino: novoDestino }),
       });
       const json = (await resp.json().catch(() => ({}))) as { error?: string; responsavelId?: string };
       if (!resp.ok) {
@@ -119,6 +123,7 @@ export function CardSobreposicao({
         setResponsavel(json.responsavelId === usuario.id ? usuario : (equipe.find((p) => p.id === json.responsavelId) ?? responsavel));
       }
       setStatus(novoStatus);
+      setDestino(novoStatus === "problema" ? novoDestino : "pendencias");
       setEtapa("fechado");
       router.refresh();
     } catch {
@@ -216,7 +221,9 @@ export function CardSobreposicao({
         status === "ok"
           ? "border-status-good/20 bg-status-good-bg"
           : status === "problema"
-            ? "border-status-warning/20 bg-status-warning-bg"
+            ? destino === "cgfr"
+              ? "border-status-critical/25 bg-status-critical-bg"
+              : "border-status-warning/20 bg-status-warning-bg"
             : status === "solucionado"
               ? "border-series-7/20 bg-series-7/5"
               : "border-black/5 bg-surface"
@@ -227,6 +234,11 @@ export function CardSobreposicao({
           <p className="text-sm font-semibold text-ink-primary">
             {obras.length} obras envolvidas · {extensaoM != null ? `${Math.round(extensaoM).toLocaleString("pt-BR")} m` : "-"} sobrepostos
             {qtdTrechos > 1 && <span className="ml-1.5 rounded-full bg-series-1/10 px-2 py-0.5 text-[11px] font-semibold text-series-1">{qtdTrechos} trechos</span>}
+            {destino === "cgfr" && (status === "problema" || status === "solucionado") && (
+              <span className="ml-1.5 inline-flex items-center gap-1 rounded-full bg-status-critical px-2 py-0.5 text-[11px] font-semibold text-white">
+                <Send size={10} /> CGFR
+              </span>
+            )}
           </p>
           <p className="text-xs text-ink-muted">
             Tolerância {toleranciaM ?? "-"} m · {qtdTrechos} trecho(s) neste par de obras
@@ -253,6 +265,17 @@ export function CardSobreposicao({
             >
               <BadgeCheck size={13} />
               Solucionado
+            </button>
+          )}
+          {status === "problema" && solucionando === 0 && !bloqueado && (
+            <button
+              onClick={() => salvar("problema", observacaoLocal ?? "", destino === "cgfr" ? "pendencias" : "cgfr")}
+              disabled={salvando}
+              className="flex items-center gap-1.5 rounded-full bg-white/70 px-3 py-1.5 text-xs font-medium text-ink-secondary hover:bg-white disabled:opacity-50"
+              title={destino === "cgfr" ? "Tira do CGFR e devolve para a aba Pendências" : "Envia este par para a aba CGFR"}
+            >
+              <Send size={12} />
+              {destino === "cgfr" ? "Voltar às Pendências" : "Enviar ao CGFR"}
             </button>
           )}
           {status === "problema" && solucionando === 1 && (
@@ -473,6 +496,18 @@ export function CardSobreposicao({
             <AlertTriangle size={13} />
             Tem problema
           </button>
+          <button
+            onClick={() => {
+              setDecisao("cgfr");
+              setEtapa("escrevendo");
+            }}
+            disabled={salvando}
+            className="flex items-center gap-1.5 rounded-full bg-status-critical px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50"
+            title="Envia o par para a aba CGFR"
+          >
+            <Send size={13} />
+            CGFR
+          </button>
         </div>
       )}
 
@@ -481,20 +516,20 @@ export function CardSobreposicao({
           <textarea
             value={observacao}
             onChange={(e) => setObservacao(e.target.value)}
-            placeholder={decisao === "ok" ? "Comentário sobre a análise (opcional)" : "O que está errado aqui? (opcional)"}
+            placeholder={decisao === "ok" ? "Comentário sobre a análise (opcional)" : decisao === "cgfr" ? "O que o CGFR precisa resolver? (opcional)" : "O que está errado aqui? (opcional)"}
             rows={2}
             autoFocus
             className="w-full rounded-lg border border-black/10 bg-plane px-3 py-2 text-xs text-ink-primary placeholder:text-ink-muted focus:border-series-1 focus:outline-none"
           />
           <div className="flex gap-2">
             <button
-              onClick={() => salvar(decisao, observacao)}
+              onClick={() => (decisao === "cgfr" ? salvar("problema", observacao, "cgfr") : salvar(decisao, observacao))}
               disabled={salvando}
               className={`rounded-full px-3 py-1.5 text-xs font-semibold text-white hover:opacity-90 disabled:opacity-50 ${
-                decisao === "ok" ? "bg-status-good" : "bg-status-warning"
+                decisao === "ok" ? "bg-status-good" : decisao === "cgfr" ? "bg-status-critical" : "bg-status-warning"
               }`}
             >
-              {salvando ? "Salvando..." : decisao === "ok" ? "Confirmar sem problema" : "Confirmar problema"}
+              {salvando ? "Salvando..." : decisao === "ok" ? "Confirmar sem problema" : decisao === "cgfr" ? "Confirmar envio ao CGFR" : "Confirmar problema"}
             </button>
             <button
               onClick={() => setEtapa("fechado")}

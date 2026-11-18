@@ -45,13 +45,14 @@ export async function aplicarLocais(supabase: SupabaseClient, locais: Sobreposic
     solucionado_por: string | null;
     solucionado_em: string | null;
     solucao: string | null;
+    destino: string | null;
     atualizado_em: string | null;
   };
   const existentes: Existente[] = [];
   for (let de = 0; ; de += 1000) {
     const { data, error } = await supabase
       .from("sobreposicoes")
-      .select("chave_local, chave_obras, status, observacao, responsavel_id, revisado_por, revisado_em, solucionado_por, solucionado_em, solucao, atualizado_em")
+      .select("chave_local, chave_obras, status, observacao, responsavel_id, revisado_por, revisado_em, solucionado_por, solucionado_em, solucao, destino, atualizado_em")
       .order("chave_local")
       .range(de, de + 999);
     if (error) {
@@ -84,6 +85,7 @@ export async function aplicarLocais(supabase: SupabaseClient, locais: Sobreposic
     solucionado_por: m.solucionado_por,
     solucionado_em: m.solucionado_em,
     solucao: m.solucao,
+    destino: m.destino ?? "pendencias",
   });
   // Combinações de obras que continuam aparecendo no CSV novo.
   const obrasNoCsv = new Set(locais.map((l) => chaveObras(l.obras)).filter(Boolean));

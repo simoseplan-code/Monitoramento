@@ -8,7 +8,7 @@ import { BarraSobreposicoes, FiltrosLaterais } from "./FiltrosSobreposicoes";
 import { PainelPendencias, type LinhaPainel } from "./PainelPendencias";
 import { Paginacao } from "@/components/Paginacao";
 import type { ObraNoLocal } from "@/lib/sobreposicoes/parseCsv";
-import { lerFiltros, paramsDe, type ParamsBrutos } from "@/lib/sobreposicoes/filtros";
+import { destinoDaAba, lerFiltros, paramsDe, type ParamsBrutos } from "@/lib/sobreposicoes/filtros";
 
 const PAGE_SIZE = 30;
 
@@ -30,6 +30,7 @@ type LinhaPar = {
   solucionado_por_nome: string | null;
   solucionado_em: string | null;
   solucao: string | null;
+  destino: "pendencias" | "cgfr";
   total_geral: number;
 };
 
@@ -56,7 +57,9 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
     pct_max: f.pctMax ? Number(f.pctMax) : null,
     busca: f.busca || null,
   });
-  const nasPendencias = f.aba === "pendencias";
+  // Pendências e CGFR são duas listas iguais de pares com problema, separadas pelo destino escolhido na análise.
+  const nasPendencias = f.aba !== "analise";
+  const destino = destinoDaAba(f.aba);
   const outroGrupo = f.grupo === "concluidas" ? "andamento" : "concluidas";
   // A função de resumo devolve os dois grupos juntos, então não recebe o filtro de grupo.
   // eslint-disable-next-line @typescript-eslint/no-unused-vars
@@ -85,8 +88,8 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
     // Números das abas de status e dos dois grupos, de uma vez: seguem os filtros da lateral.
     supabase.rpc("sobreposicoes_pares_resumo", semGrupo),
     // Só na aba Pendências: resumo por órgão (um registro de total e um por órgão).
-    nasPendencias ? supabase.rpc("sobreposicoes_pendencias_painel", { ...semGrupo, filtro_status: f.status }) : Promise.resolve({ data: null }),
-    supabase.rpc("sobreposicoes_pares_lista", { ...comuns(nasPendencias ? "" : f.grupo), filtro_status: f.status, pagina: paginaAtual, tamanho: PAGE_SIZE }),
+    nasPendencias ? supabase.rpc("sobreposicoes_pendencias_painel", { ...semGrupo, filtro_status: f.status, destino_filtro: destino }) : Promise.resolve({ data: null }),
+    supabase.rpc("sobreposicoes_pares_lista", { ...comuns(nasPendencias ? "" : f.grupo), filtro_status: f.status, destino_filtro: nasPendencias ? destino : "pendencias", pagina: paginaAtual, tamanho: PAGE_SIZE }),
     supabase.rpc("sobreposicoes_orgaos"),
     supabase.rpc("sobreposicoes_anos"),
     supabase.rpc("sobreposicoes_tipologias"),
@@ -129,8 +132,8 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
   }));
   const totalFiltrado = linhas[0]?.total_geral ?? 0;
   const totalPaginas = Math.max(1, Math.ceil(totalFiltrado / PAGE_SIZE));
-  type Resumo = { concluidas: boolean; pendente: number | string; ok: number | string; problema: number | string; solucionado: number | string };
-  const resumo = (concluidas: boolean) => ((resumoRpc ?? []) as Resumo[]).find((r) => r.concluidas === concluidas);
+  type Resumo = { concluidas: boolean; destino: string; pendente: number | string; ok: number | string; problema: number | string; solucionado: number | string };
+  const resumo = (concluidas: boolean, d: "pendencias" | "cgfr" = "pendencias") => ((resumoRpc ?? []) as Resumo[]).find((r) => r.concluidas === concluidas && r.destino === d);
   const doGrupo = resumo(f.grupo === "concluidas");
   const doOutro = resumo(f.grupo !== "concluidas");
   const contagens = {
@@ -141,10 +144,12 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
   };
 
   // Pendências somam os dois grupos (em andamento e concluída).
-  const pendencias = {
-    aguardando: Number(resumo(false)?.problema ?? 0) + Number(resumo(true)?.problema ?? 0),
-    solucionados: Number(resumo(false)?.solucionado ?? 0) + Number(resumo(true)?.solucionado ?? 0),
-  };
+  const somaDestino = (d: "pendencias" | "cgfr") => ({
+    aguardando: Number(resumo(false, d)?.problema ?? 0) + Number(resumo(true, d)?.problema ?? 0),
+    solucionados: Number(resumo(false, d)?.solucionado ?? 0) + Number(resumo(true, d)?.solucionado ?? 0),
+  });
+  const pendencias = somaDestino("pendencias");
+  const cgfr = somaDestino("cgfr");
 
   return (
     <AppShell
@@ -158,7 +163,7 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
         sobreposicoesPendentes: Number(totalPendentes ?? 0),
       }}
       titulo="Sobreposições"
-      subtitulo={`${nasPendencias ? "Pendências" : f.grupo === "concluidas" ? "Concluída × Concluída" : "Em andamento"}: ${totalFiltrado} par(es) de obras, ${{ pendente: "aguardando revisão", ok: "sem problema", problema: "com problema", solucionado: "solucionado" }[f.status]}`}
+      subtitulo={`${nasPendencias ? (f.aba === "cgfr" ? "CGFR" : "Pendências") : f.grupo === "concluidas" ? "Concluída × Concluída" : "Em andamento"}: ${totalFiltrado} par(es) de obras, ${{ pendente: "aguardando revisão", ok: "sem problema", problema: "com problema", solucionado: "solucionado" }[f.status]}`}
     >
       <div className="mb-4 space-y-3">
         <AtualizarDoMapa />
@@ -172,7 +177,7 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
       )}
 
       <div className="mb-4">
-        <BarraSobreposicoes filtros={f} contagens={contagens} pendentesPorGrupo={{ [f.grupo]: contagens.pendente, [outroGrupo]: Number(doOutro?.pendente ?? 0) }} pendencias={pendencias} />
+        <BarraSobreposicoes filtros={f} contagens={contagens} pendentesPorGrupo={{ [f.grupo]: contagens.pendente, [outroGrupo]: Number(doOutro?.pendente ?? 0) }} pendencias={pendencias} cgfr={cgfr} />
       </div>
 
       {nasPendencias && <PainelPendencias filtros={f} linhas={(painelRpc ?? []) as LinhaPainel[]} />}
@@ -203,6 +208,7 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
               observacaoInicial={l.observacao}
               solucionadoPor={l.solucionado_por_nome ? { nome: l.solucionado_por_nome, em: l.solucionado_em } : null}
               solucao={l.solucao}
+              destino={l.destino}
               responsavelInicial={l.responsavel_id ? { id: l.responsavel_id, nome: l.responsavel_nome ?? "-" } : null}
               usuario={usuario}
               ehAdmin={ehAdmin}
@@ -212,7 +218,7 @@ export default async function SobreposicoesPage({ searchParams }: { searchParams
 
           {linhas.length === 0 && (
             <div className="rounded-xl border border-black/5 bg-surface p-10 text-center shadow-card">
-              <p className="text-sm text-ink-muted">{nasPendencias ? "Nenhuma pendência nesta lista com esses filtros." : f.status === "pendente" ? "Nenhuma sobreposição pendente com esses filtros." : "Nenhum par nesta lista com esses filtros."}</p>
+              <p className="text-sm text-ink-muted">{nasPendencias ? (f.aba === "cgfr" ? "Nada no CGFR nesta lista com esses filtros." : "Nenhuma pendência nesta lista com esses filtros.") : f.status === "pendente" ? "Nenhuma sobreposição pendente com esses filtros." : "Nenhum par nesta lista com esses filtros."}</p>
             </div>
           )}
 

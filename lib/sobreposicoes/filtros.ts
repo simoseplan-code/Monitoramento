@@ -2,8 +2,8 @@
 // copiar o link, abrir em outra aba e a paginação mantém os filtros.
 
 export type FiltrosSobre = {
-  /** "analise": fila de análise (em andamento / concluída). "pendencias": pares com problema, a resolver. */
-  aba: "analise" | "pendencias";
+  /** "analise": fila de análise. "pendencias" e "cgfr": pares com problema, a resolver, por destino. */
+  aba: "analise" | "pendencias" | "cgfr";
   status: "pendente" | "ok" | "problema" | "solucionado";
   grupo: "andamento" | "concluidas";
   orgaos: string[];
@@ -40,11 +40,11 @@ const numero = (v?: string) => {
 };
 
 export function lerFiltros(p: ParamsBrutos): FiltrosSobre {
-  const aba = p.aba === "pendencias" ? "pendencias" : "analise";
+  const aba = p.aba === "pendencias" ? "pendencias" : p.aba === "cgfr" ? "cgfr" : "analise";
   return {
     aba,
-    // Nas pendências só existem "com problema" (a resolver) e "solucionado".
-    status: aba === "pendencias" ? (p.status === "solucionado" ? "solucionado" : "problema") : p.status === "ok" || p.status === "problema" || p.status === "solucionado" ? p.status : "pendente",
+    // Nas pendências e no CGFR só existem "com problema" (a resolver) e "solucionado".
+    status: aba !== "analise" ? (p.status === "solucionado" ? "solucionado" : "problema") : p.status === "ok" || p.status === "problema" || p.status === "solucionado" ? p.status : "pendente",
     grupo: p.grupo === "concluidas" ? "concluidas" : "andamento",
     orgaos: lista(p.orgao),
     statusObras: lista(p.statusObra),
@@ -61,8 +61,8 @@ export function lerFiltros(p: ParamsBrutos): FiltrosSobre {
 /** Parâmetros da URL (só o que foge do padrão). */
 export function paramsDe(f: FiltrosSobre): Record<string, string | undefined> {
   return {
-    aba: f.aba === "pendencias" ? "pendencias" : undefined,
-    status: (f.aba === "pendencias" ? f.status !== "problema" : f.status !== "pendente") ? f.status : undefined,
+    aba: f.aba !== "analise" ? f.aba : undefined,
+    status: (f.aba !== "analise" ? f.status !== "problema" : f.status !== "pendente") ? f.status : undefined,
     grupo: f.grupo === "concluidas" ? "concluidas" : undefined,
     orgao: f.orgaos.length ? f.orgaos.join("|") : undefined,
     statusObra: f.statusObras.length ? f.statusObras.join("|") : undefined,
@@ -97,3 +97,6 @@ export function qtdFiltrosAtivos(f: FiltrosSobre): number {
     (f.busca ? 1 : 0)
   );
 }
+
+/** Destino do par com problema: a aba onde ele está. */
+export const destinoDaAba = (aba: FiltrosSobre["aba"]): "pendencias" | "cgfr" => (aba === "cgfr" ? "cgfr" : "pendencias");

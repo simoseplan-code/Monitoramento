@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
-import { AlertTriangle, Filter, Search, X } from "lucide-react";
+import { AlertTriangle, Filter, Search, Send, X } from "lucide-react";
 import { hrefSobre, qtdFiltrosAtivos, type FiltrosSobre } from "@/lib/sobreposicoes/filtros";
 
 const ABAS = [
@@ -26,19 +26,24 @@ export function BarraSobreposicoes({
   contagens,
   pendentesPorGrupo,
   pendencias,
+  cgfr,
 }: {
   filtros: FiltrosSobre;
   contagens: { pendente: number; ok: number; problema: number; solucionado: number };
   pendentesPorGrupo: Record<string, number>;
   /** Total dos dois grupos juntos: pares com problema a resolver e já solucionados. */
   pendencias: { aguardando: number; solucionados: number };
+  /** Pares enviados ao CGFR (mesmos números, outro destino). */
+  cgfr: { aguardando: number; solucionados: number };
 }) {
   const nasPendencias = filtros.aba === "pendencias";
+  const noCgfr = filtros.aba === "cgfr";
+  const numeros = noCgfr ? cgfr : pendencias;
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
         {GRUPOS.map((g) => {
-          const ativo = !nasPendencias && filtros.grupo === g.valor;
+          const ativo = !nasPendencias && !noCgfr && filtros.grupo === g.valor;
           return (
             <Link
               key={g.valor}
@@ -63,13 +68,24 @@ export function BarraSobreposicoes({
           Pendências
           <span className={`tabular rounded-full px-2 py-0.5 text-xs ${nasPendencias ? "bg-white/25 text-white" : "bg-status-warning/15"}`}>{pendencias.aguardando}</span>
         </Link>
+        <Link
+          href={hrefSobre({ ...filtros, aba: "cgfr", status: "problema" })}
+          title="Pares enviados ao CGFR: lista, resumo por órgão e relatórios"
+          className={`flex items-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold transition-colors ${
+            noCgfr ? "border border-status-critical bg-status-critical text-white shadow-card" : "border border-status-critical/40 bg-status-critical-bg text-status-critical hover:bg-status-critical/20"
+          }`}
+        >
+          <Send size={15} />
+          CGFR
+          <span className={`tabular rounded-full px-2 py-0.5 text-xs ${noCgfr ? "bg-white/25 text-white" : "bg-status-critical/15"}`}>{cgfr.aguardando}</span>
+        </Link>
       </div>
 
       <div className="flex flex-wrap gap-2 rounded-xl border border-black/5 bg-surface p-3 shadow-card">
-        {nasPendencias
+        {nasPendencias || noCgfr
           ? ([
-              { valor: "problema", rotulo: "Aguardando solução", n: pendencias.aguardando, ativa: "bg-status-warning text-white" },
-              { valor: "solucionado", rotulo: "Já solucionadas", n: pendencias.solucionados, ativa: "bg-series-7 text-white" },
+              { valor: "problema", rotulo: "Aguardando solução", n: numeros.aguardando, ativa: noCgfr ? "bg-status-critical text-white" : "bg-status-warning text-white" },
+              { valor: "solucionado", rotulo: "Já solucionadas", n: numeros.solucionados, ativa: "bg-series-7 text-white" },
             ] as const).map((a) => (
               <Link
                 key={a.valor}

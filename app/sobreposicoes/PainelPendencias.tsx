@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { AlertTriangle, BadgeCheck, FileSpreadsheet, FileText } from "lucide-react";
 import { hrefSobre, type FiltrosSobre } from "@/lib/sobreposicoes/filtros";
+import { Send } from "lucide-react";
 
 export type LinhaPainel = { tipo: "total" | "orgao"; orgao: string | null; pares: number | string; metros: number | string };
 
@@ -9,6 +10,8 @@ const inteiro = (n: number) => Math.round(n).toLocaleString("pt-BR");
 // Topo da aba Pendências: resumo dos pares com problema, ranking por órgão (clique filtra) e os relatórios.
 export function PainelPendencias({ filtros, linhas }: { filtros: FiltrosSobre; linhas: LinhaPainel[] }) {
   const aguardando = filtros.status === "problema";
+  const cgfr = filtros.aba === "cgfr";
+  const cor = cgfr ? "status-critical" : "status-warning";
   const total = linhas.find((l) => l.tipo === "total");
   const pares = Number(total?.pares ?? 0);
   const metros = Number(total?.metros ?? 0);
@@ -20,28 +23,33 @@ export function PainelPendencias({ filtros, linhas }: { filtros: FiltrosSobre; l
 
   // Os relatórios seguem o filtro de órgão da tela (vazio = todos).
   const qsOrgao = filtros.orgaos.length ? `orgao=${encodeURIComponent(filtros.orgaos.join("|"))}` : "";
-  const hrefExcel = `/api/relatorios?tipo=sobreposicoes_problemas${qsOrgao ? `&${qsOrgao}` : ""}`;
-  const hrefPdf = `/api/relatorios/sobreposicoes-problemas${qsOrgao ? `?${qsOrgao}` : ""}`;
+  const qsDestino = cgfr ? "destino=cgfr" : "";
+  const hrefExcel = `/api/relatorios?tipo=sobreposicoes_problemas${[qsOrgao, qsDestino].filter(Boolean).map((q) => `&${q}`).join("")}`;
+  const hrefPdf = `/api/relatorios/sobreposicoes-problemas${[qsOrgao, qsDestino].filter(Boolean).length ? `?${[qsOrgao, qsDestino].filter(Boolean).join("&")}` : ""}`;
 
   return (
-    <section className={`mb-4 overflow-hidden rounded-xl border bg-surface shadow-card ${aguardando ? "border-status-warning/30" : "border-series-7/30"}`}>
-      <div className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 ${aguardando ? "bg-status-warning-bg" : "bg-series-7/5"}`}>
+    <section className={`mb-4 overflow-hidden rounded-xl border bg-surface shadow-card ${aguardando ? (cgfr ? "border-status-critical/30" : "border-status-warning/30") : "border-series-7/30"}`}>
+      <div className={`flex flex-wrap items-center justify-between gap-3 px-4 py-3 ${aguardando ? (cgfr ? "bg-status-critical-bg" : "bg-status-warning-bg") : "bg-series-7/5"}`}>
         <div className="flex items-center gap-3">
-          <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-white ${aguardando ? "bg-status-warning" : "bg-series-7"}`}>
-            {aguardando ? <AlertTriangle size={18} /> : <BadgeCheck size={18} />}
+          <span className={`flex h-9 w-9 items-center justify-center rounded-xl text-white ${aguardando ? (cgfr ? "bg-status-critical" : "bg-status-warning") : "bg-series-7"}`}>
+            {aguardando ? cgfr ? <Send size={18} /> : <AlertTriangle size={18} /> : <BadgeCheck size={18} />}
           </span>
           <div>
-            <p className="text-sm font-semibold text-ink-primary">{aguardando ? "Pendências de sobreposição" : "Pendências já solucionadas"}</p>
+            <p className="text-sm font-semibold text-ink-primary">{aguardando ? (cgfr ? "Enviadas ao CGFR" : "Pendências de sobreposição") : cgfr ? "CGFR: já solucionadas" : "Pendências já solucionadas"}</p>
             <p className="text-xs text-ink-muted">
               {aguardando
-                ? "Pares de obras marcados COM PROBLEMA, aguardando solução. Quando resolver, clique em Solucionado no cartão."
-                : "Pares que tinham problema e foram marcados como solucionados."}
+                ? cgfr
+                  ? "Pares de obras enviados ao CGFR, aguardando solução. Quando resolver, clique em Solucionado no cartão."
+                  : "Pares de obras marcados COM PROBLEMA, aguardando solução. Quando resolver, clique em Solucionado no cartão."
+                : cgfr
+                  ? "Pares enviados ao CGFR que foram marcados como solucionados."
+                  : "Pares que tinham problema e foram marcados como solucionados."}
             </p>
           </div>
         </div>
         {aguardando && (
           <div className="flex flex-wrap items-center gap-2">
-            <span className="text-[11px] text-ink-muted">{filtros.orgaos.length ? `Relatório do filtro de órgão (${filtros.orgaos.length})` : "Relatório de todas as pendências"}</span>
+            <span className="text-[11px] text-ink-muted">{filtros.orgaos.length ? `Relatório do filtro de órgão (${filtros.orgaos.length})` : cgfr ? "Relatório de tudo que está no CGFR" : "Relatório de todas as pendências"}</span>
             <a href={hrefExcel} className="inline-flex items-center gap-1.5 rounded-full bg-status-good px-3.5 py-2 text-xs font-semibold text-white hover:opacity-90">
               <FileSpreadsheet size={14} /> Excel
             </a>
@@ -55,7 +63,7 @@ export function PainelPendencias({ filtros, linhas }: { filtros: FiltrosSobre; l
       <div className="grid gap-4 p-4 lg:grid-cols-[minmax(0,260px)_1fr]">
         <div className="grid grid-cols-3 gap-2 lg:grid-cols-1">
           {[
-            { rotulo: aguardando ? "Pares com problema" : "Pares solucionados", valor: inteiro(pares), cor: aguardando ? "text-status-warning" : "text-series-7" },
+            { rotulo: aguardando ? (cgfr ? "Pares no CGFR" : "Pares com problema") : "Pares solucionados", valor: inteiro(pares), cor: aguardando ? (cgfr ? "text-status-critical" : "text-status-warning") : "text-series-7" },
             { rotulo: "Metros sobrepostos", valor: `${inteiro(metros)} m`, cor: "text-ink-primary" },
             { rotulo: "Órgãos envolvidos", valor: inteiro(orgaos.length), cor: "text-ink-primary" },
           ].map((k) => (
@@ -72,7 +80,7 @@ export function PainelPendencias({ filtros, linhas }: { filtros: FiltrosSobre; l
             <p className="text-[10px] text-ink-muted">Um par conta para cada órgão envolvido · clique para filtrar</p>
           </div>
           {orgaos.length === 0 ? (
-            <p className="rounded-lg bg-plane px-3 py-4 text-center text-xs text-ink-muted">{aguardando ? "Nenhuma pendência com esses filtros. 🎉" : "Nenhum par solucionado com esses filtros."}</p>
+            <p className="rounded-lg bg-plane px-3 py-4 text-center text-xs text-ink-muted">{aguardando ? (cgfr ? "Nada enviado ao CGFR com esses filtros." : "Nenhuma pendência com esses filtros. 🎉") : "Nenhum par solucionado com esses filtros."}</p>
           ) : (
             <ul className="grid max-h-60 gap-x-4 gap-y-1 overflow-y-auto pr-1 md:grid-cols-2 [scrollbar-width:thin]">
               {orgaos.map((o) => {
@@ -91,7 +99,7 @@ export function PainelPendencias({ filtros, linhas }: { filtros: FiltrosSobre; l
                         </span>
                       </div>
                       <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-black/5">
-                        <div className={`h-full rounded-full ${aguardando ? "bg-status-warning" : "bg-series-7"}`} style={{ width: `${Math.max(4, (o.pares / maximo) * 100)}%` }} />
+                        <div className={`h-full rounded-full ${aguardando ? (cgfr ? "bg-status-critical" : "bg-status-warning") : "bg-series-7"}`} style={{ width: `${Math.max(4, (o.pares / maximo) * 100)}%` }} />
                       </div>
                     </Link>
                   </li>
