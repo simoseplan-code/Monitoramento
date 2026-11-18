@@ -37,7 +37,7 @@ export default async function handler(req: NextApiRequest, res: NextApiResponse)
     const orgaoParam = Array.isArray(req.query.orgao) ? req.query.orgao[0] : req.query.orgao;
     const orgaos = (orgaoParam ?? "").split("|").map((o) => o.trim()).filter(Boolean);
     const destino = (Array.isArray(req.query.destino) ? req.query.destino[0] : req.query.destino) === "cgfr" ? "cgfr" : "pendencias";
-    const pares = (await buscarParesComProblema(supabase, orgaos, destino)).sort((a, b) => (b.extensaoM ?? 0) - (a.extensaoM ?? 0));
+    const pares = (await buscarParesComProblema(supabase, orgaos, destino, (Array.isArray(req.query.semvic) ? req.query.semvic[0] : req.query.semvic) === "1")).sort((a, b) => (b.extensaoM ?? 0) - (a.extensaoM ?? 0));
     const geradoEm = new Date().toLocaleString("pt-BR", { timeZone: "America/Fortaleza", dateStyle: "short", timeStyle: "short" });
     const buffer = await renderToBuffer(createElement(SobreposicoesProblemasPdf, { pares, geradoEm, orgaosFiltro: orgaos, destino }) as Parameters<typeof renderToBuffer>[0]);
     const hoje = new Date(Date.now() - 3 * 3600 * 1000).toISOString().slice(0, 10);

@@ -249,7 +249,7 @@ export function FiltrosLaterais({
   const mudou = hrefSobre(rascunho) !== chave;
   const ativos = qtdFiltrosAtivos(filtros);
   const aplicar = () => router.push(hrefSobre(rascunho));
-  const limpar = () => router.push(hrefSobre({ ...filtros, orgaos: [], statusObras: [], tipologias: [], anos: [], tipologiaTodas: "", ocultarEstradaVicinal: false, pctMin: "", pctMax: "", busca: "" }));
+  const limpar = () => router.push(hrefSobre({ ...filtros, orgaos: [], statusObras: [], tipologias: [], anos: [], tipologiaTodas: "", ocultarEstradaVicinal: false, semVicinais: false, pctMin: "", pctMax: "", busca: "" }));
 
   return (
     <aside className="sticky top-3 max-h-[calc(100vh-1.5rem)] w-64 shrink-0 space-y-2 overflow-y-auto rounded-xl border border-black/5 bg-surface p-3 shadow-card [scrollbar-width:thin]">
@@ -319,6 +319,14 @@ export function FiltrosLaterais({
       <label className="flex items-center gap-2 text-xs text-ink-secondary">
         <input type="checkbox" checked={!rascunho.ocultarEstradaVicinal} onChange={(e) => setRascunho({ ...rascunho, ocultarEstradaVicinal: !e.target.checked })} />
         Mostrar Estrada Vicinal × Estrada Vicinal
+      </label>
+
+      <label className="flex items-start gap-2 rounded-lg border border-status-warning/30 bg-status-warning-bg px-2.5 py-2 text-xs font-semibold text-ink-primary" title="Esconde todo par em que pelo menos uma das obras é Estrada Vicinal (não só quando as duas são)">
+        <input type="checkbox" checked={rascunho.semVicinais} onChange={(e) => setRascunho({ ...rascunho, semVicinais: e.target.checked })} className="mt-0.5" />
+        <span>
+          Tirar TODAS as vicinais da análise
+          <span className="block font-normal text-ink-muted">Some qualquer par que tenha uma Estrada Vicinal.</span>
+        </span>
       </label>
 
       <button

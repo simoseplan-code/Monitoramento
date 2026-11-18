@@ -40,10 +40,10 @@ type LinhaRpc = {
 
 type ObraViva = { id_acao: string; status: string | null; percentual_execucao: number | null; numero_automatico: string | null; numero_siafe: string | null };
 
-export async function buscarParesComProblema(supabase: SupabaseClient, orgaos: string[] = [], destino: "pendencias" | "cgfr" = "pendencias"): Promise<ParComProblema[]> {
+export async function buscarParesComProblema(supabase: SupabaseClient, orgaos: string[] = [], destino: "pendencias" | "cgfr" = "pendencias", semVicinais = false): Promise<ParComProblema[]> {
   const linhas: LinhaRpc[] = [];
   for (let pagina = 1; ; pagina++) {
-    const { data, error } = await supabase.rpc("sobreposicoes_pares_lista", { filtro_status: "problema", grupo_situacao: "", orgaos_filtro: orgaos.length ? orgaos : null, destino_filtro: destino, pagina, tamanho: 500 });
+    const { data, error } = await supabase.rpc("sobreposicoes_pares_lista", { filtro_status: "problema", grupo_situacao: "", orgaos_filtro: orgaos.length ? orgaos : null, destino_filtro: destino, sem_vicinais: semVicinais, pagina, tamanho: 500 });
     if (error) throw new Error(error.message);
     const lote = (data ?? []) as LinhaRpc[];
     linhas.push(...lote);

@@ -23,9 +23,9 @@ export function PainelPendencias({ filtros, linhas }: { filtros: FiltrosSobre; l
 
   // Os relatórios seguem o filtro de órgão da tela (vazio = todos).
   const qsOrgao = filtros.orgaos.length ? `orgao=${encodeURIComponent(filtros.orgaos.join("|"))}` : "";
-  const qsDestino = cgfr ? "destino=cgfr" : "";
-  const hrefExcel = `/api/relatorios?tipo=sobreposicoes_problemas${[qsOrgao, qsDestino].filter(Boolean).map((q) => `&${q}`).join("")}`;
-  const hrefPdf = `/api/relatorios/sobreposicoes-problemas${[qsOrgao, qsDestino].filter(Boolean).length ? `?${[qsOrgao, qsDestino].filter(Boolean).join("&")}` : ""}`;
+  const extras = [qsOrgao, cgfr ? "destino=cgfr" : "", filtros.semVicinais ? "semvic=1" : ""].filter(Boolean);
+  const hrefExcel = `/api/relatorios?tipo=sobreposicoes_problemas${extras.map((q) => `&${q}`).join("")}`;
+  const hrefPdf = `/api/relatorios/sobreposicoes-problemas${extras.length ? `?${extras.join("&")}` : ""}`;
 
   return (
     <section className={`mb-4 overflow-hidden rounded-xl border bg-surface shadow-card ${aguardando ? (cgfr ? "border-status-critical/30" : "border-status-warning/30") : "border-series-7/30"}`}>

@@ -12,6 +12,8 @@ export type FiltrosSobre = {
   anos: string[];
   tipologiaTodas: string;
   ocultarEstradaVicinal: boolean;
+  /** Tira da análise todo par em que ao menos uma obra é Estrada Vicinal. */
+  semVicinais: boolean;
   pctMin: string;
   pctMax: string;
   busca: string;
@@ -28,6 +30,7 @@ export type ParamsBrutos = {
   ano?: string;
   tipologiaTodas?: string;
   ocultarEstradaVicinal?: string;
+  semVicinais?: string;
   pctMin?: string;
   pctMax?: string;
   busca?: string;
@@ -53,6 +56,7 @@ export function lerFiltros(p: ParamsBrutos): FiltrosSobre {
     anos: lista(p.ano).filter((a) => /^\d{4}$/.test(a)),
     tipologiaTodas: p.tipologiaTodas ?? "",
     ocultarEstradaVicinal: p.ocultarEstradaVicinal === "1",
+    semVicinais: p.semVicinais === "1",
     pctMin: numero(p.pctMin),
     pctMax: numero(p.pctMax),
     busca: (p.busca ?? "").trim().slice(0, 80),
@@ -73,6 +77,7 @@ export function paramsDe(f: FiltrosSobre): Record<string, string | undefined> {
     ano: f.anos.length ? f.anos.join("|") : undefined,
     tipologiaTodas: f.tipologiaTodas || undefined,
     ocultarEstradaVicinal: f.ocultarEstradaVicinal ? "1" : undefined,
+    semVicinais: f.semVicinais ? "1" : undefined,
     pctMin: f.pctMin || undefined,
     pctMax: f.pctMax || undefined,
     busca: f.busca || undefined,
@@ -95,6 +100,7 @@ export function qtdFiltrosAtivos(f: FiltrosSobre): number {
     (f.anos.length ? 1 : 0) +
     (f.tipologiaTodas ? 1 : 0) +
     (f.ocultarEstradaVicinal ? 1 : 0) +
+    (f.semVicinais ? 1 : 0) +
     (f.pctMin ? 1 : 0) +
     (f.pctMax ? 1 : 0) +
     (f.busca ? 1 : 0)
@@ -107,7 +113,7 @@ export const destinoDaAba = (aba: FiltrosSobre["aba"]): "pendencias" | "cgfr" =>
 // ---------- filtro gravado (um só, vale para todos; mesma tabela filtros_salvos das outras telas) ----------
 export const TELA_FILTRO = "sobreposicoes";
 
-export type FiltroGravado = Pick<FiltrosSobre, "orgaos" | "statusObras" | "tipologias" | "anos" | "tipologiaTodas" | "ocultarEstradaVicinal" | "pctMin" | "pctMax" | "busca">;
+export type FiltroGravado = Pick<FiltrosSobre, "orgaos" | "statusObras" | "tipologias" | "anos" | "tipologiaTodas" | "ocultarEstradaVicinal" | "semVicinais" | "pctMin" | "pctMax" | "busca">;
 
 /** Só os filtros da lateral entram no gravado (aba, status e grupo continuam sendo da navegação). */
 export function paraGravar(f: FiltrosSobre): FiltroGravado {
@@ -118,6 +124,7 @@ export function paraGravar(f: FiltrosSobre): FiltroGravado {
     anos: [...f.anos].sort(),
     tipologiaTodas: f.tipologiaTodas,
     ocultarEstradaVicinal: f.ocultarEstradaVicinal,
+    semVicinais: f.semVicinais,
     pctMin: f.pctMin,
     pctMax: f.pctMax,
     busca: f.busca,
@@ -135,6 +142,7 @@ export function lerGravado(estado: unknown): FiltroGravado | null {
     anos: textos(e.anos),
     tipologiaTodas: typeof e.tipologiaTodas === "string" ? e.tipologiaTodas : "",
     ocultarEstradaVicinal: e.ocultarEstradaVicinal === true,
+    semVicinais: e.semVicinais === true,
     pctMin: typeof e.pctMin === "string" ? e.pctMin : "",
     pctMax: typeof e.pctMax === "string" ? e.pctMax : "",
     busca: typeof e.busca === "string" ? e.busca : "",
